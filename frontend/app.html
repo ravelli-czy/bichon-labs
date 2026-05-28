@@ -268,6 +268,8 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="fin-row"><span class="fin-label">💰 Ventas</span><span class="fin-value text-green" id="d-rev2">$0</span></div>
       <div class="fin-row"><span class="fin-label font-bold">📈 Utilidad</span><span class="fin-value" id="d-profit">$0</span></div>
     </div>
+    <div id="home-inventory-widget"></div>
+    <div id="home-orders-widget"></div>
   </div>
 
   <!-- INVENTARIO -->
@@ -502,6 +504,18 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   </div>
 </div>
 
+<!-- SHEET: DETALLE ORDEN -->
+<div class="sheet-overlay hidden" id="sheet-orden-detalle">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title" id="orden-detalle-title"><i class="ti ti-receipt" style="color:var(--green-dark)"></i> Detalle</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-orden-detalle')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content" id="orden-detalle-content"></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -602,6 +616,45 @@ function renderHome() {
   const bell = document.getElementById('bell-badge');
   bell.style.display = alerts.length ? '' : 'none';
   bell.textContent = alerts.length;
+
+  // Inventory widget: show products needing attention first, then normal
+  const alertedProds = S.products.filter(p => alertLevel(p)).sort((a,b) => a.stock-b.stock);
+  const normalProds  = S.products.filter(p => !alertLevel(p));
+  const showProds    = (alertedProds.length ? alertedProds.slice(0,4) : normalProds.slice(0,4));
+  const invWrap = document.getElementById('home-inventory-widget');
+  if (showProds.length) {
+    invWrap.innerHTML = `<div class="card">
+      <div class="card-title"><i class="ti ti-box" style="color:var(--primary)"></i>Inventario
+        <button style="margin-left:auto;background:none;border:none;color:var(--primary);font-size:12px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif"
+          onclick="Array.from(document.querySelectorAll('.nav-tab')).find(t=>t.getAttribute('onclick')?.includes('inventory'))?.click()">Ver todo →</button>
+      </div>
+      ${showProds.map(p => prodRow(p)).join('')}
+    </div>`;
+  } else invWrap.innerHTML = '';
+
+  // Orders widget
+  const ordWrap = document.getElementById('home-orders-widget');
+  if (S.ventas.length) {
+    const deliveryIcons2 = { store_pickup:'ti-building-store', home_delivery:'ti-home', pickup_point:'ti-map-pin', express:'ti-bolt' };
+    const recent = [...S.ventas].reverse().slice(0,4);
+    ordWrap.innerHTML = `<div class="card">
+      <div class="card-title"><i class="ti ti-shopping-bag" style="color:var(--green-dark)"></i>Últimas ventas
+        <button style="margin-left:auto;background:none;border:none;color:var(--primary);font-size:12px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif"
+          onclick="Array.from(document.querySelectorAll('.nav-tab')).find(t=>t.getAttribute('onclick')?.includes('ventas'))?.click()">Ver todas →</button>
+      </div>
+      ${recent.map(v => {
+        const dv = v.delivery || {};
+        const ic = deliveryIcons2[dv.method_type] || 'ti-truck-delivery';
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openOrdenDetalle('${v.id}')">
+          <div>
+            <div style="font-size:13px;font-weight:800">${v.cliente||'Cliente'}</div>
+            <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:2px">${v.id} · ${v.fecha}${dv.method_type?` · <i class="ti ${ic}"></i> ${dv.method_label||''}`:''}</div>
+          </div>
+          <div style="font-size:17px;font-weight:900;color:var(--green-dark)">${fmt(v.total)}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  } else ordWrap.innerHTML = '';
 
   const widget = document.getElementById('home-alert-widget');
   if (!alerts.length) { widget.innerHTML = ''; return; }
@@ -754,14 +807,17 @@ function renderVentas() {
         ${dv.address_street ? `<span style="font-size:11px;font-weight:600;color:var(--text3)">${dv.address_street}, ${dv.address_city}</span>` : ''}
       </div>` : '';
     return `
-    <div class="card" style="margin-bottom:10px;padding:14px">
+    <div class="card" style="margin-bottom:10px;padding:14px;cursor:pointer;transition:all .15s" onclick="openOrdenDetalle('${v.id}')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
       <div class="flex justify-between items-center mb-2">
         <div>
           <div style="font-size:13px;font-weight:800;color:var(--primary)">${v.id}</div>
           <div style="font-size:15px;font-weight:800">${v.cliente||'Cliente'}${v.telefono?` <span style="font-size:11px;font-weight:600;color:var(--text3)">${v.telefono}</span>`:''}</div>
           <div style="font-size:11px;color:var(--text3);font-weight:600">${v.fecha}</div>
         </div>
-        <div style="font-size:20px;font-weight:900;color:var(--green-dark)">${fmt(v.total)}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="font-size:20px;font-weight:900;color:var(--green-dark)">${fmt(v.total)}</div>
+          <i class="ti ti-chevron-right" style="font-size:18px;color:var(--text3)"></i>
+        </div>
       </div>
       <div style="font-size:12px;color:var(--text2);font-weight:600">${v.items.map(i=>i.name+' ×'+i.qty).join(' · ')}</div>
       ${deliveryLine}
@@ -1033,6 +1089,53 @@ function saveVenta() {
   if (S.currentPage==='inventory') renderInventory();
 }
 
+// ── ORDEN DETALLE ────────────────────────────
+function openOrdenDetalle(id) {
+  const v = S.ventas.find(x => x.id === id);
+  if (!v) return;
+  const dv = v.delivery || {};
+  const deliveryIcons = { store_pickup:'ti-building-store', home_delivery:'ti-home', pickup_point:'ti-map-pin', express:'ti-bolt' };
+  const icon = deliveryIcons[dv.method_type] || 'ti-truck-delivery';
+
+  document.getElementById('orden-detalle-title').innerHTML = `<i class="ti ti-receipt" style="color:var(--green-dark)"></i> ${v.id}`;
+  document.getElementById('orden-detalle-content').innerHTML = `
+    <div style="background:var(--bg3);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
+      <div style="font-size:17px;font-weight:900">${v.cliente||'Cliente'}</div>
+      ${v.telefono?`<div style="font-size:13px;color:var(--text2);font-weight:600;margin-top:3px"><i class="ti ti-phone" style="font-size:12px"></i> ${v.telefono}</div>`:''}
+      <div style="font-size:12px;color:var(--text3);font-weight:600;margin-top:4px">${v.fecha}</div>
+    </div>
+
+    <div class="section-label"><i class="ti ti-shopping-cart"></i> Productos</div>
+    <div class="card" style="padding:10px 14px;margin-bottom:14px">
+      ${v.items.map(item=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:13px;font-weight:800">${item.name}</div>
+            <div style="font-size:11px;color:var(--text3);font-weight:600">${fmt(item.price)} × ${item.qty}</div>
+          </div>
+          <div style="font-size:14px;font-weight:900;color:var(--green-dark)">${fmt(item.price*item.qty)}</div>
+        </div>`).join('')}
+    </div>
+
+    <div class="section-label"><i class="ti ti-truck-delivery"></i> Entrega</div>
+    <div class="card" style="padding:12px 14px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <i class="ti ${icon}" style="font-size:20px;color:var(--primary)"></i>
+        <span style="font-size:14px;font-weight:800">${dv.method_label||dv.method_type||'No especificado'}</span>
+      </div>
+      ${dv.date?`<div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:4px"><i class="ti ti-calendar" style="font-size:13px"></i> ${new Date(dv.date+'T12:00:00').toLocaleDateString('es-CL',{weekday:'long',day:'2-digit',month:'long'})}</div>`:''}
+      ${dv.slot_from?`<div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:4px"><i class="ti ti-clock" style="font-size:13px"></i> ${dv.slot_label} · ${dv.slot_from}–${dv.slot_to}</div>`:''}
+      ${dv.address_street?`<div style="font-size:13px;font-weight:600;color:var(--text2);margin-top:6px"><i class="ti ti-map-pin" style="font-size:13px"></i> ${dv.address_street}, ${dv.address_city}${dv.address_region?', '+dv.address_region:''}</div>`:''}
+      ${dv.address_notes?`<div style="font-size:12px;font-weight:600;color:var(--text3);margin-top:3px;margin-left:18px">${dv.address_notes}</div>`:''}
+    </div>
+
+    <div class="total-bar">
+      <span style="font-size:14px;font-weight:800;color:var(--green-dark)">Total de la orden</span>
+      <span style="font-size:22px;font-weight:900;color:var(--green-dark)">${fmt(v.total)}</span>
+    </div>`;
+  openSheet('sheet-orden-detalle');
+}
+
 // ── SHEETS ────────────────────────────────────
 function openSheet(id){ document.getElementById(id).classList.remove('hidden'); document.body.style.overflow='hidden'; }
 function closeSheet(id){ document.getElementById(id).classList.add('hidden'); document.body.style.overflow=''; }
@@ -1045,6 +1148,14 @@ function toast(msg){
 }
 
 renderHome();
+
+// Hash navigation: app.html#inventory / app.html#ventas
+const hashPage = { '#inventory':'inventory', '#ventas':'ventas', '#kits':'kits' };
+const initPage = hashPage[location.hash];
+if (initPage) {
+  Array.from(document.querySelectorAll('.nav-tab'))
+    .find(t => t.getAttribute('onclick')?.includes(`'${initPage}'`))?.click();
+}
 </script>
 </body>
 </html>

@@ -179,7 +179,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <!-- TAB: LOCALES -->
   <div id="tab-locales">
     <div id="locales-list"></div>
-    <button class="btn btn-primary" onclick="openSheet('sheet-local')">
+    <button class="btn btn-primary" onclick="openNewLocalSheet()">
       <i class="ti ti-plus"></i> Agregar local
     </button>
   </div>
@@ -198,7 +198,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div class="sheet-handle"></div>
     <div class="sheet-header">
       <div class="sheet-title"><i class="ti ti-building-store" style="color:var(--primary)"></i> Nuevo local</div>
-      <button class="sheet-close" onclick="closeSheet('sheet-local')"><i class="ti ti-x"></i></button>
+      <button class="sheet-close" onclick="closeLocalSheet()"><i class="ti ti-x"></i></button>
     </div>
     <div class="sheet-content">
       <div class="form-group"><div class="form-label">Nombre del local *</div><input class="form-input" id="loc-name" placeholder="Ej: Tienda Centro"></div>
@@ -213,7 +213,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       </div>
     </div>
     <div class="sheet-footer">
-      <button class="btn btn-outline" onclick="closeSheet('sheet-local')" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-outline" onclick="closeLocalSheet()" style="flex:1;width:auto">Cancelar</button>
       <button class="btn btn-primary" onclick="saveLocal()" style="flex:2"><i class="ti ti-check"></i> Guardar</button>
     </div>
   </div>
@@ -380,6 +380,7 @@ const S = {
     },
   ],
   currentLocal: null,
+  editingLocalId: null,
   selectedDays: new Set(),
   order: { step:1, local:null, warehouse:null, method:null, date:null, slot:null }
 };
@@ -397,15 +398,23 @@ function switchTab(tab, el) {
 function renderLocales() {
   const el = document.getElementById('locales-list');
   el.innerHTML = S.locales.map(loc => `
-    <div class="local-card" onclick="selectLocal('${loc.id}')">
-      <div class="lc-header">
-        <div>
+    <div class="local-card">
+      <div class="lc-header" onclick="selectLocal('${loc.id}')" style="cursor:pointer">
+        <div style="flex:1">
           <div class="lc-name">${loc.name}</div>
           <div class="lc-addr"><i class="ti ti-map-pin" style="font-size:12px"></i>${loc.address_street}, ${loc.address_city}</div>
         </div>
-        <i class="ti ti-chevron-right" style="color:var(--text3);font-size:20px;margin-top:4px"></i>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();editLocal('${loc.id}')" title="Editar">
+            <i class="ti ti-pencil"></i>
+          </button>
+          <button class="btn btn-sm" style="background:var(--red-light);color:var(--red);border:none" onclick="event.stopPropagation();deleteLocal('${loc.id}')" title="Eliminar">
+            <i class="ti ti-trash"></i>
+          </button>
+          <i class="ti ti-chevron-right" style="color:var(--text3);font-size:20px" onclick="selectLocal('${loc.id}')"></i>
+        </div>
       </div>
-      <div class="lc-stats">
+      <div class="lc-stats" onclick="selectLocal('${loc.id}')" style="cursor:pointer">
         <div class="lc-stat"><i class="ti ti-building-warehouse" style="color:var(--teal-dark)"></i>${loc.warehouses.length} almacén${loc.warehouses.length!==1?'es':''}</div>
         <div class="lc-stat"><i class="ti ti-truck-delivery" style="color:var(--primary)"></i>${loc.delivery_methods.length} forma${loc.delivery_methods.length!==1?'s':''} de entrega</div>
         <div class="lc-stat"><i class="ti ti-clock" style="color:var(--amber-dark)"></i>${loc.delivery_methods.reduce((s,m)=>s+m.slots.length,0)} slots</div>
@@ -444,6 +453,10 @@ function renderConfig() {
             <div class="wh-name">${w.name}</div>
             <div class="wh-desc">${w.description||'Sin descripción'}</div>
           </div>
+          <button class="btn btn-sm" style="background:var(--red-light);color:var(--red);border:none;width:auto;flex-shrink:0"
+            onclick="deleteWarehouse('${loc.id}','${w.id}')" title="Eliminar almacén">
+            <i class="ti ti-trash"></i>
+          </button>
         </div>`).join('')}
       <button class="btn btn-outline mt-2 btn-sm" onclick="openWHSheet('${loc.id}')">
         <i class="ti ti-plus"></i> Agregar almacén
@@ -500,7 +513,13 @@ function renderMethodCard(m, localId) {
           ${m.free_above?`<span style="font-size:11px;font-weight:700;color:var(--green-dark)">Gratis +${fmt(m.free_above)}</span>`:''}
         </div>
       </div>
-      <span style="font-size:12px;font-weight:700;color:var(--text3)">${m.slots.length} slots</span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:12px;font-weight:700;color:var(--text3)">${m.slots.length} slots</span>
+        <button class="btn btn-sm" style="background:var(--red-light);color:var(--red);border:none;width:auto"
+          onclick="deleteDeliveryMethod('${localId}','${m.id}')" title="Eliminar forma de entrega">
+          <i class="ti ti-trash"></i>
+        </button>
+      </div>
     </div>
     <div class="slots-grid" style="margin-bottom:10px">${slotsHtml||'<p style="font-size:12px;color:var(--text3);padding:4px 0">Sin slots configurados</p>'}</div>
     <button class="btn btn-outline btn-sm" onclick="openSlotSheet('${m.id}')">
@@ -517,23 +536,72 @@ function toggleDay(header) {
   if (icon) icon.style.transform = open ? '' : 'rotate(180deg)';
 }
 
+// ── LOCAL CRUD ────────────────────────────────
+function openNewLocalSheet() {
+  S.editingLocalId = null;
+  document.querySelector('#sheet-local .sheet-title').innerHTML = '<i class="ti ti-building-store" style="color:var(--primary)"></i> Nuevo local';
+  ['loc-name','loc-street','loc-city','loc-region','loc-phone','loc-email'].forEach(id => document.getElementById(id).value = '');
+  openSheet('sheet-local');
+}
+function editLocal(id) {
+  const loc = S.locales.find(l => l.id === id);
+  if (!loc) return;
+  S.editingLocalId = id;
+  document.querySelector('#sheet-local .sheet-title').innerHTML = '<i class="ti ti-pencil" style="color:var(--primary)"></i> Editar local';
+  document.getElementById('loc-name').value   = loc.name;
+  document.getElementById('loc-street').value = loc.address_street;
+  document.getElementById('loc-city').value   = loc.address_city;
+  document.getElementById('loc-region').value = loc.address_region||'';
+  document.getElementById('loc-phone').value  = loc.phone||'';
+  document.getElementById('loc-email').value  = loc.email||'';
+  openSheet('sheet-local');
+}
+function closeLocalSheet() {
+  S.editingLocalId = null;
+  closeSheet('sheet-local');
+}
+function deleteLocal(id) {
+  const loc = S.locales.find(l => l.id === id);
+  if (!loc) return;
+  if (!confirm(`¿Eliminar "${loc.name}" y todos sus almacenes y formas de entrega?`)) return;
+  S.locales = S.locales.filter(l => l.id !== id);
+  if (S.currentLocal?.id === id) S.currentLocal = null;
+  renderLocales();
+  toast('🗑️ Local eliminado');
+}
+
 // ── SAVE FUNCTIONS ────────────────────────────
 function saveLocal() {
   const name   = document.getElementById('loc-name').value.trim();
   const street = document.getElementById('loc-street').value.trim();
   const city   = document.getElementById('loc-city').value.trim();
   if (!name||!street||!city) { toast('⚠️ Nombre, dirección y ciudad son obligatorios'); return; }
-  const id = 'LOC-' + String(S.locales.length+1).padStart(3,'0');
-  S.locales.push({
-    id, name, address_street:street, address_city:city,
-    address_region:document.getElementById('loc-region').value,
-    phone:document.getElementById('loc-phone').value,
-    email:document.getElementById('loc-email').value,
-    warehouses:[], delivery_methods:[]
-  });
-  closeSheet('sheet-local');
-  renderLocales();
-  toast('✅ Local creado');
+  if (S.editingLocalId) {
+    const loc = S.locales.find(l => l.id === S.editingLocalId);
+    if (loc) {
+      loc.name = name; loc.address_street = street; loc.address_city = city;
+      loc.address_region = document.getElementById('loc-region').value;
+      loc.phone = document.getElementById('loc-phone').value;
+      loc.email = document.getElementById('loc-email').value;
+      if (S.currentLocal?.id === S.editingLocalId) S.currentLocal = loc;
+    }
+    S.editingLocalId = null;
+    closeSheet('sheet-local');
+    renderLocales();
+    toast('✅ Local actualizado');
+  } else {
+    const id = 'LOC-' + String(Date.now()).slice(-5);
+    S.locales.push({
+      id, name, address_street:street, address_city:city,
+      address_region:document.getElementById('loc-region').value,
+      phone:document.getElementById('loc-phone').value,
+      email:document.getElementById('loc-email').value,
+      warehouses:[], delivery_methods:[]
+    });
+    closeSheet('sheet-local');
+    renderLocales();
+    toast('✅ Local creado');
+  }
 }
 
 function openWHSheet(localId) {
@@ -643,6 +711,24 @@ function deleteSlot(methodId, slotId) {
   }
   renderConfig();
   toast('🗑️ Slot eliminado');
+}
+function deleteWarehouse(localId, whId) {
+  const loc = S.locales.find(l => l.id === localId);
+  if (!loc) return;
+  const wh = loc.warehouses.find(w => w.id === whId);
+  if (!wh || !confirm(`¿Eliminar el almacén "${wh.name}"?`)) return;
+  loc.warehouses = loc.warehouses.filter(w => w.id !== whId);
+  renderConfig();
+  toast('🗑️ Almacén eliminado');
+}
+function deleteDeliveryMethod(localId, methodId) {
+  const loc = S.locales.find(l => l.id === localId);
+  if (!loc) return;
+  const dm = loc.delivery_methods.find(m => m.id === methodId);
+  if (!dm || !confirm(`¿Eliminar "${dm.name}" y todos sus slots?`)) return;
+  loc.delivery_methods = loc.delivery_methods.filter(m => m.id !== methodId);
+  renderConfig();
+  toast('🗑️ Forma de entrega eliminada');
 }
 
 // ══════════════════════════════════════════════════════
