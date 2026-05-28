@@ -192,7 +192,13 @@ app.post("/api/orders", async (req, res) => {
       shipping_cost = 0,
     } = req.body;
 
-    if (!items.length) return res.status(400).json({ error: "La orden necesita al menos un item" });
+    if (!items.length)          return res.status(400).json({ error: "La orden necesita al menos un item" });
+    if (!delivery_method_id)    return res.status(400).json({ error: "delivery_method_id es obligatorio" });
+    if (!delivery_date)         return res.status(400).json({ error: "delivery_date es obligatorio (YYYY-MM-DD)" });
+    if (!delivery_slot_id)      return res.status(400).json({ error: "delivery_slot_id es obligatorio" });
+    if (delivery_method_type === "home_delivery" && !delivery_address_street) {
+      return res.status(400).json({ error: "La dirección es obligatoria para despacho a domicilio" });
+    }
 
     await client.query("START TRANSACTION");
     const id = nextOrderId();

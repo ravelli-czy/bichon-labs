@@ -200,6 +200,25 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .empty-state i{font-size:44px;display:block;margin-bottom:10px;opacity:.4}
 .empty-state p{font-size:13px;font-weight:700}
 #toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;padding:10px 20px;border-radius:24px;font-size:14px;font-weight:700;opacity:0;transition:all .3s;z-index:999;white-space:nowrap}
+
+/* DELIVERY SELECTOR */
+.delivery-method-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.dm-card{padding:11px 12px;border-radius:var(--radius);border:2px solid var(--border);cursor:pointer;background:var(--bg3);transition:all .15s;text-align:center}
+.dm-card.selected{border-color:var(--primary);background:var(--primary-light)}
+.dm-card i{font-size:22px;color:var(--text3);display:block;margin-bottom:4px}
+.dm-card.selected i{color:var(--primary)}
+.dm-card-label{font-size:12px;font-weight:800;color:var(--text2)}
+.dm-card.selected .dm-card-label{color:var(--primary)}
+
+/* SLOT PILLS */
+.slot-grid{display:flex;flex-direction:column;gap:7px;margin-top:6px}
+.slot-pill{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;background:var(--bg3);border:2px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all .15s}
+.slot-pill.selected{border-color:var(--primary);background:var(--primary-light)}
+.slot-pill-label{font-size:14px;font-weight:800;color:var(--text)}
+.slot-pill-time{font-size:12px;font-weight:600;color:var(--text3)}
+.slot-pill.selected .slot-pill-label{color:var(--primary)}
+.slot-pill.selected .slot-pill-time{color:var(--primary)}
+.delivery-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--primary-light);color:var(--primary)}
 </style>
 </head>
 <body>
@@ -393,15 +412,70 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <button class="sheet-close" onclick="closeSheet('sheet-venta')"><i class="ti ti-x"></i></button>
     </div>
     <div class="sheet-content">
-      <div class="form-group"><div class="form-label">Cliente</div><input class="form-input" id="venta-cliente" placeholder="Nombre (opcional)"></div>
-      <div class="divider"></div>
-      <div class="form-label mb-2">¿Qué se vendió?</div>
-      <div class="info-box green"><i class="ti ti-info-circle"></i> Solo aparecen productos tipo <strong>Individual</strong> o <strong>Ambos</strong>, y todos los KITs. Los insumos no se venden solos.</div>
+
+      <!-- CLIENTE -->
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Cliente</div><input class="form-input" id="venta-cliente" placeholder="Nombre (opcional)"></div>
+        <div class="form-group"><div class="form-label">Teléfono</div><input class="form-input" id="venta-telefono" placeholder="+56 9..." type="tel"></div>
+      </div>
+
+      <!-- ÍTEMS -->
+      <div class="section-label"><i class="ti ti-shopping-cart"></i> Productos</div>
+      <div class="info-box green"><i class="ti ti-info-circle"></i> Solo aparecen <strong>Individual</strong>, <strong>Ambos</strong> y KITs. Insumos no se venden solos.</div>
       <div id="venta-items-list"></div>
       <div class="add-row mt-2">
         <select id="venta-add-item"><option value="">Agregar producto o KIT...</option></select>
         <button class="add-row-btn" onclick="addVentaItem()"><i class="ti ti-plus"></i></button>
       </div>
+
+      <!-- ENTREGA -->
+      <div class="section-label" style="margin-top:14px"><i class="ti ti-truck-delivery"></i> Entrega <span style="color:var(--red);font-size:13px">*</span></div>
+
+      <div class="form-group">
+        <div class="form-label">Forma de entrega</div>
+        <div class="delivery-method-grid" id="venta-method-grid">
+          <div class="dm-card" data-type="store_pickup" onclick="selectDeliveryMethod('store_pickup',this)">
+            <i class="ti ti-building-store"></i>
+            <div class="dm-card-label">Retiro en tienda</div>
+          </div>
+          <div class="dm-card" data-type="home_delivery" onclick="selectDeliveryMethod('home_delivery',this)">
+            <i class="ti ti-home"></i>
+            <div class="dm-card-label">Despacho a domicilio</div>
+          </div>
+          <div class="dm-card" data-type="pickup_point" onclick="selectDeliveryMethod('pickup_point',this)">
+            <i class="ti ti-map-pin"></i>
+            <div class="dm-card-label">Punto de retiro</div>
+          </div>
+          <div class="dm-card" data-type="express" onclick="selectDeliveryMethod('express',this)">
+            <i class="ti ti-bolt"></i>
+            <div class="dm-card-label">Express</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="venta-date-group" style="display:none">
+        <div class="form-group">
+          <div class="form-label">Fecha de entrega <span style="color:var(--red)">*</span></div>
+          <input class="form-input" type="date" id="venta-delivery-date" onchange="onDateChange()">
+        </div>
+      </div>
+
+      <div id="venta-slot-group" style="display:none">
+        <div class="form-label mb-2">Horario <span style="color:var(--red)">*</span></div>
+        <div class="slot-grid" id="venta-slots-container"></div>
+      </div>
+
+      <div id="venta-address-group" style="display:none">
+        <div class="section-label" style="margin-top:10px"><i class="ti ti-map-pin"></i> Dirección de entrega <span style="color:var(--red)">*</span></div>
+        <div class="form-group"><div class="form-label">Calle y número</div><input class="form-input" id="venta-addr-street" placeholder="Ej: Av. Providencia 1234"></div>
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Ciudad</div><input class="form-input" id="venta-addr-city" placeholder="Santiago"></div>
+          <div class="form-group"><div class="form-label">Región</div><input class="form-input" id="venta-addr-region" placeholder="RM"></div>
+        </div>
+        <div class="form-group"><div class="form-label">Referencia</div><input class="form-input" id="venta-addr-notes" placeholder="Depto, piso, timbre..."></div>
+      </div>
+
+      <!-- TOTAL -->
       <div class="total-bar mt-3">
         <span style="font-size:14px;font-weight:800;color:var(--green-dark)">Total</span>
         <span style="font-size:22px;font-weight:900;color:var(--green-dark)" id="venta-total">$0</span>
@@ -451,6 +525,7 @@ const S = {
   ventas: [],
   tempKitItems: [],
   tempVentaItems: [],
+  tempVentaDelivery: {},
   invTab: 'todos',
   invQ: '',
   currentPage: 'home'
@@ -667,18 +742,31 @@ function renderVentas() {
     html += `<div class="empty-state"><i class="ti ti-shopping-bag"></i><p>Sin ventas. Toca + para registrar.</p></div>`;
     el.innerHTML = html; return;
   }
-  html += [...S.ventas].reverse().map(v => `
+  const deliveryIcons = { store_pickup:'ti-building-store', home_delivery:'ti-home', pickup_point:'ti-map-pin', express:'ti-bolt' };
+  html += [...S.ventas].reverse().map(v => {
+    const dv = v.delivery || {};
+    const icon = deliveryIcons[dv.method_type] || 'ti-truck-delivery';
+    const deliveryLine = dv.method_type ? `
+      <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span class="delivery-badge"><i class="ti ${icon}"></i>${dv.method_label||dv.method_type}</span>
+        ${dv.date ? `<span style="font-size:11px;font-weight:700;color:var(--text3)">${new Date(dv.date+'T12:00:00').toLocaleDateString('es-CL',{day:'2-digit',month:'short'})}</span>` : ''}
+        ${dv.slot_label ? `<span style="font-size:11px;font-weight:700;color:var(--text3)">${dv.slot_label} ${dv.slot_from}–${dv.slot_to}</span>` : ''}
+        ${dv.address_street ? `<span style="font-size:11px;font-weight:600;color:var(--text3)">${dv.address_street}, ${dv.address_city}</span>` : ''}
+      </div>` : '';
+    return `
     <div class="card" style="margin-bottom:10px;padding:14px">
       <div class="flex justify-between items-center mb-2">
         <div>
           <div style="font-size:13px;font-weight:800;color:var(--primary)">${v.id}</div>
-          <div style="font-size:15px;font-weight:800">${v.cliente||'Cliente'}</div>
+          <div style="font-size:15px;font-weight:800">${v.cliente||'Cliente'}${v.telefono?` <span style="font-size:11px;font-weight:600;color:var(--text3)">${v.telefono}</span>`:''}</div>
           <div style="font-size:11px;color:var(--text3);font-weight:600">${v.fecha}</div>
         </div>
         <div style="font-size:20px;font-weight:900;color:var(--green-dark)">${fmt(v.total)}</div>
       </div>
       <div style="font-size:12px;color:var(--text2);font-weight:600">${v.items.map(i=>i.name+' ×'+i.qty).join(' · ')}</div>
-    </div>`).join('');
+      ${deliveryLine}
+    </div>`;
+  }).join('');
   el.innerHTML = html;
 }
 
@@ -761,12 +849,33 @@ function saveKit() {
 }
 
 // ── FORM: VENTA ───────────────────────────────
+const DELIVERY_SLOTS = {
+  store_pickup:  [
+    {id:'sp-m', label:'Mañana',  time_from:'09:00', time_to:'13:00'},
+    {id:'sp-t', label:'Tarde',   time_from:'13:00', time_to:'18:00'},
+    {id:'sp-n', label:'Noche',   time_from:'18:00', time_to:'21:00'},
+  ],
+  home_delivery: [
+    {id:'hd-m', label:'Mañana',  time_from:'09:00', time_to:'13:00'},
+    {id:'hd-t', label:'Tarde',   time_from:'13:00', time_to:'18:00'},
+    {id:'hd-n', label:'Noche',   time_from:'18:00', time_to:'21:00'},
+  ],
+  pickup_point:  [
+    {id:'pp-m', label:'Mañana',  time_from:'09:00', time_to:'13:00'},
+    {id:'pp-t', label:'Tarde',   time_from:'13:00', time_to:'18:00'},
+  ],
+  express:       [
+    {id:'ex-1', label:'1-3 horas',  time_from:'00:00', time_to:'03:00'},
+    {id:'ex-2', label:'3-6 horas',  time_from:'03:00', time_to:'06:00'},
+  ],
+};
+
 function openSheetVenta() {
   S.tempVentaItems = [];
+  S.tempVentaDelivery = { method_type:null, date:null, slot_id:null, slot_from:null, slot_to:null, slot_label:null };
+
   const sel = document.getElementById('venta-add-item');
   sel.innerHTML = '<option value="">Agregar producto o KIT...</option>';
-
-  // Primero KITs
   S.kits.forEach(k => {
     const stk = kitStock(k);
     const o = document.createElement('option');
@@ -774,7 +883,6 @@ function openSheetVenta() {
     o.textContent = `[KIT] ${k.name} — ${fmt(k.price)} (${stk} disp.)`;
     sel.appendChild(o);
   });
-  // Luego productos vendibles
   S.products.filter(p => p.tipo==='producto'||p.tipo==='ambos').forEach(p => {
     const o = document.createElement('option');
     o.value = 'prod:' + p.sku;
@@ -785,8 +893,49 @@ function openSheetVenta() {
   document.getElementById('venta-items-list').innerHTML = '';
   document.getElementById('venta-total').textContent = '$0';
   document.getElementById('venta-cliente').value = '';
+  document.getElementById('venta-telefono').value = '';
+  document.getElementById('venta-delivery-date').value = '';
+  document.getElementById('venta-date-group').style.display = 'none';
+  document.getElementById('venta-slot-group').style.display = 'none';
+  document.getElementById('venta-address-group').style.display = 'none';
+  document.querySelectorAll('#venta-method-grid .dm-card').forEach(c => c.classList.remove('selected'));
   openSheet('sheet-venta');
 }
+
+function selectDeliveryMethod(type, el) {
+  document.querySelectorAll('#venta-method-grid .dm-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  S.tempVentaDelivery.method_type = type;
+  S.tempVentaDelivery.slot_id = null;
+  S.tempVentaDelivery.date = null;
+  document.getElementById('venta-delivery-date').value = '';
+  document.getElementById('venta-date-group').style.display = '';
+  document.getElementById('venta-slot-group').style.display = 'none';
+  document.getElementById('venta-address-group').style.display = type === 'home_delivery' ? '' : 'none';
+}
+
+function onDateChange() {
+  const date = document.getElementById('venta-delivery-date').value;
+  if (!date) return;
+  S.tempVentaDelivery.date = date;
+  S.tempVentaDelivery.slot_id = null;
+  const slots = DELIVERY_SLOTS[S.tempVentaDelivery.method_type] || DELIVERY_SLOTS.home_delivery;
+  const container = document.getElementById('venta-slots-container');
+  container.innerHTML = slots.map(s => `
+    <div class="slot-pill" id="slotpill-${s.id}" onclick="selectSlot('${s.id}','${s.time_from}','${s.time_to}','${s.label}')">
+      <span class="slot-pill-label">${s.label}</span>
+      <span class="slot-pill-time">${s.time_from} – ${s.time_to}</span>
+    </div>`).join('');
+  document.getElementById('venta-slot-group').style.display = '';
+}
+
+function selectSlot(id, from, to, label) {
+  document.querySelectorAll('.slot-pill').forEach(p => p.classList.remove('selected'));
+  const el = document.getElementById('slotpill-'+id);
+  if (el) el.classList.add('selected');
+  Object.assign(S.tempVentaDelivery, { slot_id:id, slot_from:from, slot_to:to, slot_label:label });
+}
+
 function addVentaItem() {
   const val = document.getElementById('venta-add-item').value;
   if (!val) { toast('⚠️ Selecciona un ítem'); return; }
@@ -823,17 +972,47 @@ function renderVentaItemsList() {
     </div>`).join('');
 }
 function adjVQ(idx,d){ S.tempVentaItems[idx].qty=Math.max(1,S.tempVentaItems[idx].qty+d); renderVentaItemsList(); }
+
+const METHOD_LABELS = { store_pickup:'Retiro en tienda', home_delivery:'Despacho a domicilio', pickup_point:'Punto de retiro', express:'Express' };
+
 function saveVenta() {
-  if (!S.tempVentaItems.length) { toast('⚠️ Agrega al menos un ítem'); return; }
+  if (!S.tempVentaItems.length)          { toast('⚠️ Agrega al menos un ítem'); return; }
+  const d = S.tempVentaDelivery;
+  if (!d.method_type)                    { toast('⚠️ Selecciona una forma de entrega'); return; }
+  if (!d.date)                           { toast('⚠️ Selecciona la fecha de entrega'); return; }
+  if (!d.slot_id)                        { toast('⚠️ Selecciona un horario'); return; }
+  if (d.method_type === 'home_delivery') {
+    if (!document.getElementById('venta-addr-street').value.trim()) { toast('⚠️ Ingresa la dirección'); return; }
+    if (!document.getElementById('venta-addr-city').value.trim())   { toast('⚠️ Ingresa la ciudad'); return; }
+  }
+
   const total = S.tempVentaItems.reduce((s,i) => s+i.qty*i.price, 0);
   const id = 'ORD-'+String(S.ventas.length+1).padStart(3,'0');
+
+  const delivery = {
+    method_type:  d.method_type,
+    method_label: METHOD_LABELS[d.method_type],
+    date:         d.date,
+    slot_label:   d.slot_label,
+    slot_from:    d.slot_from,
+    slot_to:      d.slot_to,
+  };
+  if (d.method_type === 'home_delivery') {
+    delivery.address_street = document.getElementById('venta-addr-street').value.trim();
+    delivery.address_city   = document.getElementById('venta-addr-city').value.trim();
+    delivery.address_region = document.getElementById('venta-addr-region').value.trim();
+    delivery.address_notes  = document.getElementById('venta-addr-notes').value.trim();
+  }
+
   S.ventas.push({
     id, total,
-    cliente: document.getElementById('venta-cliente').value||'Cliente',
-    fecha: new Date().toLocaleDateString('es-CL'),
-    items: S.tempVentaItems.slice()
+    cliente:   document.getElementById('venta-cliente').value || 'Cliente',
+    telefono:  document.getElementById('venta-telefono').value || '',
+    fecha:     new Date().toLocaleDateString('es-CL'),
+    items:     S.tempVentaItems.slice(),
+    delivery,
   });
-  // descontar stock
+
   S.tempVentaItems.forEach(item => {
     if (item.type==='kit') {
       const kit = S.kits.find(k => k.sku===item.sku);
@@ -846,6 +1025,7 @@ function saveVenta() {
       if (p) p.stock = Math.max(0, p.stock - item.qty);
     }
   });
+
   closeSheet('sheet-venta');
   toast('✅ Venta registrada — stock actualizado');
   renderHome(); renderVentas();

@@ -88,8 +88,14 @@ async function initDB() {
       -- Costo
       shipping_cost   DECIMAL(10,2) DEFAULT 0,
 
+      -- Prueba de entrega (GPS + foto — rellenados por app Android)
+      delivery_gps_lat      DECIMAL(10,7),
+      delivery_gps_lng      DECIMAL(10,7),
+      delivery_gps_accuracy DECIMAL(8,2),
+      delivery_photo_url    TEXT,
+
       -- Etiqueta
-      label_config    JSON DEFAULT '{}'::jsonb,  -- config de la etiqueta
+      label_config    JSON,
 
       -- Metadatos
       attempts        INTEGER DEFAULT 0,
@@ -115,6 +121,36 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_shipments_date     ON shipments(scheduled_date);
     CREATE INDEX IF NOT EXISTS idx_history_shipment   ON shipment_history(shipment_id);
   `);
+
+  // Rutas de despacho — cada ruta es un conjunto ordenado de envíos para un conductor
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS dispatch_routes (
+      id           VARCHAR(50) PRIMARY KEY,
+      name         VARCHAR(200) NOT NULL,
+      route_date   DATE NOT NULL,
+      courier_id   VARCHAR(50),
+      status       VARCHAR(30) DEFAULT 'pending',
+      notes        TEXT,
+      active       TINYINT(1) DEFAULT 1,
+      started_at   DATETIME,
+      completed_at DATETIME,
+      created_at   DATETIME DEFAULT NOW()
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS route_shipments (
+      id           INT AUTO_INCREMENT PRIMARY KEY,
+      route_id     VARCHAR(50) NOT NULL,
+      shipment_id  VARCHAR(50) NOT NULL,
+      seq          INTEGER NOT NULL DEFAULT 1,
+      UNIQUE KEY uq_route_stop (route_id, shipment_id)
+    )
+  `);
+
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_routes_date    ON dispatch_routes(route_date)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_routes_courier ON dispatch_routes(courier_id)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_route_stops    ON route_shipments(route_id)`);
 }
 
 async function initMQ() {
@@ -744,60 +780,105 @@ async function createShipmentFromOrder(orderId, shipping) {
   }
 }
 
-// ── HEALTH ────────────────────────────────────────────
-app.get("/health", (req, res) => res.json({
-  status: "ok", service: "delivery",
-  status_machine: STATUS_TRANSITIONS
-}));
-
-initDB()
-  .then(initMQ)
-  .then(() => app.listen(PORT, () => console.log(`[Delivery] Puerto ${PORT}`)));
-
 // ══════════════════════════════════════════════════════
 // RUTAS DE DESPACHO
 // ══════════════════════════════════════════════════════
 
-// GET /api/delivery/routes — listar rutas
+// GET /api/delivery/routes — listar rutas con conteo de paradas
 app.get("/api/delivery/routes", async (req, res) => {
-  const [rows] = await db.query(`
-    SELECT r.*, COUNT(rs.shipment_id) AS stop_count,
-      COUNT(CASE WHEN s.status='delivered' THEN 1 END) AS delivered_count
-    FROM dispatch_routes r
-    LEFT JOIN route_shipments rs ON r.id = rs.route_id
-    LEFT JOIN shipments s ON rs.shipment_id = s.id
-    WHERE r.active = true
-    GROUP BY r.id ORDER BY r.route_date DESC
-  `);
-  res.json({ data: rows });
+  try {
+    const { date, courier_id, status } = req.query;
+    let sql = `
+      SELECT r.*,
+        COUNT(rs.shipment_id) AS stop_count,
+        COUNT(CASE WHEN s.status='delivered' THEN 1 END) AS delivered_count,
+        COUNT(CASE WHEN s.status='on_the_way' THEN 1 END) AS on_the_way_count
+      FROM dispatch_routes r
+      LEFT JOIN route_shipments rs ON r.id = rs.route_id
+      LEFT JOIN shipments s ON rs.shipment_id = s.id
+      WHERE r.active = 1`;
+    const params = [];
+    if (date)       { sql += " AND r.route_date = ?";   params.push(date); }
+    if (courier_id) { sql += " AND r.courier_id = ?";   params.push(courier_id); }
+    if (status)     { sql += " AND r.status = ?";       params.push(status); }
+    sql += " GROUP BY r.id ORDER BY r.route_date DESC, r.created_at DESC";
+    const [rows] = await db.query(sql, params);
+    res.json({ data: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/delivery/routes/driver/:courier_id — ruta del conductor para hoy (app Android)
+// Devuelve la ruta activa con todas las paradas detalladas incluyendo GPS y estado.
+// La app Android consume este endpoint para mostrar el mapa de la jornada.
+app.get("/api/delivery/routes/driver/:courier_id", async (req, res) => {
+  try {
+    const date = req.query.date || new Date().toISOString().split("T")[0];
+    const [routes] = await db.query(
+      `SELECT * FROM dispatch_routes
+       WHERE courier_id = ? AND route_date = ? AND active = 1
+       ORDER BY FIELD(status,'in_progress','pending','completed') ASC LIMIT 1`,
+      [req.params.courier_id, date]
+    );
+    if (!routes.length) {
+      return res.json({ data: null, message: "Sin ruta asignada para esta fecha" });
+    }
+    const route = routes[0];
+    const [stops] = await db.query(`
+      SELECT rs.seq, rs.id AS route_stop_id,
+             s.id, s.order_id, s.tracking_code, s.status,
+             s.recipient_name, s.recipient_phone,
+             s.address_street, s.address_city, s.address_region, s.address_notes,
+             s.delivery_window_from, s.delivery_window_to,
+             s.delivery_gps_lat, s.delivery_gps_lng,
+             s.delivery_photo_url, s.delivered_at, s.attempts
+      FROM route_shipments rs
+      JOIN shipments s ON rs.shipment_id = s.id
+      WHERE rs.route_id = ?
+      ORDER BY rs.seq ASC
+    `, [route.id]);
+    res.json({
+      data: {
+        ...route,
+        stops,
+        progress: {
+          total:     stops.length,
+          delivered: stops.filter(s => s.status === "delivered").length,
+          pending:   stops.filter(s => s.status === "ready").length,
+          failed:    stops.filter(s => s.status === "not_delivered").length,
+        }
+      }
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // GET /api/delivery/routes/:id — detalle con paradas ordenadas
 app.get("/api/delivery/routes/:id", async (req, res) => {
-  const [rows] = await db.query("SELECT * FROM dispatch_routes WHERE id=?", [req.params.id]);
-  if (!rows.length) return res.status(404).json({ error: "Ruta no encontrada" });
-  const [stops] = await db.query(`
-    SELECT rs.seq, rs.id AS route_stop_id, s.*,
-           c.name AS courier_name
-    FROM route_shipments rs
-    JOIN shipments s ON rs.shipment_id = s.id
-    LEFT JOIN couriers c ON s.courier_id = c.id
-    WHERE rs.route_id = ? ORDER BY rs.seq ASC
-  `, [req.params.id]);
-  res.json({ data: { ...rows[0], stops } });
+  try {
+    const [rows] = await db.query("SELECT * FROM dispatch_routes WHERE id=?", [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: "Ruta no encontrada" });
+    const [stops] = await db.query(`
+      SELECT rs.seq, rs.id AS route_stop_id, s.*,
+             c.name AS courier_name
+      FROM route_shipments rs
+      JOIN shipments s ON rs.shipment_id = s.id
+      LEFT JOIN couriers c ON s.courier_id = c.id
+      WHERE rs.route_id = ? ORDER BY rs.seq ASC
+    `, [req.params.id]);
+    res.json({ data: { ...rows[0], stops } });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/delivery/routes — crear ruta
+// POST /api/delivery/routes — crear ruta con envíos
 app.post("/api/delivery/routes", async (req, res) => {
-  const { name, route_date, courier_id, shipment_ids = [] } = req.body;
+  const { name, route_date, courier_id, notes, shipment_ids = [] } = req.body;
   if (!name || !route_date) return res.status(400).json({ error: "name y route_date son obligatorios" });
   const id = genId("RTE");
   const client = await db.getConnection();
   try {
     await client.query("START TRANSACTION");
-    const [rows] = await client.query(
-      "INSERT INTO dispatch_routes (id,name,route_date,courier_id) VALUES (?,?,?,?)",
-      [id, name, route_date, courier_id || null]
+    await client.query(
+      "INSERT INTO dispatch_routes (id,name,route_date,courier_id,notes) VALUES (?,?,?,?,?)",
+      [id, name, route_date, courier_id || null, notes || null]
     );
     for (let i = 0; i < shipment_ids.length; i++) {
       await client.query(
@@ -806,12 +887,34 @@ app.post("/api/delivery/routes", async (req, res) => {
       );
     }
     await client.query("COMMIT");
-    res.status(201).json({ data: rows[0] });
+    const [created] = await db.query("SELECT * FROM dispatch_routes WHERE id=?", [id]);
+    res.status(201).json({ data: created[0] });
   } catch (err) { await client.query("ROLLBACK"); res.status(500).json({ error: err.message }); }
   finally { client.release(); }
 });
 
-// PUT /api/delivery/routes/:id/reorder — reordenar paradas (drag & drop)
+// PUT /api/delivery/routes/:id/status — iniciar o completar ruta (usado por app Android y web)
+app.put("/api/delivery/routes/:id/status", async (req, res) => {
+  try {
+    const { status } = req.body;
+    const allowed = ["pending", "in_progress", "completed"];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ error: `status debe ser uno de: ${allowed.join(", ")}` });
+    }
+    const [rows] = await db.query("SELECT * FROM dispatch_routes WHERE id=?", [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: "Ruta no encontrada" });
+
+    const extra = status === "in_progress" ? ", started_at = NOW()"
+                : status === "completed"   ? ", completed_at = NOW()" : "";
+    await db.query(
+      `UPDATE dispatch_routes SET status=? ${extra} WHERE id=?`,
+      [status, req.params.id]
+    );
+    res.json({ message: `Ruta ${status === "in_progress" ? "iniciada" : "completada"}`, status });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/delivery/routes/:id/reorder — reordenar paradas (drag & drop en web, replanificación en Android)
 app.put("/api/delivery/routes/:id/reorder", async (req, res) => {
   const { order } = req.body; // [{ shipment_id, seq }]
   if (!Array.isArray(order)) return res.status(400).json({ error: "order debe ser un array" });
@@ -830,41 +933,53 @@ app.put("/api/delivery/routes/:id/reorder", async (req, res) => {
   finally { client.release(); }
 });
 
-// POST /api/delivery/shipments/:id/proof — guardar prueba de entrega (GPS + foto)
+// POST /api/delivery/routes/:id/stops — agregar parada a ruta existente
+app.post("/api/delivery/routes/:id/stops", async (req, res) => {
+  try {
+    const { shipment_id } = req.body;
+    if (!shipment_id) return res.status(400).json({ error: "shipment_id es obligatorio" });
+    const [[{ max_seq }]] = await db.query(
+      "SELECT COALESCE(MAX(seq),0) AS max_seq FROM route_shipments WHERE route_id=?",
+      [req.params.id]
+    );
+    await db.query(
+      "INSERT INTO route_shipments (route_id,shipment_id,seq) VALUES (?,?,?)",
+      [req.params.id, shipment_id, max_seq + 1]
+    );
+    res.status(201).json({ message: "Parada agregada", seq: max_seq + 1 });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/delivery/routes/:id/stops/:shipment_id — quitar parada
+app.delete("/api/delivery/routes/:id/stops/:shipment_id", async (req, res) => {
+  await db.query(
+    "DELETE FROM route_shipments WHERE route_id=? AND shipment_id=?",
+    [req.params.id, req.params.shipment_id]
+  );
+  res.json({ message: "Parada eliminada" });
+});
+
+// POST /api/delivery/shipments/:id/proof — prueba de entrega desde app Android (GPS + foto)
 app.post("/api/delivery/shipments/:id/proof", async (req, res) => {
   try {
-    const { gps_lat, gps_lng, gps_accuracy, photo_base64, photo_url, note } = req.body;
+    const { gps_lat, gps_lng, gps_accuracy, photo_url, note } = req.body;
     await db.query(`
       UPDATE shipments SET
         delivery_gps_lat=?, delivery_gps_lng=?, delivery_gps_accuracy=?,
         delivery_photo_url=?, updated_at=NOW()
       WHERE id=?`,
-      [gps_lat, gps_lng, gps_accuracy, photo_url || null, req.params.id]
+      [gps_lat || null, gps_lng || null, gps_accuracy || null, photo_url || null, req.params.id]
     );
-    // En prod: subir photo_base64 a S3 y guardar la URL
     res.json({ message: "Prueba de entrega registrada", gps: { lat: gps_lat, lng: gps_lng } });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-// Nota: Agregar a initDB() las siguientes tablas:
-/*
-  CREATE TABLE IF NOT EXISTS dispatch_routes (
-    id           VARCHAR(50) PRIMARY KEY,
-    name         VARCHAR(200) NOT NULL,
-    route_date   DATE NOT NULL,
-    courier_id   VARCHAR(50) REFERENCES couriers(id),
-    active       TINYINT(1) DEFAULT 1,
-    created_at   DATETIME DEFAULT NOW()
-  );
-  CREATE TABLE IF NOT EXISTS route_shipments (
-    id           INT AUTO_INCREMENT PRIMARY KEY,
-    route_id     VARCHAR(50) NOT NULL REFERENCES dispatch_routes(id) ON DELETE CASCADE,
-    shipment_id  VARCHAR(50) NOT NULL REFERENCES shipments(id),
-    seq          INTEGER NOT NULL DEFAULT 1,
-    UNIQUE(route_id, shipment_id)
-  );
-  -- Campos adicionales en shipments para prueba de entrega:
-  ALTER TABLE shipments ADD COLUMN IF NOT EXISTS delivery_gps_lat  DECIMAL(10,7);
-  ALTER TABLE shipments ADD COLUMN IF NOT EXISTS delivery_gps_lng  DECIMAL(10,7);
-  ALTER TABLE shipments ADD COLUMN IF NOT EXISTS delivery_gps_accuracy DECIMAL(8,2);
-  ALTER TABLE shipments ADD COLUMN IF NOT EXISTS delivery_photo_url TEXT;
-*/
+
+// ── HEALTH ────────────────────────────────────────────
+app.get("/health", (req, res) => res.json({
+  status: "ok", service: "delivery",
+  status_machine: STATUS_TRANSITIONS
+}));
+
+initDB()
+  .then(initMQ)
+  .then(() => app.listen(PORT, () => console.log(`[Delivery] Puerto ${PORT}`)));
