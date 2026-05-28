@@ -398,7 +398,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       </div>
       <div class="divider"></div>
       <div class="form-label mb-2">Componentes del KIT</div>
-      <div class="info-box primary"><i class="ti ti-info-circle"></i> Puedes agregar cualquier producto sin importar su tipo. El stock del KIT se calcula automáticamente.</div>
       <div id="kit-items-list"></div>
       <div class="add-row mt-2">
         <select id="kit-add-prod"><option value="">Seleccionar producto...</option></select>
@@ -555,7 +554,8 @@ const S = {
   tempVentaDelivery: {},
   invTab: 'todos',
   invQ: '',
-  currentPage: 'home'
+  currentPage: 'home',
+  editingKitSku: null
 };
 
 const tipoMeta = {
@@ -778,18 +778,25 @@ function renderKits() {
     const color = stk===0?'var(--red)':stk<=2?'var(--amber-dark)':'var(--green-dark)';
     const comps = kit.items.map(i => {
       const p = S.products.find(x => x.sku === i.sku);
-      const can = p ? Math.floor(p.stock / i.qty) : 0;
       return `<div class="kit-comp-row">
-        <span class="kit-comp-name">${tipoBadge(p?.tipo||'insumo')} ${p?.name||i.sku} ×${i.qty}</span>
-        <span class="kit-comp-right" style="color:${can===0?'var(--red)':can<=2?'var(--amber-dark)':'var(--text)'}">
-          ${p?.stock||0} → <strong>${can}</strong> kits
-        </span>
+        <span class="kit-comp-name">${p?.name||i.sku}</span>
+        <span class="kit-comp-right">×${i.qty}</span>
       </div>`;
     }).join('');
     return `<div class="kit-card">
       <div class="kit-header">
-        <div>${tipoBadge('kit')}<div class="kit-name">${kit.name}</div><div class="kit-sku">${kit.sku} · ${fmt(kit.price)}</div></div>
-        <div style="text-align:right"><div class="kit-stock-big" style="color:${color}">${stk}</div><div class="kit-stock-label">disponibles</div></div>
+        <div style="flex:1;min-width:0">
+          <div class="kit-name">${kit.name}</div>
+          <div class="kit-sku">${kit.sku} · ${fmt(kit.price)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <div style="text-align:right;margin-right:2px">
+            <div class="kit-stock-big" style="color:${color}">${stk}</div>
+            <div class="kit-stock-label">disponibles</div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="editKit('${kit.sku}')" title="Editar"><i class="ti ti-pencil"></i></button>
+          <button class="btn btn-sm" style="background:var(--red-light);color:var(--red);border:none" onclick="deleteKit('${kit.sku}')" title="Eliminar"><i class="ti ti-trash"></i></button>
+        </div>
       </div>
       <div class="kit-components">${comps}</div>
     </div>`;
@@ -874,12 +881,40 @@ function saveProd() {
 
 // ── FORM: KIT ─────────────────────────────────
 function openSheetKit() {
+  S.editingKitSku = null;
+  document.querySelector('#sheet-kit .sheet-title').innerHTML = '<i class="ti ti-stack-2" style="color:var(--amber-dark)"></i> Nuevo KIT';
+  document.querySelector('#sheet-kit .btn-primary').textContent = '';
+  document.querySelector('#sheet-kit .btn-primary').innerHTML = '<i class="ti ti-check"></i> Crear KIT';
   S.tempKitItems = [];
+  ['kit-name','kit-price','kit-sku-input'].forEach(id => document.getElementById(id).value = '');
   const sel = document.getElementById('kit-add-prod');
   sel.innerHTML = '<option value="">Seleccionar producto...</option>' +
-    S.products.map(p => `<option value="${p.sku}">[${tipoMeta[p.tipo].label}] ${p.name} (stock: ${p.stock})</option>`).join('');
+    S.products.map(p => `<option value="${p.sku}">${p.name} (stock: ${p.stock})</option>`).join('');
   renderKitItemsList();
   openSheet('sheet-kit');
+}
+function editKit(sku) {
+  const kit = S.kits.find(k => k.sku === sku);
+  if (!kit) return;
+  S.editingKitSku = sku;
+  document.querySelector('#sheet-kit .sheet-title').innerHTML = '<i class="ti ti-pencil" style="color:var(--amber-dark)"></i> Editar KIT';
+  document.querySelector('#sheet-kit .btn-primary').innerHTML = '<i class="ti ti-check"></i> Guardar cambios';
+  document.getElementById('kit-name').value  = kit.name;
+  document.getElementById('kit-price').value = kit.price;
+  document.getElementById('kit-sku-input').value = kit.sku;
+  S.tempKitItems = kit.items.map(i => ({...i}));
+  const sel = document.getElementById('kit-add-prod');
+  sel.innerHTML = '<option value="">Seleccionar producto...</option>' +
+    S.products.map(p => `<option value="${p.sku}">${p.name} (stock: ${p.stock})</option>`).join('');
+  renderKitItemsList();
+  openSheet('sheet-kit');
+}
+function deleteKit(sku) {
+  const kit = S.kits.find(k => k.sku === sku);
+  if (!kit || !confirm(`¿Eliminar el KIT "${kit.name}"?`)) return;
+  S.kits = S.kits.filter(k => k.sku !== sku);
+  renderKits(); renderHome();
+  toast('🗑️ KIT eliminado');
 }
 function addKitItem() {
   const sku = document.getElementById('kit-add-prod').value;
@@ -892,7 +927,6 @@ function renderKitItemsList() {
   document.getElementById('kit-items-list').innerHTML = S.tempKitItems.map((item,idx) => {
     const p = S.products.find(x => x.sku === item.sku);
     return `<div class="kit-build-item">
-      ${tipoBadge(p?.tipo||'insumo')}
       <span style="flex:1;font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p?.name||item.sku}</span>
       <div class="qty-ctrl">
         <button onclick="adjKQ(${idx},-1)">−</button>
@@ -908,11 +942,22 @@ function saveKit() {
   const name = document.getElementById('kit-name').value.trim();
   if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
   if (!S.tempKitItems.length) { toast('⚠️ Agrega al menos un componente'); return; }
-  const sku = document.getElementById('kit-sku-input').value || 'KIT-'+String(S.kits.length+1).padStart(3,'0');
-  S.kits.push({sku, name, price: parseFloat(document.getElementById('kit-price').value)||0, items: S.tempKitItems.slice()});
-  ['kit-name','kit-price','kit-sku-input'].forEach(id => document.getElementById(id).value='');
-  closeSheet('sheet-kit');
-  toast('✅ KIT creado — stock calculado automáticamente');
+  if (S.editingKitSku) {
+    const kit = S.kits.find(k => k.sku === S.editingKitSku);
+    if (kit) {
+      kit.name  = name;
+      kit.price = parseFloat(document.getElementById('kit-price').value)||0;
+      kit.items = S.tempKitItems.slice();
+    }
+    S.editingKitSku = null;
+    closeSheet('sheet-kit');
+    toast('✅ KIT actualizado');
+  } else {
+    const sku = document.getElementById('kit-sku-input').value || 'KIT-'+String(S.kits.length+1).padStart(3,'0');
+    S.kits.push({sku, name, price: parseFloat(document.getElementById('kit-price').value)||0, items: S.tempKitItems.slice()});
+    closeSheet('sheet-kit');
+    toast('✅ KIT creado — stock calculado automáticamente');
+  }
   renderKits(); renderHome();
   if (S.currentPage==='ventas') renderVentas();
 }
