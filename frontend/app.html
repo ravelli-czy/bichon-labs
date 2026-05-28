@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f5f6fa;--bg2:#fff;--bg3:#f0f1f7;
+  --text:#1a1a2e;--text2:#5a5b7a;--text3:#9a9bb8;--border:#e4e5f0;
+  --primary:#5b4fff;--primary-light:#ede9ff;--primary-dark:#4035cc;
+  --green:#16c98d;--green-light:#e6faf4;--green-dark:#0da070;
+  --red:#ff4d6d;--red-light:#fff0f3;
+  --amber:#f59e0b;--amber-light:#fffbeb;--amber-dark:#d97706;
+  --blue:#3b82f6;--blue-light:#eff6ff;--blue-dark:#2563eb;
+  --radius:12px;--radius-lg:16px;--shadow:0 2px 12px rgba(91,79,255,.08);
+}
+body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden;max-width:480px;margin:0 auto}
+
+.topbar{background:var(--bg2);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:var(--shadow)}
+.topbar-logo{display:flex;align-items:center;gap:8px}
+.logo-icon{width:36px;height:36px;background:var(--primary);border-radius:10px;display:flex;align-items:center;justify-content:center}
+.logo-icon i{color:#fff;font-size:20px}
+.logo-title{font-weight:900;font-size:18px;color:var(--primary)}
+.logo-sub{font-size:10px;color:var(--text3);font-weight:600;display:block;line-height:1}
+.topbar-right{display:flex;gap:8px}
+.icon-btn{width:38px;height:38px;border-radius:10px;background:var(--bg3);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;color:var(--text2)}
+.icon-btn i{font-size:20px}
+.notif-badge{position:absolute;top:3px;right:3px;background:var(--red);color:#fff;font-size:9px;font-weight:900;border-radius:10px;padding:1px 5px;border:2px solid var(--bg2);min-width:16px;text-align:center;line-height:14px}
+
+.bottom-nav{background:var(--bg2);border-top:1px solid var(--border);display:flex;padding:8px 4px 12px;position:fixed;bottom:0;left:0;right:0;z-index:100;box-shadow:0 -4px 20px rgba(0,0,0,.06);max-width:480px;margin:0 auto}
+.nav-tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 2px;border-radius:10px;cursor:pointer;border:none;background:none;font-family:'Nunito',sans-serif;color:var(--text3)}
+.nav-tab i{font-size:22px;transition:all .2s}
+.nav-tab span{font-size:10px;font-weight:700}
+.nav-tab.active{color:var(--primary)}
+
+.content{flex:1;padding:16px;padding-bottom:88px;overflow-y:auto}
+.page{display:none}.page.active{display:block}
+.section-title{font-size:20px;font-weight:900;margin-bottom:2px}
+.section-sub{font-size:13px;color:var(--text3);font-weight:600;margin-bottom:16px}
+
+/* TIPO BADGES */
+.tipo-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:800}
+.tipo-insumo{background:#f1f0ff;color:#4035cc}
+.tipo-producto{background:var(--green-light);color:var(--green-dark)}
+.tipo-ambos{background:var(--blue-light);color:var(--blue-dark)}
+.tipo-kit{background:var(--amber-light);color:var(--amber-dark)}
+
+/* ALERT BANNER */
+.alert-banner{border-radius:var(--radius-lg);margin-bottom:16px;cursor:pointer;transition:transform .15s;overflow:hidden}
+.alert-banner:active{transform:scale(.98)}
+.alert-banner.critical{background:linear-gradient(135deg,#ff1a44,#ff4d6d)}
+.alert-banner.warning{background:linear-gradient(135deg,#d97706,#f59e0b)}
+.alert-banner-inner{padding:14px 16px;display:flex;gap:12px;align-items:flex-start}
+.alert-banner-icon{width:44px;height:44px;background:rgba(255,255,255,.2);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.alert-banner-icon i{font-size:24px;color:#fff}
+.alert-banner-body{flex:1}
+.alert-banner-title{font-size:15px;font-weight:900;color:#fff;margin-bottom:3px}
+.alert-banner-sub{font-size:12px;font-weight:700;color:rgba(255,255,255,.8);margin-bottom:10px;line-height:1.5}
+.alert-pills{display:flex;gap:6px;flex-wrap:wrap}
+.alert-pill{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);border-radius:20px;padding:3px 9px;font-size:11px;font-weight:800;color:#fff;display:inline-flex;align-items:center;gap:3px}
+.alert-cta{padding:8px 16px 12px;border-top:1px solid rgba(255,255,255,.2);display:flex;justify-content:space-between;align-items:center}
+.alert-cta span{font-size:12px;font-weight:800;color:rgba(255,255,255,.9)}
+
+/* STATS */
+.stats-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.stat-card{background:var(--bg2);border-radius:var(--radius-lg);padding:14px 16px;box-shadow:var(--shadow)}
+.stat-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+.stat-num{font-size:24px;font-weight:900;line-height:1}
+.stat-label{font-size:11px;font-weight:700;color:var(--text3);margin-top:3px}
+
+.card{background:var(--bg2);border-radius:var(--radius-lg);padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card-title{font-size:15px;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+
+/* PRODUCT ROWS */
+.product-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
+.product-item:last-child{border-bottom:none;padding-bottom:0}
+.product-item.alert-critical{background:var(--red-light);border-radius:var(--radius);padding:11px 12px;margin-bottom:4px;border-bottom:none;border:2px solid #ffc8d2}
+.product-item.alert-warning{background:var(--amber-light);border-radius:var(--radius);padding:11px 12px;margin-bottom:4px;border-bottom:none;border:2px solid #fde68a}
+.product-icon{width:42px;height:42px;background:var(--primary-light);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative}
+.product-icon i{font-size:20px;color:var(--primary)}
+.product-item.alert-critical .product-icon{background:#ffe0e6}.product-item.alert-critical .product-icon i{color:var(--red)}
+.product-item.alert-warning .product-icon{background:#fef3c7}.product-item.alert-warning .product-icon i{color:var(--amber-dark)}
+.alert-dot{position:absolute;top:-4px;right:-4px;width:13px;height:13px;border-radius:50%;border:2px solid var(--bg2)}
+.alert-dot.critical{background:var(--red);animation:pdot 1.4s infinite}
+.alert-dot.warning{background:var(--amber);animation:pdot 2s infinite}
+@keyframes pdot{0%,100%{transform:scale(1)}50%{transform:scale(1.35)}}
+.product-info{flex:1;min-width:0}
+.product-name{font-size:14px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.product-meta{display:flex;align-items:center;gap:5px;margin-top:3px;flex-wrap:wrap}
+.alert-tag{display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:800;padding:1px 7px;border-radius:20px}
+.alert-tag.critical{background:#ffc8d2;color:#8b0020}
+.alert-tag.warning{background:#fde68a;color:#78350f}
+.progress{background:var(--bg3);border-radius:20px;height:5px;margin-top:5px}
+.progress-bar{height:100%;border-radius:20px}
+.product-right{text-align:right;flex-shrink:0}
+.stock-num{font-size:17px;font-weight:900;line-height:1}
+.stock-label{font-size:10px;font-weight:700;color:var(--text3)}
+.product-item.alert-critical .stock-num{color:var(--red)}
+.product-item.alert-warning .stock-num{color:var(--amber-dark)}
+
+/* KIT CARD */
+.kit-card{background:var(--bg2);border-radius:var(--radius-lg);padding:14px;margin-bottom:10px;box-shadow:var(--shadow);border-left:3px solid var(--amber)}
+.kit-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.kit-name{font-size:15px;font-weight:800;margin-top:3px}
+.kit-sku{font-size:11px;color:var(--text3);font-weight:600;margin-top:1px}
+.kit-stock-big{font-size:26px;font-weight:900;line-height:1}
+.kit-stock-label{font-size:10px;font-weight:700;color:var(--text3)}
+.kit-components{border-top:1px solid var(--border);padding-top:8px}
+.kit-comp-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px}
+.kit-comp-name{color:var(--text2);font-weight:600;display:flex;align-items:center;gap:4px}
+.kit-comp-right{font-weight:800}
+
+.section-label{font-size:11px;font-weight:900;letter-spacing:.6px;color:var(--text3);text-transform:uppercase;padding:8px 0 6px;display:flex;align-items:center;gap:6px}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.tabs{display:flex;gap:4px;background:var(--bg3);padding:4px;border-radius:12px;margin-bottom:16px}
+.tab{flex:1;padding:8px;border-radius:9px;text-align:center;font-size:13px;font-weight:800;color:var(--text3);cursor:pointer;position:relative}
+.tab.active{background:var(--bg2);color:var(--primary);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.tab .tbadge{position:absolute;top:3px;right:6px;background:var(--red);color:#fff;font-size:9px;font-weight:900;border-radius:10px;padding:1px 5px}
+
+.search-bar{background:var(--bg2);border:2px solid var(--border);border-radius:var(--radius);padding:10px 14px;display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.search-bar input{flex:1;border:none;background:none;outline:none;font-family:'Nunito',sans-serif;font-size:15px;font-weight:600;color:var(--text)}
+.search-bar input::placeholder{color:var(--text3)}
+
+/* SHEET */
+.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-end;backdrop-filter:blur(2px)}
+.sheet-overlay.hidden{display:none}
+.sheet{background:var(--bg2);border-radius:24px 24px 0 0;width:100%;max-height:92vh;overflow-y:auto;animation:slideUp .25s ease}
+@keyframes slideUp{from{transform:translateY(60px);opacity:.5}to{transform:translateY(0);opacity:1}}
+.sheet-handle{width:40px;height:4px;background:var(--border);border-radius:4px;margin:12px auto 0}
+.sheet-header{padding:14px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.sheet-title{font-size:17px;font-weight:900;display:flex;align-items:center;gap:8px}
+.sheet-close{width:32px;height:32px;background:var(--bg3);border:none;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2)}
+.sheet-content{padding:16px 20px}
+.sheet-footer{padding:12px 20px 24px;border-top:1px solid var(--border);display:flex;gap:10px}
+
+.form-group{margin-bottom:13px}
+.form-label{display:block;font-size:12px;font-weight:800;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
+.form-input{width:100%;background:var(--bg3);border:2px solid var(--border);border-radius:var(--radius);padding:11px 14px;color:var(--text);font-size:15px;font-family:'Nunito',sans-serif;font-weight:600;outline:none;transition:border-color .15s;appearance:none}
+.form-input:focus{border-color:var(--primary);background:#fff}
+.form-input::placeholder{color:var(--text3)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* TIPO SELECTOR */
+.tipo-selector{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.tipo-option{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:var(--radius);border:2px solid var(--border);cursor:pointer;transition:all .15s;background:var(--bg3)}
+.tipo-option.selected{border-color:var(--primary);background:var(--primary-light)}
+.tipo-radio{width:18px;height:18px;border-radius:50%;border:2px solid var(--text3);flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.tipo-option.selected .tipo-radio{border-color:var(--primary);background:var(--primary)}
+.tipo-option.selected .tipo-radio::after{content:'';width:7px;height:7px;background:#fff;border-radius:50%;display:block}
+.tipo-title{font-size:14px;font-weight:800;color:var(--text);margin-bottom:2px}
+.tipo-option.selected .tipo-title{color:var(--primary)}
+.tipo-desc{font-size:12px;font-weight:600;color:var(--text3);line-height:1.4}
+
+/* KIT BUILD */
+.kit-build-item{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg3);border-radius:var(--radius);margin-bottom:6px}
+.qty-ctrl{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1.5px solid var(--border);border-radius:8px;padding:2px 6px;flex-shrink:0}
+.qty-ctrl button{width:24px;height:24px;border:none;background:none;cursor:pointer;font-size:16px;font-weight:900;color:var(--primary);display:flex;align-items:center;justify-content:center}
+.qty-ctrl span{font-size:14px;font-weight:900;min-width:20px;text-align:center}
+
+/* ADD ROW */
+.add-row{display:flex;gap:8px;align-items:center;background:var(--bg3);border-radius:var(--radius);padding:10px}
+.add-row select{flex:1;background:var(--bg2);border:1.5px solid var(--border);border-radius:8px;padding:9px 10px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:600;color:var(--text);outline:none;appearance:none}
+.add-row-btn{width:38px;height:38px;background:var(--primary);border:none;border-radius:10px;cursor:pointer;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* VENTA ITEMS */
+.venta-item-row{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg3);border-radius:var(--radius);margin-bottom:6px}
+.venta-item-info{flex:1;min-width:0}
+.venta-item-name{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.venta-item-price{font-size:11px;font-weight:600;color:var(--text3)}
+.venta-subtotal{font-size:14px;font-weight:900;color:var(--green-dark);flex-shrink:0}
+
+.total-bar{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--green-light);border-radius:var(--radius);border:1.5px solid #a7f3d0;margin-top:10px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 20px;border-radius:var(--radius);border:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:15px;cursor:pointer;transition:all .15s;width:100%}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-outline{background:var(--bg3);color:var(--text);border:1.5px solid var(--border)}
+.btn-green{background:var(--green);color:#fff}
+.btn-icon-sm{width:30px;height:30px;border-radius:8px;background:var(--red-light);border:none;cursor:pointer;color:var(--red);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+
+.fin-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.fin-row:last-child{border-bottom:none}
+.fin-label{font-size:14px;font-weight:700;color:var(--text2)}
+.fin-value{font-size:17px;font-weight:900}
+
+.fab{position:fixed;bottom:76px;right:16px;width:56px;height:56px;background:var(--primary);border-radius:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(91,79,255,.4);border:none;cursor:pointer;z-index:90;color:#fff;font-size:28px;transition:transform .2s}
+.fab:active{transform:scale(.93)}
+
+.divider{height:1px;background:var(--border);margin:12px 0}
+.text-green{color:var(--green-dark)}.text-red{color:var(--red)}.text-amber{color:var(--amber-dark)}.text-primary{color:var(--primary)}.font-bold{font-weight:800}
+.flex{display:flex}.items-center{align-items:center}.justify-between{justify-content:space-between}.gap-2{gap:8px}.mt-2{margin-top:8px}.mt-3{margin-top:12px}.mb-2{margin-bottom:8px}
+.info-box{border-radius:var(--radius);padding:10px 12px;font-size:12px;font-weight:700;margin-bottom:12px}
+.info-box.primary{background:var(--primary-light);color:var(--primary)}
+.info-box.green{background:var(--green-light);color:var(--green-dark)}
+.empty-state{text-align:center;padding:28px 16px;color:var(--text3)}
+.empty-state i{font-size:44px;display:block;margin-bottom:10px;opacity:.4}
+.empty-state p{font-size:13px;font-weight:700}
+#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;padding:10px 20px;border-radius:24px;font-size:14px;font-weight:700;opacity:0;transition:all .3s;z-index:999;white-space:nowrap}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">
+    <div class="logo-icon"><i class="ti ti-packages"></i></div>
+    <div><div class="logo-title">StockFlow</div><div class="logo-sub">OMS · WMS</div></div>
+  </div>
+  <div class="topbar-right">
+    <button class="icon-btn" onclick="showPage('inventory');switchInvTab('alertas')">
+      <i class="ti ti-bell"></i>
+      <span class="notif-badge" id="bell-badge" style="display:none">0</span>
+    </button>
+    <button class="icon-btn"><i class="ti ti-settings"></i></button>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- HOME -->
+  <div class="page active" id="page-home">
+    <div class="section-title">¡Hola! 👋</div>
+    <div class="section-sub">Resumen de tu negocio</div>
+    <div id="home-alert-widget"></div>
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--primary-light)"><i class="ti ti-box" style="color:var(--primary);font-size:18px"></i></div>
+        <div class="stat-num" id="d-prods">0</div><div class="stat-label">PRODUCTOS</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--amber-light)"><i class="ti ti-stack-2" style="color:var(--amber-dark);font-size:18px"></i></div>
+        <div class="stat-num text-amber" id="d-kits">0</div><div class="stat-label">KITs</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--green-light)"><i class="ti ti-shopping-bag" style="color:var(--green-dark);font-size:18px"></i></div>
+        <div class="stat-num text-green" id="d-revenue">$0</div><div class="stat-label">VENTAS</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--red-light)"><i class="ti ti-alert-triangle" style="color:var(--red);font-size:18px"></i></div>
+        <div class="stat-num text-red" id="d-alerts">0</div><div class="stat-label">ALERTAS</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><i class="ti ti-chart-bar" style="color:var(--primary)"></i> Resumen financiero</div>
+      <div class="fin-row"><span class="fin-label">💸 Compras</span><span class="fin-value text-amber" id="d-cost">$0</span></div>
+      <div class="fin-row"><span class="fin-label">💰 Ventas</span><span class="fin-value text-green" id="d-rev2">$0</span></div>
+      <div class="fin-row"><span class="fin-label font-bold">📈 Utilidad</span><span class="fin-value" id="d-profit">$0</span></div>
+    </div>
+  </div>
+
+  <!-- INVENTARIO -->
+  <div class="page" id="page-inventory">
+    <div class="section-title">Inventario</div>
+    <div class="section-sub">Productos, insumos y KITs</div>
+    <div class="search-bar">
+      <i class="ti ti-search" style="color:var(--text3);font-size:20px"></i>
+      <input type="text" placeholder="Buscar..." oninput="S.invQ=this.value;renderInventory()">
+    </div>
+    <div class="tabs">
+      <div class="tab active" id="itab-todos" onclick="switchInvTab('todos',this)">Todos</div>
+      <div class="tab" id="itab-alertas" onclick="switchInvTab('alertas',this)">Alertas<span class="tbadge" id="alert-tab-count" style="display:none">0</span></div>
+    </div>
+    <div id="inv-content"></div>
+  </div>
+
+  <!-- KITS -->
+  <div class="page" id="page-kits">
+    <div class="section-title">KITs</div>
+    <div class="section-sub">Stock calculado desde componentes</div>
+    <div id="kits-content"></div>
+  </div>
+
+  <!-- VENTAS -->
+  <div class="page" id="page-ventas">
+    <div class="section-title">Ventas</div>
+    <div class="section-sub">Solo ítems vendibles disponibles</div>
+    <div id="ventas-content"></div>
+  </div>
+
+</div>
+
+<button class="fab" onclick="openSheet('sheet-fab')"><i class="ti ti-plus"></i></button>
+
+<nav class="bottom-nav">
+  <button class="nav-tab active" onclick="showPage('home',this)"><i class="ti ti-home"></i><span>Inicio</span></button>
+  <button class="nav-tab" onclick="showPage('inventory',this)"><i class="ti ti-box"></i><span>Inventario</span></button>
+  <button class="nav-tab" onclick="showPage('kits',this)"><i class="ti ti-stack-2"></i><span>KITs</span></button>
+  <button class="nav-tab" onclick="showPage('ventas',this)"><i class="ti ti-shopping-bag"></i><span>Ventas</span></button>
+  <button class="nav-tab"><i class="ti ti-truck-delivery"></i><span>Compras</span></button>
+</nav>
+
+<!-- SHEET: NUEVO PRODUCTO -->
+<div class="sheet-overlay hidden" id="sheet-prod">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-box" style="color:var(--primary)"></i> Nuevo producto</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-prod')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content">
+      <div class="form-group">
+        <div class="form-label">Nombre *</div>
+        <input class="form-input" id="p-name" placeholder="Ej: Café en grano 250g">
+      </div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Marca</div><input class="form-input" id="p-brand" placeholder="Marca"></div>
+        <div class="form-group"><div class="form-label">Categoría</div><input class="form-input" id="p-cat" placeholder="Categoría"></div>
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">¿Cómo usas este producto? *</div>
+        <div class="tipo-selector">
+          <div class="tipo-option" onclick="selectTipo('insumo',this)">
+            <div class="tipo-radio"></div>
+            <div>
+              <div class="tipo-title">🔧 Solo insumo / componente</div>
+              <div class="tipo-desc">Forma parte de KITs pero no se vende solo. Ej: ingredientes, piezas.</div>
+            </div>
+          </div>
+          <div class="tipo-option selected" onclick="selectTipo('producto',this)">
+            <div class="tipo-radio"></div>
+            <div>
+              <div class="tipo-title">🛒 Se vende individual</div>
+              <div class="tipo-desc">Aparece en ventas como ítem independiente. Ej: cable, cámara.</div>
+            </div>
+          </div>
+          <div class="tipo-option" onclick="selectTipo('ambos',this)">
+            <div class="tipo-radio"></div>
+            <div>
+              <div class="tipo-title">🍝 Ambos</div>
+              <div class="tipo-desc">Se vende solo Y también puede ser componente de un KIT.</div>
+            </div>
+          </div>
+        </div>
+        <input type="hidden" id="p-tipo" value="producto">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Precio costo</div><input class="form-input" type="number" id="p-cost" placeholder="$0"></div>
+        <div class="form-group"><div class="form-label" id="price-label">Precio venta</div><input class="form-input" type="number" id="p-price" placeholder="$0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Stock inicial</div><input class="form-input" type="number" id="p-stock" value="0"></div>
+        <div class="form-group"><div class="form-label">Alerta bajo de</div><input class="form-input" type="number" id="p-threshold" value="10"></div>
+      </div>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-prod')" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveProd()" style="flex:2"><i class="ti ti-check"></i> Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: NUEVO KIT -->
+<div class="sheet-overlay hidden" id="sheet-kit">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-stack-2" style="color:var(--amber-dark)"></i> Nuevo KIT</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-kit')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content">
+      <div class="form-group"><div class="form-label">Nombre del KIT *</div><input class="form-input" id="kit-name" placeholder="Ej: Desayuno Ejecutivo"></div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Precio de venta</div><input class="form-input" type="number" id="kit-price" placeholder="$0"></div>
+        <div class="form-group"><div class="form-label">SKU (opcional)</div><input class="form-input" id="kit-sku-input" placeholder="KIT-001"></div>
+      </div>
+      <div class="divider"></div>
+      <div class="form-label mb-2">Componentes del KIT</div>
+      <div class="info-box primary"><i class="ti ti-info-circle"></i> Puedes agregar cualquier producto sin importar su tipo. El stock del KIT se calcula automáticamente.</div>
+      <div id="kit-items-list"></div>
+      <div class="add-row mt-2">
+        <select id="kit-add-prod"><option value="">Seleccionar producto...</option></select>
+        <button class="add-row-btn" onclick="addKitItem()"><i class="ti ti-plus"></i></button>
+      </div>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-kit')" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveKit()" style="flex:2"><i class="ti ti-check"></i> Crear KIT</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: NUEVA VENTA -->
+<div class="sheet-overlay hidden" id="sheet-venta">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-shopping-bag" style="color:var(--green-dark)"></i> Nueva venta</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-venta')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content">
+      <div class="form-group"><div class="form-label">Cliente</div><input class="form-input" id="venta-cliente" placeholder="Nombre (opcional)"></div>
+      <div class="divider"></div>
+      <div class="form-label mb-2">¿Qué se vendió?</div>
+      <div class="info-box green"><i class="ti ti-info-circle"></i> Solo aparecen productos tipo <strong>Individual</strong> o <strong>Ambos</strong>, y todos los KITs. Los insumos no se venden solos.</div>
+      <div id="venta-items-list"></div>
+      <div class="add-row mt-2">
+        <select id="venta-add-item"><option value="">Agregar producto o KIT...</option></select>
+        <button class="add-row-btn" onclick="addVentaItem()"><i class="ti ti-plus"></i></button>
+      </div>
+      <div class="total-bar mt-3">
+        <span style="font-size:14px;font-weight:800;color:var(--green-dark)">Total</span>
+        <span style="font-size:22px;font-weight:900;color:var(--green-dark)" id="venta-total">$0</span>
+      </div>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-venta')" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-green" onclick="saveVenta()" style="flex:2"><i class="ti ti-check"></i> Registrar venta</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: FAB -->
+<div class="sheet-overlay hidden" id="sheet-fab">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-content" style="padding:16px 20px 28px;display:flex;flex-direction:column;gap:10px">
+      <div class="form-label" style="font-size:14px;margin-bottom:2px">¿Qué quieres hacer?</div>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openSheet('sheet-prod')"><i class="ti ti-box" style="color:var(--primary)"></i> Agregar producto</button>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openSheetKit()"><i class="ti ti-stack-2" style="color:var(--amber-dark)"></i> Crear KIT</button>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openSheetVenta()"><i class="ti ti-shopping-bag" style="color:var(--green-dark)"></i> Registrar venta</button>
+      <button class="btn btn-outline" style="color:var(--text3)" onclick="closeSheet('sheet-fab')"><i class="ti ti-x"></i> Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const fmt = n => '$' + Math.round(n).toLocaleString('es-CL');
+
+const S = {
+  products: [
+    {sku:'PRD-001',name:'Cámara IP 1080p',brand:'Hikvision',cat:'Seguridad',tipo:'ambos',cost:45000,price:79000,stock:24,threshold:10},
+    {sku:'PRD-002',name:'Cable HDMI 3m',brand:'Ugreen',cat:'Cables',tipo:'ambos',cost:3500,price:8900,stock:8,threshold:15},
+    {sku:'PRD-003',name:'Fuente poder 12V',brand:'Syscom',cat:'Accesorios',tipo:'insumo',cost:8200,price:0,stock:0,threshold:10},
+    {sku:'PRD-004',name:'Disco duro 1TB',brand:'Seagate',cat:'Storage',tipo:'producto',cost:38000,price:62000,stock:3,threshold:5},
+    {sku:'PRD-005',name:'Conector BNC',brand:'Steren',cat:'Cables',tipo:'insumo',cost:450,price:0,stock:120,threshold:30},
+    {sku:'PRD-006',name:'Croissant',brand:'Artesanal',cat:'Alimentos',tipo:'insumo',cost:800,price:0,stock:15,threshold:5},
+    {sku:'PRD-007',name:'Jugo naranja 500ml',brand:'Artesanal',cat:'Bebidas',tipo:'insumo',cost:600,price:0,stock:12,threshold:5},
+    {sku:'PRD-008',name:'Café espresso',brand:'Artesanal',cat:'Bebidas',tipo:'insumo',cost:400,price:0,stock:20,threshold:8},
+  ],
+  kits: [
+    {sku:'KIT-001',name:'Kit Seguridad Básico',price:139000,items:[{sku:'PRD-001',qty:1},{sku:'PRD-002',qty:1},{sku:'PRD-003',qty:1}]},
+    {sku:'KIT-002',name:'Desayuno Ejecutivo',price:4900,items:[{sku:'PRD-006',qty:1},{sku:'PRD-007',qty:1},{sku:'PRD-008',qty:1}]},
+  ],
+  ventas: [],
+  tempKitItems: [],
+  tempVentaItems: [],
+  invTab: 'todos',
+  invQ: '',
+  currentPage: 'home'
+};
+
+const tipoMeta = {
+  insumo:  {label:'Insumo',    css:'tipo-insumo',  icon:'ti-tool'},
+  producto:{label:'Individual',css:'tipo-producto', icon:'ti-shopping-cart'},
+  ambos:   {label:'Ambos',     css:'tipo-ambos',   icon:'ti-arrows-split-2'},
+  kit:     {label:'KIT',       css:'tipo-kit',      icon:'ti-stack-2'},
+};
+function tipoBadge(tipo) {
+  const m = tipoMeta[tipo] || tipoMeta.producto;
+  return `<span class="tipo-badge ${m.css}"><i class="ti ${m.icon}" style="font-size:10px"></i>${m.label}</span>`;
+}
+
+function kitStock(kit) {
+  if (!kit.items.length) return 0;
+  return Math.min(...kit.items.map(i => {
+    const p = S.products.find(x => x.sku === i.sku);
+    return p ? Math.floor(p.stock / i.qty) : 0;
+  }));
+}
+function alertLevel(p) {
+  if (p.stock === 0) return 'critical';
+  if (p.stock <= p.threshold) return 'warning';
+  return null;
+}
+function getAlerts() { return S.products.filter(p => alertLevel(p)); }
+function sellable() {
+  const prods = S.products.filter(p => p.tipo === 'producto' || p.tipo === 'ambos');
+  return { prods, kits: S.kits };
+}
+
+function showPage(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  S.currentPage = id;
+  if (id==='home')      renderHome();
+  if (id==='inventory') renderInventory();
+  if (id==='kits')      renderKits();
+  if (id==='ventas')    renderVentas();
+}
+
+function switchInvTab(tab, el) {
+  S.invTab = tab;
+  document.querySelectorAll('#page-inventory .tab').forEach(t => t.classList.remove('active'));
+  const target = el || document.getElementById('itab-'+tab);
+  if (target) target.classList.add('active');
+  if (S.currentPage === 'inventory') renderInventory();
+  else showPage('inventory');
+}
+
+// ── HOME ──────────────────────────────────────
+function renderHome() {
+  const alerts   = getAlerts();
+  const critical = S.products.filter(p => p.stock === 0);
+  const revenue  = S.ventas.reduce((s,v) => s+v.total, 0);
+  const cost     = S.products.reduce((s,p) => s + p.cost * 10, 0);
+
+  document.getElementById('d-prods').textContent   = S.products.length;
+  document.getElementById('d-kits').textContent    = S.kits.length;
+  document.getElementById('d-alerts').textContent  = alerts.length;
+  document.getElementById('d-revenue').textContent = fmt(revenue);
+  document.getElementById('d-cost').textContent    = fmt(cost);
+  document.getElementById('d-rev2').textContent    = fmt(revenue);
+  const profit = revenue - cost;
+  const pEl = document.getElementById('d-profit');
+  pEl.textContent = fmt(profit);
+  pEl.className = 'fin-value ' + (profit >= 0 ? 'text-green' : 'text-red');
+
+  const bell = document.getElementById('bell-badge');
+  bell.style.display = alerts.length ? '' : 'none';
+  bell.textContent = alerts.length;
+
+  const widget = document.getElementById('home-alert-widget');
+  if (!alerts.length) { widget.innerHTML = ''; return; }
+
+  const isCrit = critical.length > 0;
+  const cls   = isCrit ? 'critical' : 'warning';
+  const icon  = isCrit ? 'ti-alert-octagon' : 'ti-alert-triangle';
+  const title = isCrit
+    ? `${critical.length} producto${critical.length>1?'s':''} sin stock`
+    : `${alerts.length} producto${alerts.length>1?'s':''} con stock bajo`;
+  const sub = isCrit
+    ? `Además ${alerts.length - critical.length} cerca del límite. Revisá tu inventario.`
+    : `Están por debajo del umbral configurado.`;
+  const pills = alerts.slice(0,3).map(p =>
+    `<span class="alert-pill"><i class="ti ${alertLevel(p)==='critical'?'ti-circle-x':'ti-circle-minus'}" style="font-size:11px"></i>${p.name.split(' ').slice(0,2).join(' ')}</span>`
+  ).join('') + (alerts.length>3 ? `<span class="alert-pill">+${alerts.length-3} más</span>` : '');
+
+  widget.innerHTML = `
+    <div class="alert-banner ${cls}" onclick="showPage('inventory');switchInvTab('alertas')">
+      <div class="alert-banner-inner">
+        <div class="alert-banner-icon"><i class="ti ${icon}"></i></div>
+        <div class="alert-banner-body">
+          <div class="alert-banner-title">${title}</div>
+          <div class="alert-banner-sub">${sub}</div>
+          <div class="alert-pills">${pills}</div>
+        </div>
+      </div>
+      <div class="alert-cta">
+        <span>Ver productos en alerta →</span>
+        <div style="width:26px;height:26px;background:rgba(255,255,255,.2);border-radius:7px;display:flex;align-items:center;justify-content:center">
+          <i class="ti ti-arrow-right" style="font-size:14px;color:#fff"></i>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── INVENTARIO ────────────────────────────────
+function renderInventory() {
+  const alerts = getAlerts();
+  const cnt = document.getElementById('alert-tab-count');
+  cnt.textContent = alerts.length;
+  cnt.style.display = alerts.length ? '' : 'none';
+
+  let items = S.products;
+  if (S.invQ) items = items.filter(p =>
+    p.name.toLowerCase().includes(S.invQ.toLowerCase()) ||
+    p.brand.toLowerCase().includes(S.invQ.toLowerCase())
+  );
+
+  const el = document.getElementById('inv-content');
+
+  if (S.invTab === 'alertas') {
+    const alerted = items.filter(p => alertLevel(p)).sort((a,b) => a.stock-b.stock);
+    el.innerHTML = alerted.length
+      ? alerted.map(p => prodRow(p)).join('')
+      : `<div style="text-align:center;padding:40px 16px"><div style="font-size:52px;margin-bottom:10px">✅</div><div class="font-bold" style="font-size:16px">Todo en orden</div><div style="font-size:13px;color:var(--text3);font-weight:600;margin-top:4px">Ningún producto bajo su umbral.</div></div>`;
+    return;
+  }
+
+  const alerted  = items.filter(p => alertLevel(p)).sort((a,b) => a.stock-b.stock);
+  const normal   = items.filter(p => !alertLevel(p));
+  let html = '';
+  if (alerted.length) {
+    html += `<div class="section-label"><i class="ti ti-alert-triangle" style="color:var(--red);font-size:13px"></i>Requieren atención (${alerted.length})</div>`;
+    html += alerted.map(p => prodRow(p)).join('');
+  }
+  if (normal.length) {
+    if (alerted.length) html += `<div class="section-label" style="margin-top:10px">En orden (${normal.length})</div>`;
+    html += `<div class="card" style="padding:8px 16px">${normal.map(p => prodRow(p)).join('')}</div>`;
+  }
+  if (!items.length) html = `<div class="empty-state"><i class="ti ti-box"></i><p>Sin resultados</p></div>`;
+  el.innerHTML = html;
+}
+
+function prodRow(p) {
+  const lvl = alertLevel(p);
+  const pct = Math.min(100, Math.round(p.stock / Math.max(p.threshold*2,1) * 100));
+  const barColor = p.stock===0?'var(--red)':lvl==='warning'?'var(--amber)':'var(--green)';
+  const dot = lvl ? `<span class="alert-dot ${lvl}"></span>` : '';
+  const tag = lvl==='critical'
+    ? `<span class="alert-tag critical"><i class="ti ti-circle-x" style="font-size:10px"></i>Sin stock</span>`
+    : lvl==='warning'
+    ? `<span class="alert-tag warning"><i class="ti ti-circle-minus" style="font-size:10px"></i>Stock bajo</span>`
+    : '';
+  return `<div class="product-item ${lvl?'alert-'+lvl:''}">
+    <div class="product-icon"><i class="ti ti-box"></i>${dot}</div>
+    <div class="product-info">
+      <div class="product-name">${p.name}</div>
+      <div class="product-meta" style="gap:5px;margin-top:3px">${tipoBadge(p.tipo)}${tag}</div>
+      <div class="progress"><div class="progress-bar" style="background:${barColor};width:${pct}%"></div></div>
+    </div>
+    <div class="product-right">
+      <div class="stock-num">${p.stock}</div>
+      <div class="stock-label">/ ${p.threshold} mín</div>
+    </div>
+  </div>`;
+}
+
+// ── KITS ──────────────────────────────────────
+function renderKits() {
+  const el = document.getElementById('kits-content');
+  if (!S.kits.length) {
+    el.innerHTML = `<div class="empty-state"><i class="ti ti-stack-2"></i><p>Sin KITs. Toca + para crear.</p></div>`;
+    return;
+  }
+  el.innerHTML = S.kits.map(kit => {
+    const stk = kitStock(kit);
+    const color = stk===0?'var(--red)':stk<=2?'var(--amber-dark)':'var(--green-dark)';
+    const comps = kit.items.map(i => {
+      const p = S.products.find(x => x.sku === i.sku);
+      const can = p ? Math.floor(p.stock / i.qty) : 0;
+      return `<div class="kit-comp-row">
+        <span class="kit-comp-name">${tipoBadge(p?.tipo||'insumo')} ${p?.name||i.sku} ×${i.qty}</span>
+        <span class="kit-comp-right" style="color:${can===0?'var(--red)':can<=2?'var(--amber-dark)':'var(--text)'}">
+          ${p?.stock||0} → <strong>${can}</strong> kits
+        </span>
+      </div>`;
+    }).join('');
+    return `<div class="kit-card">
+      <div class="kit-header">
+        <div>${tipoBadge('kit')}<div class="kit-name">${kit.name}</div><div class="kit-sku">${kit.sku} · ${fmt(kit.price)}</div></div>
+        <div style="text-align:right"><div class="kit-stock-big" style="color:${color}">${stk}</div><div class="kit-stock-label">disponibles</div></div>
+      </div>
+      <div class="kit-components">${comps}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── VENTAS ────────────────────────────────────
+function renderVentas() {
+  const el = document.getElementById('ventas-content');
+  const { prods, kits } = sellable();
+  const totalSellable = prods.length + kits.length;
+
+  let html = `<div class="info-box green"><i class="ti ti-info-circle"></i> Disponibles para venta: <strong>${totalSellable} ítems</strong> (${kits.length} KIT${kits.length!==1?'s':''} + ${prods.length} producto${prods.length!==1?'s':''}). Los ${S.products.filter(p=>p.tipo==='insumo').length} insumos no aparecen aquí.</div>`;
+
+  if (!S.ventas.length) {
+    html += `<div class="empty-state"><i class="ti ti-shopping-bag"></i><p>Sin ventas. Toca + para registrar.</p></div>`;
+    el.innerHTML = html; return;
+  }
+  html += [...S.ventas].reverse().map(v => `
+    <div class="card" style="margin-bottom:10px;padding:14px">
+      <div class="flex justify-between items-center mb-2">
+        <div>
+          <div style="font-size:13px;font-weight:800;color:var(--primary)">${v.id}</div>
+          <div style="font-size:15px;font-weight:800">${v.cliente||'Cliente'}</div>
+          <div style="font-size:11px;color:var(--text3);font-weight:600">${v.fecha}</div>
+        </div>
+        <div style="font-size:20px;font-weight:900;color:var(--green-dark)">${fmt(v.total)}</div>
+      </div>
+      <div style="font-size:12px;color:var(--text2);font-weight:600">${v.items.map(i=>i.name+' ×'+i.qty).join(' · ')}</div>
+    </div>`).join('');
+  el.innerHTML = html;
+}
+
+// ── FORM: PRODUCTO ────────────────────────────
+let selectedTipo = 'producto';
+function selectTipo(tipo, el) {
+  selectedTipo = tipo;
+  document.getElementById('p-tipo').value = tipo;
+  document.querySelectorAll('.tipo-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('price-label').textContent = tipo==='insumo' ? 'Precio costo' : 'Precio venta';
+}
+function saveProd() {
+  const name = document.getElementById('p-name').value.trim();
+  if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
+  const sku = 'PRD-' + String(S.products.length+1).padStart(3,'0');
+  S.products.push({
+    sku, name,
+    brand: document.getElementById('p-brand').value||'Sin marca',
+    cat:   document.getElementById('p-cat').value||'General',
+    tipo:  selectedTipo,
+    cost:  parseFloat(document.getElementById('p-cost').value)||0,
+    price: parseFloat(document.getElementById('p-price').value)||0,
+    stock: parseInt(document.getElementById('p-stock').value)||0,
+    threshold: parseInt(document.getElementById('p-threshold').value)||10,
+  });
+  ['p-name','p-brand','p-cat','p-cost','p-price'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('p-stock').value='0';
+  document.getElementById('p-threshold').value='10';
+  closeSheet('sheet-prod');
+  toast('✅ Guardado como "' + tipoMeta[selectedTipo].label + '"');
+  renderHome();
+  if (S.currentPage==='inventory') renderInventory();
+  if (S.currentPage==='ventas') renderVentas();
+}
+
+// ── FORM: KIT ─────────────────────────────────
+function openSheetKit() {
+  S.tempKitItems = [];
+  const sel = document.getElementById('kit-add-prod');
+  sel.innerHTML = '<option value="">Seleccionar producto...</option>' +
+    S.products.map(p => `<option value="${p.sku}">[${tipoMeta[p.tipo].label}] ${p.name} (stock: ${p.stock})</option>`).join('');
+  renderKitItemsList();
+  openSheet('sheet-kit');
+}
+function addKitItem() {
+  const sku = document.getElementById('kit-add-prod').value;
+  if (!sku) { toast('⚠️ Selecciona un producto'); return; }
+  const ex = S.tempKitItems.find(i => i.sku === sku);
+  if (ex) ex.qty++; else S.tempKitItems.push({sku, qty:1});
+  renderKitItemsList();
+}
+function renderKitItemsList() {
+  document.getElementById('kit-items-list').innerHTML = S.tempKitItems.map((item,idx) => {
+    const p = S.products.find(x => x.sku === item.sku);
+    return `<div class="kit-build-item">
+      ${tipoBadge(p?.tipo||'insumo')}
+      <span style="flex:1;font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p?.name||item.sku}</span>
+      <div class="qty-ctrl">
+        <button onclick="adjKQ(${idx},-1)">−</button>
+        <span>${item.qty}</span>
+        <button onclick="adjKQ(${idx},1)">+</button>
+      </div>
+      <button class="btn-icon-sm" onclick="S.tempKitItems.splice(${idx},1);renderKitItemsList()"><i class="ti ti-trash"></i></button>
+    </div>`;
+  }).join('');
+}
+function adjKQ(idx,d){ S.tempKitItems[idx].qty=Math.max(1,S.tempKitItems[idx].qty+d); renderKitItemsList(); }
+function saveKit() {
+  const name = document.getElementById('kit-name').value.trim();
+  if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
+  if (!S.tempKitItems.length) { toast('⚠️ Agrega al menos un componente'); return; }
+  const sku = document.getElementById('kit-sku-input').value || 'KIT-'+String(S.kits.length+1).padStart(3,'0');
+  S.kits.push({sku, name, price: parseFloat(document.getElementById('kit-price').value)||0, items: S.tempKitItems.slice()});
+  ['kit-name','kit-price','kit-sku-input'].forEach(id => document.getElementById(id).value='');
+  closeSheet('sheet-kit');
+  toast('✅ KIT creado — stock calculado automáticamente');
+  renderKits(); renderHome();
+  if (S.currentPage==='ventas') renderVentas();
+}
+
+// ── FORM: VENTA ───────────────────────────────
+function openSheetVenta() {
+  S.tempVentaItems = [];
+  const sel = document.getElementById('venta-add-item');
+  sel.innerHTML = '<option value="">Agregar producto o KIT...</option>';
+
+  // Primero KITs
+  S.kits.forEach(k => {
+    const stk = kitStock(k);
+    const o = document.createElement('option');
+    o.value = 'kit:' + k.sku;
+    o.textContent = `[KIT] ${k.name} — ${fmt(k.price)} (${stk} disp.)`;
+    sel.appendChild(o);
+  });
+  // Luego productos vendibles
+  S.products.filter(p => p.tipo==='producto'||p.tipo==='ambos').forEach(p => {
+    const o = document.createElement('option');
+    o.value = 'prod:' + p.sku;
+    o.textContent = `[${tipoMeta[p.tipo].label}] ${p.name} — ${fmt(p.price)} (${p.stock} stk)`;
+    sel.appendChild(o);
+  });
+
+  document.getElementById('venta-items-list').innerHTML = '';
+  document.getElementById('venta-total').textContent = '$0';
+  document.getElementById('venta-cliente').value = '';
+  openSheet('sheet-venta');
+}
+function addVentaItem() {
+  const val = document.getElementById('venta-add-item').value;
+  if (!val) { toast('⚠️ Selecciona un ítem'); return; }
+  const [type, sku] = val.split(':');
+  let name, price, tipo;
+  if (type==='kit') {
+    const k = S.kits.find(x => x.sku===sku);
+    name=k.name; price=k.price; tipo='kit';
+  } else {
+    const p = S.products.find(x => x.sku===sku);
+    name=p.name; price=p.price; tipo=p.tipo;
+  }
+  const ex = S.tempVentaItems.find(i => i.sku===sku && i.type===type);
+  if (ex) ex.qty++; else S.tempVentaItems.push({type,sku,name,price,qty:1,tipo});
+  renderVentaItemsList();
+}
+function renderVentaItemsList() {
+  const total = S.tempVentaItems.reduce((s,i) => s+i.qty*i.price, 0);
+  document.getElementById('venta-total').textContent = fmt(total);
+  document.getElementById('venta-items-list').innerHTML = S.tempVentaItems.map((item,idx) => `
+    <div class="venta-item-row">
+      ${tipoBadge(item.tipo)}
+      <div class="venta-item-info">
+        <div class="venta-item-name">${item.name}</div>
+        <div class="venta-item-price">${fmt(item.price)} c/u</div>
+      </div>
+      <div class="qty-ctrl">
+        <button onclick="adjVQ(${idx},-1)">−</button>
+        <span>${item.qty}</span>
+        <button onclick="adjVQ(${idx},1)">+</button>
+      </div>
+      <span class="venta-subtotal">${fmt(item.qty*item.price)}</span>
+      <button class="btn-icon-sm" onclick="S.tempVentaItems.splice(${idx},1);renderVentaItemsList()"><i class="ti ti-trash"></i></button>
+    </div>`).join('');
+}
+function adjVQ(idx,d){ S.tempVentaItems[idx].qty=Math.max(1,S.tempVentaItems[idx].qty+d); renderVentaItemsList(); }
+function saveVenta() {
+  if (!S.tempVentaItems.length) { toast('⚠️ Agrega al menos un ítem'); return; }
+  const total = S.tempVentaItems.reduce((s,i) => s+i.qty*i.price, 0);
+  const id = 'ORD-'+String(S.ventas.length+1).padStart(3,'0');
+  S.ventas.push({
+    id, total,
+    cliente: document.getElementById('venta-cliente').value||'Cliente',
+    fecha: new Date().toLocaleDateString('es-CL'),
+    items: S.tempVentaItems.slice()
+  });
+  // descontar stock
+  S.tempVentaItems.forEach(item => {
+    if (item.type==='kit') {
+      const kit = S.kits.find(k => k.sku===item.sku);
+      if (kit) kit.items.forEach(comp => {
+        const p = S.products.find(x => x.sku===comp.sku);
+        if (p) p.stock = Math.max(0, p.stock - comp.qty*item.qty);
+      });
+    } else {
+      const p = S.products.find(x => x.sku===item.sku);
+      if (p) p.stock = Math.max(0, p.stock - item.qty);
+    }
+  });
+  closeSheet('sheet-venta');
+  toast('✅ Venta registrada — stock actualizado');
+  renderHome(); renderVentas();
+  if (S.currentPage==='kits') renderKits();
+  if (S.currentPage==='inventory') renderInventory();
+}
+
+// ── SHEETS ────────────────────────────────────
+function openSheet(id){ document.getElementById(id).classList.remove('hidden'); document.body.style.overflow='hidden'; }
+function closeSheet(id){ document.getElementById(id).classList.add('hidden'); document.body.style.overflow=''; }
+document.querySelectorAll('.sheet-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)closeSheet(o.id);}));
+
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';
+  setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(20px)';},2500);
+}
+
+renderHome();
+</script>
+</body>
+</html>

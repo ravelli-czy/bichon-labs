@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow — Delivery</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f5f6fa;--bg2:#fff;--bg3:#f0f1f7;
+  --text:#1a1a2e;--text2:#5a5b7a;--text3:#9a9bb8;--border:#e4e5f0;
+  --primary:#5b4fff;--primary-light:#ede9ff;
+  --green:#16c98d;--green-light:#e6faf4;--green-dark:#0da070;
+  --red:#ff4d6d;--red-light:#fff0f3;--red-dark:#cc3a56;
+  --amber:#f59e0b;--amber-light:#fffbeb;--amber-dark:#d97706;
+  --blue:#3b82f6;--blue-light:#eff6ff;--blue-dark:#2563eb;
+  --teal:#0d9488;--teal-light:#f0fdfa;--teal-dark:#0f766e;
+  --radius:12px;--radius-lg:16px;--shadow:0 2px 12px rgba(91,79,255,.08);
+}
+body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;display:flex;flex-direction:column;max-width:480px;margin:0 auto}
+
+.topbar{background:var(--bg2);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:var(--shadow)}
+.topbar-logo{display:flex;align-items:center;gap:8px}
+.logo-icon{width:36px;height:36px;background:var(--primary);border-radius:10px;display:flex;align-items:center;justify-content:center}
+.logo-icon i{color:#fff;font-size:20px}
+.logo-title{font-weight:900;font-size:18px;color:var(--primary)}
+.logo-sub{font-size:10px;color:var(--text3);font-weight:600;display:block;line-height:1}
+.back-btn{display:flex;align-items:center;gap:6px;background:var(--bg3);border:none;border-radius:10px;padding:7px 12px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;color:var(--text2);cursor:pointer}
+
+.content{flex:1;padding:16px;padding-bottom:32px;overflow-y:auto}
+.section-title{font-size:20px;font-weight:900;margin-bottom:2px}
+.section-sub{font-size:13px;color:var(--text3);font-weight:600;margin-bottom:16px}
+
+/* TABS */
+.tabs{display:flex;gap:4px;background:var(--bg3);padding:4px;border-radius:12px;margin-bottom:16px}
+.tab{flex:1;padding:8px;border-radius:9px;text-align:center;font-size:12px;font-weight:800;color:var(--text3);cursor:pointer;transition:all .15s}
+.tab.active{background:var(--bg2);color:var(--primary);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+
+/* STATS KANBAN */
+.kanban-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.kanban-card{border-radius:var(--radius-lg);padding:14px;display:flex;align-items:center;gap:12px}
+.kanban-card.ready       {background:#ede9ff;border:1.5px solid #c4b5fd}
+.kanban-card.on_the_way  {background:var(--blue-light);border:1.5px solid #bfdbfe}
+.kanban-card.delivered   {background:var(--green-light);border:1.5px solid #a7f3d0}
+.kanban-card.not_delivered{background:var(--red-light);border:1.5px solid #ffc8d2}
+.kanban-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.kanban-card.ready .kanban-icon       {background:var(--primary-light)}
+.kanban-card.on_the_way .kanban-icon  {background:var(--blue-light)}
+.kanban-card.delivered .kanban-icon   {background:var(--green-light)}
+.kanban-card.not_delivered .kanban-icon{background:var(--red-light)}
+.kanban-card.ready .kanban-icon i       {color:var(--primary);font-size:20px}
+.kanban-card.on_the_way .kanban-icon i  {color:var(--blue-dark);font-size:20px}
+.kanban-card.delivered .kanban-icon i   {color:var(--green-dark);font-size:20px}
+.kanban-card.not_delivered .kanban-icon i{color:var(--red);font-size:20px}
+.kanban-num{font-size:22px;font-weight:900;line-height:1}
+.kanban-label{font-size:10px;font-weight:800;letter-spacing:.3px;margin-top:2px}
+.kanban-card.ready .kanban-num,.kanban-card.ready .kanban-label{color:var(--primary)}
+.kanban-card.on_the_way .kanban-num,.kanban-card.on_the_way .kanban-label{color:var(--blue-dark)}
+.kanban-card.delivered .kanban-num,.kanban-card.delivered .kanban-label{color:var(--green-dark)}
+.kanban-card.not_delivered .kanban-num,.kanban-card.not_delivered .kanban-label{color:var(--red)}
+
+/* DELIVERY RATE */
+.rate-card{background:var(--bg2);border-radius:var(--radius-lg);padding:14px 16px;box-shadow:var(--shadow);margin-bottom:16px;display:flex;align-items:center;gap:14px}
+.rate-circle{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;flex-shrink:0;position:relative}
+.rate-circle svg{position:absolute;top:0;left:0;transform:rotate(-90deg)}
+.rate-label-col{flex:1}
+.rate-title{font-size:14px;font-weight:800}
+.rate-sub{font-size:12px;color:var(--text3);font-weight:600;margin-top:2px}
+
+/* SHIPMENT CARD */
+.shipment-card{background:var(--bg2);border-radius:var(--radius-lg);padding:14px;margin-bottom:10px;box-shadow:var(--shadow);cursor:pointer;transition:transform .15s;border-left:4px solid transparent}
+.shipment-card:active{transform:scale(.98)}
+.shipment-card.ready        {border-left-color:var(--primary)}
+.shipment-card.on_the_way   {border-left-color:var(--blue)}
+.shipment-card.delivered     {border-left-color:var(--green)}
+.shipment-card.not_delivered {border-left-color:var(--red)}
+.sh-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.sh-id{font-size:12px;font-weight:800;color:var(--text3)}
+.sh-name{font-size:15px;font-weight:900;margin-top:1px}
+.sh-date{font-size:11px;color:var(--text3);font-weight:600;margin-top:2px}
+.sh-addr{font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:4px}
+.sh-footer{display:flex;align-items:center;justify-content:space-between}
+.sh-courier{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--text3)}
+.sh-actions{display:flex;gap:6px}
+
+/* STATUS BADGE */
+.status-badge{display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:800}
+.status-badge.ready        {background:#ede9ff;color:var(--primary)}
+.status-badge.on_the_way   {background:var(--blue-light);color:var(--blue-dark)}
+.status-badge.delivered    {background:var(--green-light);color:var(--green-dark)}
+.status-badge.not_delivered{background:var(--red-light);color:var(--red-dark)}
+
+/* ACTION BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 20px;border-radius:var(--radius);border:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:15px;cursor:pointer;transition:all .15s;width:100%}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-blue{background:var(--blue);color:#fff}
+.btn-green{background:var(--green);color:#fff}
+.btn-red{background:var(--red-light);color:var(--red);border:1.5px solid #ffc8d2}
+.btn-outline{background:var(--bg3);color:var(--text);border:1.5px solid var(--border)}
+.btn-amber{background:var(--amber-light);color:var(--amber-dark);border:1.5px solid #fde68a}
+.btn-sm{padding:7px 12px;font-size:12px;border-radius:9px;width:auto}
+.btn-icon{width:34px;height:34px;border-radius:9px;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:17px;transition:all .15s}
+.btn-icon.primary{background:var(--primary-light);color:var(--primary)}
+.btn-icon.blue{background:var(--blue-light);color:var(--blue-dark)}
+.btn-icon.print{background:var(--bg3);color:var(--text2)}
+
+/* SHEET */
+.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-end;backdrop-filter:blur(2px)}
+.sheet-overlay.hidden{display:none}
+.sheet{background:var(--bg2);border-radius:24px 24px 0 0;width:100%;max-height:92vh;overflow-y:auto;animation:up .25s ease}
+@keyframes up{from{transform:translateY(60px);opacity:.5}to{transform:translateY(0);opacity:1}}
+.sheet-handle{width:40px;height:4px;background:var(--border);border-radius:4px;margin:12px auto 0}
+.sheet-header{padding:14px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.sheet-title{font-size:17px;font-weight:900;display:flex;align-items:center;gap:8px}
+.sheet-close{width:32px;height:32px;background:var(--bg3);border:none;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2)}
+.sheet-content{padding:16px 20px}
+.sheet-footer{padding:12px 20px 24px;border-top:1px solid var(--border);display:flex;gap:10px}
+
+/* FORM */
+.form-group{margin-bottom:13px}
+.form-label{display:block;font-size:12px;font-weight:800;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
+.form-input{width:100%;background:var(--bg3);border:2px solid var(--border);border-radius:var(--radius);padding:11px 14px;color:var(--text);font-size:15px;font-family:'Nunito',sans-serif;font-weight:600;outline:none;transition:border-color .15s;appearance:none}
+.form-input:focus{border-color:var(--primary);background:#fff}
+.form-input::placeholder{color:var(--text3)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* TIMELINE */
+.timeline{padding:4px 0}
+.timeline-item{display:flex;gap:12px;padding-bottom:16px;position:relative}
+.timeline-item:last-child{padding-bottom:0}
+.timeline-item:not(:last-child)::before{content:'';position:absolute;left:15px;top:30px;bottom:0;width:2px;background:var(--border)}
+.timeline-dot{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;z-index:1}
+.timeline-dot.ready        {background:#ede9ff;color:var(--primary)}
+.timeline-dot.on_the_way   {background:var(--blue-light);color:var(--blue-dark)}
+.timeline-dot.delivered    {background:var(--green-light);color:var(--green-dark)}
+.timeline-dot.not_delivered{background:var(--red-light);color:var(--red)}
+.timeline-body{flex:1;padding-top:4px}
+.timeline-status{font-size:13px;font-weight:800}
+.timeline-note{font-size:12px;color:var(--text2);font-weight:600;margin-top:1px}
+.timeline-date{font-size:11px;color:var(--text3);font-weight:600;margin-top:2px}
+
+/* LABEL CONFIG */
+.config-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.config-row:last-child{border-bottom:none}
+.config-label{font-size:13px;font-weight:700}
+.config-sub{font-size:11px;color:var(--text3);font-weight:600}
+.switch{position:relative;width:44px;height:24px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0;position:absolute}
+.sw-track{position:absolute;inset:0;background:var(--border);border-radius:12px;transition:.2s;cursor:pointer}
+.switch input:checked+.sw-track{background:var(--primary)}
+.sw-thumb{position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.2s;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.switch input:checked~.sw-thumb{left:23px}
+
+/* COURIER CARD */
+.courier-card{background:var(--bg2);border-radius:var(--radius-lg);padding:14px;margin-bottom:10px;box-shadow:var(--shadow)}
+.courier-header{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.courier-avatar{width:44px;height:44px;border-radius:12px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:var(--primary)}
+.courier-name{font-size:15px;font-weight:800}
+.courier-contact{font-size:11px;color:var(--text3);font-weight:600;margin-top:1px}
+.zone-pill{display:inline-flex;align-items:center;gap:3px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;color:var(--text2);margin:2px}
+
+/* TRACKING PUBLIC VIEW */
+.track-card{background:var(--bg2);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow);margin-bottom:12px}
+.track-status-big{font-size:18px;font-weight:900;margin-bottom:4px}
+.track-code{font-family:monospace;font-size:20px;font-weight:900;letter-spacing:3px;color:var(--primary);background:var(--primary-light);padding:8px 16px;border-radius:10px;display:inline-block;margin-bottom:12px}
+
+/* PILL SELECT */
+.pill-select{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.pill-opt{padding:7px 14px;border-radius:20px;border:2px solid var(--border);font-size:13px;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text2);transition:all .15s}
+.pill-opt.selected{background:var(--primary-light);border-color:var(--primary);color:var(--primary)}
+
+.divider{height:1px;background:var(--border);margin:12px 0}
+.info-box{border-radius:var(--radius);padding:10px 12px;font-size:12px;font-weight:700;margin-bottom:12px}
+.info-box.blue{background:var(--blue-light);color:var(--blue-dark)}
+.info-box.amber{background:var(--amber-light);color:var(--amber-dark)}
+.flex{display:flex}.items-center{align-items:center}.justify-between{justify-content:space-between}.gap-2{gap:8px}.mt-2{margin-top:8px}.mt-3{margin-top:12px}.mb-2{margin-bottom:8px}.font-bold{font-weight:800}.text-sm{font-size:13px}
+.empty-state{text-align:center;padding:28px 16px;color:var(--text3)}
+.empty-state i{font-size:44px;display:block;margin-bottom:10px;opacity:.4}
+.empty-state p{font-size:13px;font-weight:700}
+.fab{position:fixed;bottom:20px;right:16px;width:56px;height:56px;background:var(--primary);border-radius:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(91,79,255,.4);border:none;cursor:pointer;z-index:90;color:#fff;font-size:28px;transition:transform .2s}
+.fab:active{transform:scale(.93)}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;padding:10px 20px;border-radius:24px;font-size:14px;font-weight:700;opacity:0;transition:all .3s;z-index:999;white-space:nowrap}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">
+    <div class="logo-icon"><i class="ti ti-packages"></i></div>
+    <div><div class="logo-title">StockFlow</div><div class="logo-sub">Delivery</div></div>
+  </div>
+  <button class="back-btn" onclick="toast('← Volviendo al menú principal')"><i class="ti ti-arrow-left"></i> Volver</button>
+</div>
+
+<div class="content">
+  <div class="section-title">Delivery</div>
+  <div class="section-sub">Envíos, couriers y seguimiento</div>
+
+  <!-- MÉTRICAS KANBAN -->
+  <div class="kanban-row">
+    <div class="kanban-card ready" onclick="filterByStatus('ready')">
+      <div class="kanban-icon"><i class="ti ti-package"></i></div>
+      <div><div class="kanban-num" id="k-ready">4</div><div class="kanban-label">PARA ENVIAR</div></div>
+    </div>
+    <div class="kanban-card on_the_way" onclick="filterByStatus('on_the_way')">
+      <div class="kanban-icon"><i class="ti ti-truck"></i></div>
+      <div><div class="kanban-num" id="k-otw">3</div><div class="kanban-label">EN CAMINO</div></div>
+    </div>
+    <div class="kanban-card delivered" onclick="filterByStatus('delivered')">
+      <div class="kanban-icon"><i class="ti ti-circle-check"></i></div>
+      <div><div class="kanban-num" id="k-del">12</div><div class="kanban-label">ENTREGADOS</div></div>
+    </div>
+    <div class="kanban-card not_delivered" onclick="filterByStatus('not_delivered')">
+      <div class="kanban-icon"><i class="ti ti-circle-x"></i></div>
+      <div><div class="kanban-num" id="k-nd">2</div><div class="kanban-label">NO ENTREGADO</div></div>
+    </div>
+  </div>
+
+  <!-- TASA DE ENTREGA -->
+  <div class="rate-card">
+    <div class="rate-circle" id="rate-circle">
+      <svg width="56" height="56" viewBox="0 0 56 56">
+        <circle cx="28" cy="28" r="23" fill="none" stroke="#e4e5f0" stroke-width="5"/>
+        <circle cx="28" cy="28" r="23" fill="none" stroke="#16c98d" stroke-width="5"
+          stroke-dasharray="144.5" stroke-dashoffset="20" stroke-linecap="round" id="rate-arc"/>
+      </svg>
+      <span style="position:relative;z-index:1;font-size:13px;font-weight:900;color:var(--green-dark)" id="rate-pct">86%</span>
+    </div>
+    <div class="rate-label-col">
+      <div class="rate-title">Tasa de entrega</div>
+      <div class="rate-sub">12 de 14 envíos completados</div>
+      <div style="font-size:11px;font-weight:700;color:var(--amber-dark);margin-top:4px">💰 Costo envíos: $52.500</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('envios',this)">Envíos</div>
+    <div class="tab" onclick="switchTab('couriers',this)">Couriers</div>
+    <div class="tab" onclick="switchTab('tracking',this)">Rastrear</div>
+  </div>
+
+  <!-- TAB: ENVÍOS -->
+  <div id="tab-envios">
+    <div id="status-filter-bar" style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px">
+      <button class="pill-opt selected" onclick="filterByStatus(null,this)">Todos</button>
+      <button class="pill-opt" onclick="filterByStatus('ready',this)">Para enviar</button>
+      <button class="pill-opt" onclick="filterByStatus('on_the_way',this)">En camino</button>
+      <button class="pill-opt" onclick="filterByStatus('not_delivered',this)">No entregados</button>
+      <button class="pill-opt" onclick="filterByStatus('delivered',this)">Entregados</button>
+    </div>
+    <div id="shipments-list"></div>
+  </div>
+
+  <!-- TAB: COURIERS -->
+  <div id="tab-couriers" style="display:none">
+    <div id="couriers-list"></div>
+    <button class="btn btn-primary mt-3" onclick="openSheet('sheet-courier')">
+      <i class="ti ti-plus"></i> Agregar courier
+    </button>
+  </div>
+
+  <!-- TAB: RASTREAR -->
+  <div id="tab-tracking" style="display:none">
+    <div class="info-box blue"><i class="ti ti-qrcode"></i> Ingresa el código de seguimiento o escaneá el QR de la etiqueta.</div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <input class="form-input" id="track-input" placeholder="Ej: SFABC12345" style="flex:1;text-transform:uppercase;font-family:monospace;font-size:16px;letter-spacing:2px">
+      <button class="btn btn-primary" style="width:auto;padding:11px 16px" onclick="doTracking()"><i class="ti ti-search"></i></button>
+    </div>
+    <div id="tracking-result"></div>
+  </div>
+
+</div>
+
+<!-- FAB -->
+<button class="fab" onclick="openSheet('sheet-fab')"><i class="ti ti-plus"></i></button>
+
+<!-- SHEET: NUEVO ENVÍO -->
+<div class="sheet-overlay hidden" id="sheet-shipment">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-truck-delivery" style="color:var(--primary)"></i> Nuevo envío</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-shipment')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content">
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">N° Orden</div><input class="form-input" id="sh-order" placeholder="ORD-001"></div>
+        <div class="form-group"><div class="form-label">Courier</div>
+          <select class="form-input" id="sh-courier"><option value="">Sin asignar</option></select>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="form-group"><div class="form-label">Nombre destinatario *</div><input class="form-input" id="sh-name" placeholder="Juan Pérez"></div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Teléfono</div><input class="form-input" id="sh-phone" placeholder="+56 9 ..."></div>
+        <div class="form-group"><div class="form-label">Email</div><input class="form-input" id="sh-email" placeholder="juan@..."></div>
+      </div>
+      <div class="form-group"><div class="form-label">Dirección *</div><input class="form-input" id="sh-street" placeholder="Av. Providencia 1234, Depto 3B"></div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Ciudad *</div><input class="form-input" id="sh-city" placeholder="Santiago"></div>
+        <div class="form-group"><div class="form-label">Región</div><input class="form-input" id="sh-region" placeholder="RM"></div>
+      </div>
+      <div class="form-group"><div class="form-label">Referencia / notas de dirección</div><input class="form-input" id="sh-anotes" placeholder="Portero Gonzalo, timbre roto..."></div>
+      <div class="divider"></div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Fecha entrega *</div><input class="form-input" type="date" id="sh-date"></div>
+        <div class="form-group"><div class="form-label">Costo envío ($)</div><input class="form-input" type="number" id="sh-cost" placeholder="0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Ventana desde</div><input class="form-input" type="time" id="sh-from" value="09:00"></div>
+        <div class="form-group"><div class="form-label">Ventana hasta</div><input class="form-input" type="time" id="sh-to" value="13:00"></div>
+      </div>
+      <div class="form-group"><div class="form-label">Notas internas</div><input class="form-input" id="sh-notes" placeholder="Frágil, contiene vidrio..."></div>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-shipment')" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveShipment()" style="flex:2"><i class="ti ti-check"></i> Crear envío</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: DETALLE ENVÍO -->
+<div class="sheet-overlay hidden" id="sheet-detail">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title" id="detail-title"><i class="ti ti-truck-delivery" style="color:var(--primary)"></i> Envío</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-detail')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content" id="detail-content"></div>
+    <div class="sheet-footer" id="detail-footer"></div>
+  </div>
+</div>
+
+<!-- SHEET: REAGENDAR -->
+<div class="sheet-overlay hidden" id="sheet-reschedule">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-calendar-event" style="color:var(--amber-dark)"></i> Reagendar envío</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-reschedule')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content">
+      <div class="info-box amber"><i class="ti ti-info-circle"></i> El envío volverá a estado "Listo para enviar" con la nueva fecha.</div>
+      <div class="form-group"><div class="form-label">Nueva fecha *</div><input class="form-input" type="date" id="rs-date"></div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Ventana desde</div><input class="form-input" type="time" id="rs-from" value="09:00"></div>
+        <div class="form-group"><div class="form-label">Ventana hasta</div><input class="form-input" type="time" id="rs-to" value="13:00"></div>
+      </div>
+      <div class="form-group"><div class="form-label">Courier (opcional)</div>
+        <select class="form-input" id="rs-courier"><option value="">Mantener mismo courier</option></select>
+      </div>
+      <div class="form-group"><div class="form-label">Motivo del reagendamiento</div>
+        <input class="form-input" id="rs-note" placeholder="Nadie en casa, cliente solicitó cambio...">
+      </div>
+      <input type="hidden" id="rs-id">
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-reschedule')" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-amber" onclick="doReschedule()" style="flex:2"><i class="ti ti-calendar-event"></i> Reagendar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: CONFIG ETIQUETA -->
+<div class="sheet-overlay hidden" id="sheet-label">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-printer" style="color:var(--primary)"></i> Etiqueta de envío</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-label')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content">
+      <div class="form-group">
+        <div class="form-label">Tamaño de etiqueta</div>
+        <div class="pill-select">
+          <div class="pill-opt" onclick="selLabelPill(this,'10x15')" data-val="10x15">10×15 cm</div>
+          <div class="pill-opt selected" onclick="selLabelPill(this,'A5')" data-val="A5">A5</div>
+          <div class="pill-opt" onclick="selLabelPill(this,'A4')" data-val="A4">A4</div>
+          <div class="pill-opt" onclick="selLabelPill(this,'4x6')" data-val="4x6">4×6 pulgadas</div>
+        </div>
+        <input type="hidden" id="lbl-size" value="A5">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Tamaño de texto</div>
+        <div class="pill-select">
+          <div class="pill-opt" onclick="selLabelPill(this,'small')" data-val="small">Pequeño</div>
+          <div class="pill-opt selected" onclick="selLabelPill(this,'medium')" data-val="medium">Mediano</div>
+          <div class="pill-opt" onclick="selLabelPill(this,'large')" data-val="large">Grande</div>
+        </div>
+        <input type="hidden" id="lbl-font" value="medium">
+      </div>
+      <div class="divider"></div>
+      <div class="form-label mb-2">Datos a incluir</div>
+      <div class="config-row">
+        <div><div class="config-label">Destinatario y teléfono</div></div>
+        <label class="switch"><input type="checkbox" id="lbl-recipient" checked><div class="sw-track"></div><div class="sw-thumb"></div></label>
+      </div>
+      <div class="config-row">
+        <div><div class="config-label">Dirección completa</div></div>
+        <label class="switch"><input type="checkbox" id="lbl-address" checked><div class="sw-track"></div><div class="sw-thumb"></div></label>
+      </div>
+      <div class="config-row">
+        <div><div class="config-label">Fecha y ventana horaria</div></div>
+        <label class="switch"><input type="checkbox" id="lbl-date" checked><div class="sw-track"></div><div class="sw-thumb"></div></label>
+      </div>
+      <div class="config-row">
+        <div><div class="config-label">Nombre del courier</div></div>
+        <label class="switch"><input type="checkbox" id="lbl-courier" checked><div class="sw-track"></div><div class="sw-thumb"></div></label>
+      </div>
+      <div class="config-row">
+        <div><div class="config-label">Código de seguimiento</div></div>
+        <label class="switch"><input type="checkbox" id="lbl-tracking" checked><div class="sw-track"></div><div class="sw-thumb"></div></label>
+      </div>
+      <div class="config-row">
+        <div><div class="config-label">QR de rastreo</div></div>
+        <label class="switch"><input type="checkbox" id="lbl-qr" checked><div class="sw-track"></div><div class="sw-thumb"></div></label>
+      </div>
+      <div class="config-row">
+        <div><div class="config-label">Logo del courier</div></div>
+        <label class="switch"><input type="checkbox" id="lbl-logo" checked><div class="sw-track"></div><div class="sw-thumb"></div></label>
+      </div>
+      <input type="hidden" id="lbl-shipment-id">
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-label')" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-primary" onclick="printLabel()" style="flex:2"><i class="ti ti-printer"></i> Imprimir etiqueta</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: NUEVO COURIER -->
+<div class="sheet-overlay hidden" id="sheet-courier">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-building-store" style="color:var(--primary)"></i> Nuevo courier</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-courier')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content">
+      <div class="form-group"><div class="form-label">Nombre *</div><input class="form-input" id="cou-name" placeholder="StarShipping Chile"></div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Teléfono</div><input class="form-input" id="cou-phone" placeholder="+56 2 ..."></div>
+        <div class="form-group"><div class="form-label">Email</div><input class="form-input" id="cou-email" placeholder="ops@courier.cl"></div>
+      </div>
+      <div class="form-group"><div class="form-label">Persona de contacto</div><input class="form-input" id="cou-contact" placeholder="Pedro Rojas"></div>
+      <div class="divider"></div>
+      <div class="form-label mb-2">Zonas de cobertura</div>
+      <div id="zones-list"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <input class="form-input" id="zone-input" placeholder="Ej: Santiago Centro" style="flex:1">
+        <input class="form-input" type="number" id="zone-cost" placeholder="$/envío" style="width:90px">
+        <button class="btn btn-primary" style="width:auto;padding:11px 14px" onclick="addZone()"><i class="ti ti-plus"></i></button>
+      </div>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-courier')" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCourier()" style="flex:2"><i class="ti ti-check"></i> Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: FAB -->
+<div class="sheet-overlay hidden" id="sheet-fab">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-content" style="padding:16px 20px 28px;display:flex;flex-direction:column;gap:10px">
+      <div class="form-label" style="font-size:14px;margin-bottom:2px">¿Qué quieres hacer?</div>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openShipmentSheet()"><i class="ti ti-truck-delivery" style="color:var(--primary)"></i> Crear nuevo envío</button>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openSheet('sheet-courier')"><i class="ti ti-building-store" style="color:var(--teal)"></i> Agregar courier logístico</button>
+      <button class="btn btn-outline" style="color:var(--text3)" onclick="closeSheet('sheet-fab')"><i class="ti ti-x"></i> Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const fmt = n => '$' + Math.round(n).toLocaleString('es-CL');
+const today = () => new Date().toISOString().split('T')[0];
+
+// ── ESTADO ────────────────────────────────────
+const S = {
+  couriers: [
+    {id:'COU-001',name:'StarShipping Chile',phone:'+56 2 2222 3333',email:'ops@star.cl',contact:'Pedro Rojas',
+     zones:[{zone_name:'Santiago Centro',base_cost:2500,delivery_days:1},{zone_name:'Providencia',base_cost:2500,delivery_days:1},{zone_name:'Maipú',base_cost:3500,delivery_days:2}]},
+    {id:'COU-002',name:'UrbanExpress',phone:'+56 9 8877 6655',email:'despacho@urban.cl',contact:'Ana Torres',
+     zones:[{zone_name:'Providencia',base_cost:1900,delivery_days:1},{zone_name:'Las Condes',base_cost:1900,delivery_days:1}]},
+  ],
+  shipments: [
+    {id:'SHP-001',order_id:'ORD-001',courier_id:'COU-001',tracking_code:'SFABC12345',recipient_name:'Juan Pérez',recipient_phone:'+56 9 1111 2222',address_street:'Av. Providencia 1234 Depto 3B',address_city:'Providencia',scheduled_date:'2025-05-29',delivery_window_from:'10:00',delivery_window_to:'14:00',status:'ready',shipping_cost:2500,attempts:0,history:[{to_status:'ready',note:'Envío creado',created_at:'2025-05-28T10:00:00'}]},
+    {id:'SHP-002',order_id:'ORD-002',courier_id:'COU-002',tracking_code:'SFXYZ98765',recipient_name:'Empresa XYZ Ltda.',recipient_phone:'+56 2 3333 4444',address_street:'Miraflores 222 Piso 8',address_city:'Santiago Centro',scheduled_date:'2025-05-28',delivery_window_from:'09:00',delivery_window_to:'13:00',status:'on_the_way',shipping_cost:1900,attempts:1,history:[{to_status:'ready',note:'Envío creado',created_at:'2025-05-27T09:00:00'},{to_status:'on_the_way',note:'Salió en ruta',created_at:'2025-05-28T08:45:00'}]},
+    {id:'SHP-003',order_id:'ORD-003',courier_id:'COU-001',tracking_code:'SFLMN55555',recipient_name:'María González',recipient_phone:'+56 9 5555 6666',address_street:'Los Militares 6543',address_city:'Las Condes',scheduled_date:'2025-05-27',delivery_window_from:'14:00',delivery_window_to:'18:00',status:'not_delivered',shipping_cost:2500,attempts:1,notes:'Nadie en casa',history:[{to_status:'ready',note:'Creado',created_at:'2025-05-26T10:00:00'},{to_status:'on_the_way',note:'En camino',created_at:'2025-05-27T09:00:00'},{to_status:'not_delivered',note:'Nadie en casa. Se dejó aviso.',created_at:'2025-05-27T15:30:00'}]},
+    {id:'SHP-004',order_id:'ORD-004',courier_id:'COU-002',tracking_code:'SFQRS77777',recipient_name:'Carlos Muñoz',recipient_phone:'+56 9 7777 8888',address_street:'Irarrázaval 3456',address_city:'Ñuñoa',scheduled_date:'2025-05-25',status:'delivered',shipping_cost:1900,attempts:1,delivered_at:'2025-05-25T11:30:00',history:[{to_status:'ready',note:'Creado',created_at:'2025-05-24T08:00:00'},{to_status:'on_the_way',note:'En camino',created_at:'2025-05-25T09:00:00'},{to_status:'delivered',note:'Recibió personalmente',created_at:'2025-05-25T11:30:00'}]},
+  ],
+  tempZones: [],
+  currentFilter: null,
+  currentTab: 'envios'
+};
+
+const STATUS_META = {
+  ready:         {label:'Listo para enviar', icon:'ti-package',      next:['on_the_way']},
+  on_the_way:    {label:'En camino',          icon:'ti-truck',        next:['delivered','not_delivered']},
+  delivered:     {label:'Entregado',          icon:'ti-circle-check', next:[]},
+  not_delivered: {label:'No entregado',       icon:'ti-circle-x',     next:[]},
+};
+
+function statusBadge(s) {
+  const m = STATUS_META[s] || STATUS_META.ready;
+  return `<span class="status-badge ${s}"><i class="ti ${m.icon}" style="font-size:11px"></i>${m.label}</span>`;
+}
+
+// ── TABS ──────────────────────────────────────
+function switchTab(tab, el) {
+  S.currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-envios').style.display   = tab==='envios'   ? '' : 'none';
+  document.getElementById('tab-couriers').style.display = tab==='couriers' ? '' : 'none';
+  document.getElementById('tab-tracking').style.display = tab==='tracking' ? '' : 'none';
+  if (tab==='couriers') renderCouriers();
+}
+
+// ── MÉTRICAS ──────────────────────────────────
+function updateMetrics() {
+  const by = s => S.shipments.filter(x => x.status === s).length;
+  document.getElementById('k-ready').textContent = by('ready');
+  document.getElementById('k-otw').textContent   = by('on_the_way');
+  document.getElementById('k-del').textContent   = by('delivered');
+  document.getElementById('k-nd').textContent    = by('not_delivered');
+  const done = by('delivered') + by('not_delivered');
+  const rate = done > 0 ? Math.round(by('delivered') / done * 100) : 0;
+  document.getElementById('rate-pct').textContent = rate + '%';
+  // arco SVG: circunferencia ≈ 144.5
+  const offset = 144.5 - (144.5 * rate / 100);
+  document.getElementById('rate-arc').setAttribute('stroke-dashoffset', offset);
+}
+
+// ── ENVÍOS ────────────────────────────────────
+function filterByStatus(status, el) {
+  S.currentFilter = status;
+  if (el) {
+    document.querySelectorAll('#status-filter-bar .pill-opt').forEach(p => p.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+  renderShipments();
+}
+
+function renderShipments() {
+  let items = S.shipments;
+  if (S.currentFilter) items = items.filter(s => s.status === S.currentFilter);
+  // not_delivered primero, luego ready, on_the_way, delivered
+  const order = ['not_delivered','ready','on_the_way','delivered'];
+  items = [...items].sort((a,b) => order.indexOf(a.status) - order.indexOf(b.status));
+
+  const el = document.getElementById('shipments-list');
+  el.innerHTML = items.length ? items.map(s => {
+    const cou = S.couriers.find(c => c.id === s.courier_id);
+    const win = s.delivery_window_from ? ` · ${s.delivery_window_from.slice(0,5)}–${s.delivery_window_to?.slice(0,5)}` : '';
+    return `<div class="shipment-card ${s.status}" onclick="openDetail('${s.id}')">
+      <div class="sh-header">
+        <div>
+          <div class="sh-id">${s.id} · ${s.order_id}</div>
+          <div class="sh-name">${s.recipient_name}</div>
+          <div class="sh-date"><i class="ti ti-calendar" style="font-size:12px"></i> ${s.scheduled_date}${win}</div>
+        </div>
+        ${statusBadge(s.status)}
+      </div>
+      <div class="sh-addr"><i class="ti ti-map-pin" style="font-size:13px;color:var(--text3)"></i>${s.address_street}, ${s.address_city}</div>
+      <div class="sh-footer">
+        <div class="sh-courier"><i class="ti ti-truck" style="font-size:14px"></i>${cou?.name||'Sin courier'}</div>
+        <div class="sh-actions">
+          <button class="btn-icon print" onclick="event.stopPropagation();openLabelSheet('${s.id}')" title="Etiqueta"><i class="ti ti-printer"></i></button>
+          ${s.status==='not_delivered'?`<button class="btn-icon blue" onclick="event.stopPropagation();openReschedule('${s.id}')" title="Reagendar"><i class="ti ti-calendar-event"></i></button>`:''}
+          ${STATUS_META[s.status].next.length?`<button class="btn-icon primary" onclick="event.stopPropagation();openDetail('${s.id}')" title="Cambiar estado"><i class="ti ti-arrow-right"></i></button>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('') : `<div class="empty-state"><i class="ti ti-truck-delivery"></i><p>Sin envíos${S.currentFilter?' en este estado':''}</p></div>`;
+}
+
+// ── DETALLE ───────────────────────────────────
+function openDetail(id) {
+  const s = S.shipments.find(x => x.id === id);
+  if (!s) return;
+  const cou = S.couriers.find(c => c.id === s.courier_id);
+  const win = s.delivery_window_from ? `${s.delivery_window_from.slice(0,5)} – ${s.delivery_window_to?.slice(0,5)}` : 'Sin definir';
+  const nextStates = STATUS_META[s.status].next;
+
+  document.getElementById('detail-title').innerHTML = `<i class="ti ti-truck-delivery" style="color:var(--primary)"></i> ${s.id}`;
+
+  document.getElementById('detail-content').innerHTML = `
+    <div style="margin-bottom:14px">${statusBadge(s.status)}</div>
+
+    <div class="track-code">${s.tracking_code}</div>
+
+    <div style="background:var(--bg3);border-radius:var(--radius);padding:12px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:800;margin-bottom:8px"><i class="ti ti-user"></i> Destinatario</div>
+      <div style="font-size:14px;font-weight:800">${s.recipient_name}</div>
+      ${s.recipient_phone?`<div style="font-size:12px;color:var(--text3);font-weight:600;margin-top:2px"><i class="ti ti-phone" style="font-size:12px"></i> ${s.recipient_phone}</div>`:''}
+    </div>
+
+    <div style="background:var(--bg3);border-radius:var(--radius);padding:12px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:800;margin-bottom:8px"><i class="ti ti-map-pin"></i> Dirección</div>
+      <div style="font-size:14px;font-weight:700">${s.address_street}</div>
+      <div style="font-size:12px;color:var(--text3);font-weight:600">${s.address_city}${s.address_region?', '+s.address_region:''}</div>
+      ${s.address_notes?`<div style="font-size:12px;color:var(--amber-dark);font-weight:700;margin-top:4px"><i class="ti ti-info-circle" style="font-size:12px"></i> ${s.address_notes}</div>`:''}
+    </div>
+
+    <div style="background:var(--bg3);border-radius:var(--radius);padding:12px;margin-bottom:14px;display:flex;gap:16px">
+      <div><div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase">Fecha</div><div style="font-size:14px;font-weight:800">${s.scheduled_date}</div></div>
+      <div><div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase">Horario</div><div style="font-size:14px;font-weight:800">${win}</div></div>
+      <div><div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase">Intentos</div><div style="font-size:14px;font-weight:800">${s.attempts}</div></div>
+    </div>
+
+    <div style="font-size:13px;font-weight:800;margin-bottom:8px">Historial</div>
+    <div class="timeline">
+      ${s.history.map(h => `
+        <div class="timeline-item">
+          <div class="timeline-dot ${h.to_status}"><i class="ti ${STATUS_META[h.to_status]?.icon||'ti-circle'}" style="font-size:14px"></i></div>
+          <div class="timeline-body">
+            <div class="timeline-status">${STATUS_META[h.to_status]?.label||h.to_status}</div>
+            ${h.note?`<div class="timeline-note">${h.note}</div>`:''}
+            <div class="timeline-date">${new Date(h.created_at).toLocaleString('es-CL',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+          </div>
+        </div>`).join('')}
+    </div>
+  `;
+
+  // Footer con acciones según estado
+  const footerBtns = [];
+  footerBtns.push(`<button class="btn btn-outline" onclick="closeSheet('sheet-detail');openLabelSheet('${s.id}')" style="flex:1;width:auto"><i class="ti ti-printer"></i> Etiqueta</button>`);
+  if (s.status === 'not_delivered') {
+    footerBtns.push(`<button class="btn btn-amber" onclick="closeSheet('sheet-detail');openReschedule('${s.id}')" style="flex:1;width:auto"><i class="ti ti-calendar-event"></i> Reagendar</button>`);
+  }
+  if (nextStates.includes('on_the_way')) {
+    footerBtns.push(`<button class="btn btn-blue" onclick="changeStatus('${s.id}','on_the_way')" style="flex:2"><i class="ti ti-truck"></i> Marcar en camino</button>`);
+  }
+  if (nextStates.includes('delivered')) {
+    footerBtns.push(`<button class="btn btn-green" onclick="changeStatus('${s.id}','delivered')" style="flex:2"><i class="ti ti-circle-check"></i> Entregado ✓</button>`);
+  }
+  if (nextStates.includes('not_delivered')) {
+    footerBtns.push(`<button class="btn btn-red" onclick="changeStatus('${s.id}','not_delivered')" style="flex:1;width:auto"><i class="ti ti-circle-x"></i> No entregado</button>`);
+  }
+
+  document.getElementById('detail-footer').innerHTML = footerBtns.join('');
+  openSheet('sheet-detail');
+}
+
+function changeStatus(id, newStatus) {
+  const s = S.shipments.find(x => x.id === id);
+  if (!s) return;
+  const note = newStatus==='not_delivered' ? prompt('Motivo (opcional):') || 'Sin motivo especificado' : STATUS_META[newStatus].label;
+  s.status = newStatus;
+  if (newStatus === 'on_the_way') s.attempts++;
+  if (newStatus === 'delivered') s.delivered_at = new Date().toISOString();
+  s.history.push({ to_status: newStatus, note, created_at: new Date().toISOString() });
+  closeSheet('sheet-detail');
+  toast('✅ ' + STATUS_META[newStatus].label);
+  updateMetrics(); renderShipments();
+}
+
+// ── REAGENDAR ─────────────────────────────────
+function openReschedule(id) {
+  document.getElementById('rs-id').value = id;
+  document.getElementById('rs-date').value = '';
+  const sel = document.getElementById('rs-courier');
+  sel.innerHTML = '<option value="">Mantener mismo courier</option>' +
+    S.couriers.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  openSheet('sheet-reschedule');
+}
+function doReschedule() {
+  const id   = document.getElementById('rs-id').value;
+  const date = document.getElementById('rs-date').value;
+  if (!date) { toast('⚠️ La fecha es obligatoria'); return; }
+  const s = S.shipments.find(x => x.id === id);
+  if (!s) return;
+  const note = document.getElementById('rs-note').value || 'Reagendado para ' + date;
+  const newCou = document.getElementById('rs-courier').value;
+  s.status = 'ready';
+  s.scheduled_date = date;
+  s.delivery_window_from = document.getElementById('rs-from').value;
+  s.delivery_window_to   = document.getElementById('rs-to').value;
+  if (newCou) s.courier_id = newCou;
+  s.history.push({ to_status: 'ready', note, created_at: new Date().toISOString() });
+  closeSheet('sheet-reschedule');
+  toast('✅ Reagendado para ' + date);
+  updateMetrics(); renderShipments();
+}
+
+// ── ETIQUETA ──────────────────────────────────
+let currentLabelSize = 'A5';
+let currentLabelFont = 'medium';
+function selLabelPill(el, val) {
+  const group = el.closest('.pill-select');
+  group.querySelectorAll('.pill-opt').forEach(p => p.classList.remove('selected'));
+  el.classList.add('selected');
+  const hidden = group.nextElementSibling;
+  if (hidden?.tagName === 'INPUT') { hidden.value = val; }
+  if (el.closest('[id="lbl-size"]')?.previousElementSibling) currentLabelSize = val;
+  if (val === 'small' || val === 'medium' || val === 'large') currentLabelFont = val;
+  else currentLabelSize = val;
+}
+function openLabelSheet(id) {
+  document.getElementById('lbl-shipment-id').value = id;
+  openSheet('sheet-label');
+}
+function printLabel() {
+  const id = document.getElementById('lbl-shipment-id').value;
+  const s  = S.shipments.find(x => x.id === id);
+  if (!s) return;
+  const size  = document.getElementById('lbl-size').value;
+  const font  = document.getElementById('lbl-font').value;
+  const showQR   = document.getElementById('lbl-qr').checked;
+  const showLogo = document.getElementById('lbl-logo').checked;
+  const fields = [];
+  if (document.getElementById('lbl-recipient').checked) fields.push('recipient');
+  if (document.getElementById('lbl-address').checked)   fields.push('address');
+  if (document.getElementById('lbl-date').checked)      fields.push('scheduled_date','window');
+  if (document.getElementById('lbl-courier').checked)   fields.push('courier');
+  if (document.getElementById('lbl-tracking').checked)  fields.push('tracking','order_id');
+
+  // En la app real: llamar al microservicio GET /api/delivery/shipments/:id/label?size=...
+  // Aquí simulamos mostrando un preview
+  closeSheet('sheet-label');
+  toast('🖨️ Abriendo etiqueta ' + size + ' — ' + s.tracking_code);
+  setTimeout(() => showLabelPreview(s, size, font, showQR, fields), 300);
+}
+
+function showLabelPreview(s, size, font, showQR, fields) {
+  const cou = S.couriers.find(c => c.id === s.courier_id);
+  const win = s.delivery_window_from ? `${s.delivery_window_from.slice(0,5)} – ${s.delivery_window_to?.slice(0,5)}` : '';
+  const popup = window.open('', '_blank', 'width=420,height=600');
+  const fontSizes = {small:'10px',medium:'13px',large:'16px'};
+  const fs = fontSizes[font] || '13px';
+  popup.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Etiqueta ${s.tracking_code}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;font-size:${fs};padding:12mm;background:#fff;color:#000;max-width:420px}
+.hdr{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px}
+.brand{font-size:20px;font-weight:900}
+.badge{background:#000;color:#fff;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:bold;text-transform:uppercase}
+.row{margin-bottom:8px}
+.lbl{font-size:9px;text-transform:uppercase;color:#666;letter-spacing:.5px;display:block;margin-bottom:1px}
+.val{font-weight:bold;font-size:${fs};line-height:1.3;display:block}
+.tracking{font-family:monospace;font-size:18px;font-weight:900;letter-spacing:3px;background:#f0f0f0;padding:4px 8px;border-radius:4px}
+.ftr{border-top:1px solid #000;padding-top:6px;margin-top:12px;font-size:9px;color:#666;display:flex;justify-content:space-between}
+.no-print{position:fixed;bottom:10px;right:10px}
+.no-print button{padding:10px 20px;background:#000;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;font-size:14px}
+@media print{.no-print{display:none}}
+</style></head><body>
+<div class="hdr"><div class="brand">StockFlow</div><div>${cou?cou.name:''}</div><div class="badge">Listo para enviar</div></div>
+<div class="row"><span class="lbl">Destinatario</span><span class="val">${s.recipient_name}</span>${s.recipient_phone?`<span style="font-size:12px;color:#666">${s.recipient_phone}</span>`:''}</div>
+<div class="row"><span class="lbl">Dirección</span><span class="val">${s.address_street}</span><span style="font-size:12px;color:#666">${s.address_city}${s.address_region?', '+s.address_region:''}</span>${s.address_notes?`<span style="font-size:11px;color:#d97706">⚠ ${s.address_notes}</span>`:''}</div>
+<div class="row"><span class="lbl">Fecha de entrega</span><span class="val">${s.scheduled_date}${win?' · '+win:''}</span></div>
+<div class="row"><span class="lbl">N° Seguimiento</span><span class="val tracking">${s.tracking_code}</span></div>
+<div class="row"><span class="lbl">Orden</span><span class="val">${s.order_id}</span></div>
+<div class="ftr"><span>${new Date().toLocaleDateString('es-CL')}</span><span>${s.tracking_code}</span><span>${s.order_id}</span></div>
+<div class="no-print"><button onclick="window.print()">🖨️ Imprimir</button></div>
+</body></html>`);
+  popup.document.close();
+}
+
+// ── COURIERS ──────────────────────────────────
+function renderCouriers() {
+  document.getElementById('couriers-list').innerHTML = S.couriers.map(c => `
+    <div class="courier-card">
+      <div class="courier-header">
+        <div class="courier-avatar">${c.name.charAt(0)}</div>
+        <div style="flex:1">
+          <div class="courier-name">${c.name}</div>
+          <div class="courier-contact">${c.contact||''} · ${c.phone||''}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;font-weight:800;color:var(--text3)">${c.zones?.length||0} zona${c.zones?.length!==1?'s':''}</div>
+          <div style="font-size:13px;font-weight:900;color:var(--green-dark)">${S.shipments.filter(s=>s.courier_id===c.id).length} envíos</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap">
+        ${(c.zones||[]).map(z => `<span class="zone-pill"><i class="ti ti-map-pin" style="font-size:10px"></i>${z.zone_name} · ${fmt(z.base_cost)}</span>`).join('')}
+      </div>
+    </div>`).join('') || `<div class="empty-state"><i class="ti ti-building-store"></i><p>Sin couriers. Agrega uno.</p></div>`;
+}
+
+function addZone() {
+  const name = document.getElementById('zone-input').value.trim();
+  const cost = parseFloat(document.getElementById('zone-cost').value) || 0;
+  if (!name) { toast('⚠️ Ingresa el nombre de la zona'); return; }
+  S.tempZones.push({ zone_name: name, base_cost: cost, delivery_days: 1 });
+  document.getElementById('zone-input').value = '';
+  document.getElementById('zone-cost').value = '';
+  renderZonesList();
+}
+function renderZonesList() {
+  document.getElementById('zones-list').innerHTML = S.tempZones.map((z,i) =>
+    `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg3);border-radius:8px;margin-bottom:6px">
+      <span style="flex:1;font-size:13px;font-weight:700"><i class="ti ti-map-pin" style="font-size:12px;color:var(--text3)"></i> ${z.zone_name}</span>
+      <span style="font-size:12px;font-weight:700;color:var(--green-dark)">${fmt(z.base_cost)}</span>
+      <button style="background:var(--red-light);border:none;border-radius:7px;width:28px;height:28px;cursor:pointer;color:var(--red);font-size:15px;display:flex;align-items:center;justify-content:center" onclick="S.tempZones.splice(${i},1);renderZonesList()"><i class="ti ti-trash"></i></button>
+    </div>`
+  ).join('');
+}
+function saveCourier() {
+  const name = document.getElementById('cou-name').value.trim();
+  if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
+  S.couriers.push({
+    id: 'COU-' + String(S.couriers.length+1).padStart(3,'0'),
+    name, phone: document.getElementById('cou-phone').value,
+    email: document.getElementById('cou-email').value,
+    contact: document.getElementById('cou-contact').value,
+    zones: S.tempZones.slice()
+  });
+  S.tempZones = [];
+  ['cou-name','cou-phone','cou-email','cou-contact'].forEach(id => document.getElementById(id).value='');
+  closeSheet('sheet-courier');
+  toast('✅ Courier guardado');
+  renderCouriers();
+}
+
+// ── TRACKING ──────────────────────────────────
+function doTracking() {
+  const code = document.getElementById('track-input').value.trim().toUpperCase();
+  if (!code) { toast('⚠️ Ingresa un código'); return; }
+  const s = S.shipments.find(x => x.tracking_code === code);
+  const el = document.getElementById('tracking-result');
+  if (!s) {
+    el.innerHTML = `<div style="text-align:center;padding:24px"><div style="font-size:40px;margin-bottom:8px">🔍</div><div style="font-weight:800">Código no encontrado</div><div style="font-size:13px;color:var(--text3);font-weight:600;margin-top:4px">Verifica que el código sea correcto</div></div>`;
+    return;
+  }
+  const cou = S.couriers.find(c => c.id === s.courier_id);
+  const win = s.delivery_window_from ? `${s.delivery_window_from.slice(0,5)} – ${s.delivery_window_to?.slice(0,5)}` : 'Sin definir';
+  el.innerHTML = `
+    <div class="track-card">
+      <div class="track-code">${s.tracking_code}</div>
+      <div class="track-status-big">${STATUS_META[s.status].label}</div>
+      ${statusBadge(s.status)}
+      <div class="divider"></div>
+      <div style="font-size:14px;font-weight:800;margin-bottom:4px">${s.recipient_name}</div>
+      <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:10px"><i class="ti ti-map-pin" style="font-size:12px"></i> ${s.address_street}, ${s.address_city}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div style="background:var(--bg3);border-radius:10px;padding:10px">
+          <div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase">Fecha estimada</div>
+          <div style="font-size:14px;font-weight:800;margin-top:2px">${s.scheduled_date}</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:10px;padding:10px">
+          <div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase">Horario</div>
+          <div style="font-size:14px;font-weight:800;margin-top:2px">${win}</div>
+        </div>
+      </div>
+      ${cou?`<div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:12px"><i class="ti ti-truck"></i> ${cou.name} · ${cou.phone}</div>`:''}
+    </div>
+    <div class="track-card">
+      <div style="font-size:14px;font-weight:800;margin-bottom:12px">Seguimiento del envío</div>
+      <div class="timeline">
+        ${s.history.map(h => `
+          <div class="timeline-item">
+            <div class="timeline-dot ${h.to_status}"><i class="ti ${STATUS_META[h.to_status]?.icon||'ti-circle'}" style="font-size:14px"></i></div>
+            <div class="timeline-body">
+              <div class="timeline-status">${STATUS_META[h.to_status]?.label||h.to_status}</div>
+              ${h.note?`<div class="timeline-note">${h.note}</div>`:''}
+              <div class="timeline-date">${new Date(h.created_at).toLocaleString('es-CL',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+// ── SHEET HELPERS ─────────────────────────────
+function openSheet(id) { document.getElementById(id).classList.remove('hidden'); document.body.style.overflow='hidden'; }
+function closeSheet(id) { document.getElementById(id).classList.add('hidden'); document.body.style.overflow=''; }
+document.querySelectorAll('.sheet-overlay').forEach(o => o.addEventListener('click', e => { if(e.target===o) closeSheet(o.id); }));
+
+function openShipmentSheet() {
+  const sel = document.getElementById('sh-courier');
+  sel.innerHTML = '<option value="">Sin asignar</option>' + S.couriers.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  document.getElementById('sh-date').value = today();
+  openSheet('sheet-shipment');
+}
+function saveShipment() {
+  const name = document.getElementById('sh-name').value.trim();
+  const street = document.getElementById('sh-street').value.trim();
+  const city = document.getElementById('sh-city').value.trim();
+  const date = document.getElementById('sh-date').value;
+  if (!name||!street||!city||!date) { toast('⚠️ Completa los campos obligatorios'); return; }
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let tc = 'SF';
+  for(let i=0;i<8;i++) tc+=chars[Math.floor(Math.random()*chars.length)];
+  const id = 'SHP-' + String(S.shipments.length+1).padStart(3,'0');
+  S.shipments.push({
+    id, order_id: document.getElementById('sh-order').value||'SIN-ORDEN',
+    courier_id: document.getElementById('sh-courier').value||null,
+    tracking_code: tc,
+    recipient_name: name,
+    recipient_phone: document.getElementById('sh-phone').value,
+    recipient_email: document.getElementById('sh-email').value,
+    address_street: street, address_city: city,
+    address_region: document.getElementById('sh-region').value,
+    address_notes: document.getElementById('sh-anotes').value,
+    scheduled_date: date,
+    delivery_window_from: document.getElementById('sh-from').value,
+    delivery_window_to: document.getElementById('sh-to').value,
+    shipping_cost: parseFloat(document.getElementById('sh-cost').value)||0,
+    notes: document.getElementById('sh-notes').value,
+    status: 'ready', attempts: 0,
+    history:[{to_status:'ready',note:'Envío creado',created_at:new Date().toISOString()}]
+  });
+  closeSheet('sheet-shipment');
+  toast('✅ Envío creado — código: ' + tc);
+  updateMetrics(); renderShipments();
+}
+
+function toast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';
+  setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(20px)';},2800);
+}
+
+// INIT
+updateMetrics();
+renderShipments();
+</script>
+</body>
+</html>

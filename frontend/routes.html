@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow — Rutas de Despacho</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0a0a0f;--ink2:#3a3a4a;--ink3:#8888a0;
+  --paper:#ffffff;--paper2:#f6f6f9;--paper3:#ededf3;
+  --line:#e0e0ea;
+  --accent:#2563eb;--accent-light:#eff6ff;--accent-glow:rgba(37,99,235,.15);
+  --green:#059669;--green-l:#ecfdf5;
+  --amber:#d97706;--amber-l:#fffbeb;
+  --red:#dc2626;--red-l:#fef2f2;
+  --purple:#7c3aed;--purple-l:#f5f3ff;
+  --r:10px;--r-lg:14px;--r-xl:18px;
+  --sh:0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.08);
+  --sh-lg:0 4px 24px rgba(0,0,0,.12);
+}
+body{font-family:'DM Sans',sans-serif;background:var(--paper2);color:var(--ink);height:100vh;display:grid;grid-template-rows:56px 1fr;overflow:hidden}
+
+/* HEADER */
+header{background:var(--paper);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 20px;gap:16px;box-shadow:0 1px 0 var(--line)}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;color:var(--ink)}
+.logo-dot{width:32px;height:32px;background:var(--accent);border-radius:9px;display:flex;align-items:center;justify-content:center}
+.logo-dot i{color:#fff;font-size:18px}
+.header-sep{width:1px;height:24px;background:var(--line)}
+.route-selector{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--paper2);border:1px solid var(--line);border-radius:var(--r);font-size:14px;font-weight:500;cursor:pointer;gap:8px}
+.route-selector select{border:none;background:none;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;color:var(--ink);outline:none;cursor:pointer}
+.header-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--r);border:1px solid var(--line);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;background:var(--paper);color:var(--ink)}
+.btn:hover{background:var(--paper2)}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-primary:hover{background:#1d4ed8;border-color:#1d4ed8}
+.btn-optimizer{background:var(--purple);color:#fff;border-color:var(--purple);position:relative}
+.btn-optimizer:hover{background:#6d28d9}
+.btn-optimizer.disabled{background:var(--paper3);color:var(--ink3);border-color:var(--line);cursor:not-allowed;pointer-events:none}
+.btn-optimizer .opt-key-req{position:absolute;top:-6px;right:-6px;background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;white-space:nowrap}
+.btn-danger{background:var(--red-l);color:var(--red);border-color:#fecaca}
+.btn-green{background:var(--green-l);color:var(--green);border-color:#a7f3d0}
+.stat-pill{display:flex;align-items:center;gap:5px;padding:6px 12px;background:var(--paper2);border:1px solid var(--line);border-radius:var(--r);font-size:13px;font-weight:600;color:var(--ink2)}
+.stat-pill i{font-size:15px}
+
+/* LAYOUT */
+.workspace{display:grid;grid-template-columns:380px 1fr;height:100%;overflow:hidden}
+
+/* PANEL IZQUIERDO */
+.panel{background:var(--paper);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.panel-header{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-title{font-size:15px;font-weight:700}
+.panel-sub{font-size:12px;color:var(--ink3);margin-top:1px}
+.panel-body{flex:1;overflow-y:auto;padding:12px}
+
+/* STOP CARD — draggable */
+.stop-card{background:var(--paper);border:1.5px solid var(--line);border-radius:var(--r-lg);padding:12px 14px;margin-bottom:8px;cursor:grab;transition:all .2s;position:relative;user-select:none}
+.stop-card:active{cursor:grabbing}
+.stop-card.dragging{opacity:.4;border-style:dashed;transform:scale(.98)}
+.stop-card.drag-over{border-color:var(--accent);background:var(--accent-light);transform:translateY(-2px);box-shadow:0 4px 16px var(--accent-glow)}
+.stop-card.selected{border-color:var(--accent);background:var(--accent-light)}
+.stop-card.status-delivered{border-color:var(--green);background:var(--green-l)}
+.stop-card.status-not_delivered{border-color:var(--red);background:var(--red-l)}
+.stop-card.status-on_the_way{border-color:var(--amber);background:var(--amber-l)}
+
+.stop-header{display:flex;align-items:flex-start;gap:10px}
+.stop-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;font-family:'DM Mono',monospace;border:2px solid currentColor}
+.stop-num.s-ready{color:var(--accent);border-color:var(--accent);background:#fff}
+.stop-num.s-on_the_way{color:var(--amber);border-color:var(--amber);background:#fff}
+.stop-num.s-delivered{color:var(--green);border-color:var(--green);background:#fff}
+.stop-num.s-not_delivered{color:var(--red);border-color:var(--red);background:#fff}
+.stop-info{flex:1;min-width:0}
+.stop-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stop-addr{font-size:12px;color:var(--ink3);margin-top:2px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stop-meta{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.stop-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.sb-ready{background:#eff6ff;color:var(--accent)}
+.sb-on_the_way{background:var(--amber-l);color:var(--amber)}
+.sb-delivered{background:var(--green-l);color:var(--green)}
+.sb-not_delivered{background:var(--red-l);color:var(--red)}
+.stop-drag-handle{padding:4px;color:var(--ink3);cursor:grab;display:flex;align-items:center}
+.stop-drag-handle:active{cursor:grabbing}
+
+.stop-card-actions{display:flex;gap:6px;margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.act-btn{flex:1;padding:6px;border-radius:8px;border:1px solid var(--line);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:all .15s;background:var(--paper)}
+.act-btn:hover{background:var(--paper2)}
+.act-btn.go{background:var(--accent-light);color:var(--accent);border-color:#bfdbfe}
+.act-btn.ok{background:var(--green-l);color:var(--green);border-color:#a7f3d0}
+.act-btn.fail{background:var(--red-l);color:var(--red);border-color:#fecaca}
+
+/* RESUMEN RUTA */
+.route-summary{padding:12px;background:var(--paper2);border-top:1px solid var(--line);flex-shrink:0}
+.route-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.route-stat{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:10px;text-align:center}
+.rs-num{font-size:20px;font-weight:700;font-family:'DM Mono',monospace}
+.rs-label{font-size:10px;color:var(--ink3);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+
+/* MAPA */
+.map-container{position:relative;background:#e8eaed;overflow:hidden}
+#map-canvas{width:100%;height:100%}
+
+/* SVG MAP */
+.map-svg{width:100%;height:100%}
+
+/* MARKER */
+.map-marker{position:absolute;transform:translate(-50%,-100%);cursor:pointer;transition:transform .2s}
+.map-marker:hover{transform:translate(-50%,-100%) scale(1.15)}
+.map-marker.selected{transform:translate(-50%,-100%) scale(1.2);z-index:10}
+.marker-pin{width:36px;height:44px;position:relative;display:flex;flex-direction:column;align-items:center}
+.marker-bubble{width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(0,0,0,.25);border:2px solid rgba(255,255,255,.8)}
+.marker-bubble.s-ready{background:var(--accent)}
+.marker-bubble.s-on_the_way{background:var(--amber)}
+.marker-bubble.s-delivered{background:var(--green)}
+.marker-bubble.s-not_delivered{background:var(--red)}
+.marker-num{transform:rotate(45deg);font-size:12px;font-weight:700;color:#fff;font-family:'DM Mono',monospace}
+.marker-tail{width:2px;height:8px;background:rgba(0,0,0,.3)}
+
+/* POPUP MAPA */
+.map-popup{position:absolute;background:var(--paper);border-radius:var(--r-lg);box-shadow:var(--sh-lg);padding:14px;min-width:220px;z-index:20;border:1px solid var(--line);transform:translate(-50%,-120%);animation:popIn .15s ease}
+@keyframes popIn{from{opacity:0;transform:translate(-50%,-110%) scale(.95)}to{opacity:1;transform:translate(-50%,-120%) scale(1)}}
+.map-popup::after{content:'';position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border:8px solid transparent;border-top-color:var(--line);border-bottom:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,.1))}
+.popup-name{font-size:14px;font-weight:700;margin-bottom:4px}
+.popup-addr{font-size:12px;color:var(--ink3);margin-bottom:8px;line-height:1.4}
+.popup-actions{display:flex;gap:6px}
+
+/* ROUTE LINE */
+.route-path{pointer-events:none}
+
+/* TOOLTIP */
+.key-tooltip{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--paper);border-radius:var(--r-xl);box-shadow:var(--sh-lg);padding:28px;max-width:380px;width:90%;z-index:1000;border:1px solid var(--line)}
+.tooltip-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999;backdrop-filter:blur(3px)}
+.tooltip-overlay.hidden,.key-tooltip.hidden{display:none}
+.tooltip-title{font-size:18px;font-weight:700;margin-bottom:8px}
+.tooltip-sub{font-size:13px;color:var(--ink3);margin-bottom:20px;line-height:1.6}
+
+/* OPTIMIZER PROGRESS */
+.opt-progress{position:absolute;top:16px;left:50%;transform:translateX(-50%);background:var(--paper);border-radius:var(--r-xl);box-shadow:var(--sh-lg);padding:14px 20px;display:flex;align-items:center;gap:12px;font-size:13px;font-weight:600;z-index:30;border:1px solid var(--line)}
+.opt-progress.hidden{display:none}
+.opt-spinner{width:20px;height:20px;border:2px solid var(--line);border-top-color:var(--purple);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* NEW ROUTE BTN */
+.new-route-bar{padding:10px 12px;border-top:1px solid var(--line);flex-shrink:0}
+
+/* EMPTY */
+.empty-stops{text-align:center;padding:40px 20px;color:var(--ink3)}
+.empty-stops i{font-size:48px;display:block;margin-bottom:12px;opacity:.3}
+.empty-stops p{font-size:13px;font-weight:500}
+
+/* SCROLLBAR */
+.panel-body::-webkit-scrollbar{width:4px}.panel-body::-webkit-scrollbar-track{background:transparent}.panel-body::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+
+/* COMANDA MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--paper);border-radius:var(--r-xl);box-shadow:var(--sh-lg);padding:28px;max-width:420px;width:90%;max-height:85vh;overflow-y:auto}
+.modal-title{font-size:18px;font-weight:700;margin-bottom:4px}
+.modal-sub{font-size:13px;color:var(--ink3);margin-bottom:20px}
+.comanda-line{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.comanda-line:last-child{border-bottom:none}
+.comanda-qty{font-family:'DM Mono',monospace;font-weight:700;color:var(--accent);min-width:28px}
+.comanda-item{flex:1;font-weight:500}
+.comanda-note{background:var(--amber-l);border:1px solid #fde68a;border-radius:var(--r);padding:10px 14px;font-size:13px;font-weight:500;color:var(--amber);margin-top:12px;display:flex;gap:8px;align-items:flex-start}
+
+/* SETTINGS PANEL */
+.settings-panel{position:absolute;top:16px;right:16px;background:var(--paper);border-radius:var(--r-lg);box-shadow:var(--sh-lg);padding:16px;width:240px;z-index:25;border:1px solid var(--line)}
+.settings-panel.hidden{display:none}
+.sp-title{font-size:13px;font-weight:700;margin-bottom:12px}
+.sp-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:13px}
+.sp-label{font-weight:500;color:var(--ink2)}
+input[type=text].sp-input{background:var(--paper2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;font-family:'DM Mono',monospace;width:100%;outline:none;margin-top:6px}
+input[type=text].sp-input:focus{border-color:var(--accent)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"><i class="ti ti-route"></i></div>
+    StockFlow <span style="color:var(--ink3);font-weight:400">/ Rutas</span>
+  </div>
+  <div class="header-sep"></div>
+  <div class="route-selector">
+    <i class="ti ti-map-route" style="font-size:16px;color:var(--accent)"></i>
+    <select id="route-select" onchange="loadRoute(this.value)">
+      <option value="1">Ruta #1 — Hoy, 28 May</option>
+      <option value="2">Ruta #2 — Hoy, 28 May</option>
+      <option value="new">+ Nueva ruta</option>
+    </select>
+  </div>
+
+  <div class="stat-pill"><i class="ti ti-clock" style="color:var(--amber)"></i> <span id="hdr-eta">~2h 40m est.</span></div>
+  <div class="stat-pill"><i class="ti ti-map-pin" style="color:var(--accent)"></i> <span id="hdr-stops">5 paradas</span></div>
+
+  <div class="header-actions">
+    <button class="btn" onclick="toggleSettings()"><i class="ti ti-settings"></i> Ajustes</button>
+    <button class="btn btn-optimizer disabled" id="btn-optimizer" onclick="runOptimizer()">
+      <i class="ti ti-sparkles"></i> Route Optimizer
+      <span class="opt-key-req">API Key requerida</span>
+    </button>
+    <button class="btn btn-primary" onclick="openNewShipmentModal()"><i class="ti ti-plus"></i> Agregar parada</button>
+  </div>
+</header>
+
+<div class="workspace">
+  <!-- PANEL IZQUIERDO: LISTA DE PARADAS -->
+  <div class="panel">
+    <div class="panel-header">
+      <div>
+        <div class="panel-title">Paradas de la ruta</div>
+        <div class="panel-sub">Arrastra para reordenar · Click para ver en mapa</div>
+      </div>
+      <button class="btn" style="font-size:12px;padding:5px 10px" onclick="printRoute()"><i class="ti ti-printer"></i></button>
+    </div>
+
+    <div class="panel-body" id="stops-list">
+      <!-- generado por JS -->
+    </div>
+
+    <div class="route-summary">
+      <div class="route-stats">
+        <div class="route-stat">
+          <div class="rs-num text-green" id="stat-done" style="color:var(--green)">0</div>
+          <div class="rs-label">Entregados</div>
+        </div>
+        <div class="route-stat">
+          <div class="rs-num" id="stat-pend" style="color:var(--accent)">0</div>
+          <div class="rs-label">Pendientes</div>
+        </div>
+        <div class="route-stat">
+          <div class="rs-num" id="stat-fail" style="color:var(--red)">0</div>
+          <div class="rs-label">No entregados</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="new-route-bar">
+      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="exportRoute()">
+        <i class="ti ti-send"></i> Enviar ruta al repartidor
+      </button>
+    </div>
+  </div>
+
+  <!-- MAPA -->
+  <div class="map-container" id="map-container">
+    <!-- Mapa simulado con SVG cuando no hay API key -->
+    <canvas id="map-canvas"></canvas>
+    <div id="markers-layer" style="position:absolute;inset:0;pointer-events:none"></div>
+    <div id="map-popup" class="map-popup hidden" style="pointer-events:all"></div>
+
+    <!-- Optimizer progress -->
+    <div class="opt-progress hidden" id="opt-progress">
+      <div class="opt-spinner"></div>
+      <span>Calculando ruta óptima...</span>
+    </div>
+
+    <!-- Settings panel -->
+    <div class="settings-panel hidden" id="settings-panel">
+      <div class="sp-title"><i class="ti ti-key"></i> Google Maps API Key</div>
+      <p style="font-size:12px;color:var(--ink3);margin-bottom:10px;line-height:1.5">Necesaria para el mapa real y el Route Optimizer.</p>
+      <input type="text" class="sp-input" id="gm-key-input" placeholder="AIzaSy..." oninput="onKeyInput(this.value)">
+      <button class="btn btn-primary" style="width:100%;margin-top:10px;justify-content:center;font-size:13px" onclick="saveApiKey()"><i class="ti ti-check"></i> Guardar y activar</button>
+      <div class="sp-title" style="margin-top:16px"><i class="ti ti-truck"></i> Courier asignado</div>
+      <select style="width:100%;background:var(--paper2);border:1px solid var(--line);border-radius:8px;padding:8px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;appearance:none;margin-top:4px">
+        <option>StarShipping Chile</option>
+        <option>UrbanExpress</option>
+      </select>
+    </div>
+
+    <!-- Leyenda mapa -->
+    <div style="position:absolute;bottom:16px;left:16px;background:var(--paper);border-radius:var(--r-lg);padding:10px 14px;box-shadow:var(--sh);border:1px solid var(--line);font-size:12px">
+      <div style="font-weight:700;margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3)">Estados</div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="display:flex;align-items:center;gap:7px"><div style="width:12px;height:12px;border-radius:50%;background:var(--accent)"></div>Para enviar</div>
+        <div style="display:flex;align-items:center;gap:7px"><div style="width:12px;height:12px;border-radius:50%;background:var(--amber)"></div>En camino</div>
+        <div style="display:flex;align-items:center;gap:7px"><div style="width:12px;height:12px;border-radius:50%;background:var(--green)"></div>Entregado</div>
+        <div style="display:flex;align-items:center;gap:7px"><div style="width:12px;height:12px;border-radius:50%;background:var(--red)"></div>No entregado</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: COMANDA -->
+<div class="modal-overlay hidden" id="modal-comanda">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+      <div class="modal-title">🧾 Comanda</div>
+      <button class="btn" onclick="closeModal('modal-comanda')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-sub" id="comanda-sub">Orden ORD-001 · Juan Pérez</div>
+    <div id="comanda-content"></div>
+    <div style="display:flex;gap:8px;margin-top:20px">
+      <button class="btn" style="flex:1;justify-content:center" onclick="closeModal('modal-comanda')">Cerrar</button>
+      <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="printComanda()"><i class="ti ti-printer"></i> Imprimir</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: NUEVO ENVÍO EN RUTA -->
+<div class="modal-overlay hidden" id="modal-add">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+      <div class="modal-title">Agregar parada</div>
+      <button class="btn" onclick="closeModal('modal-add')"><i class="ti ti-x"></i></button>
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px">Orden de venta</label>
+      <select style="width:100%;background:var(--paper2);border:1px solid var(--line);border-radius:var(--r);padding:10px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;appearance:none" id="add-order-sel">
+        <option value="">Seleccionar orden...</option>
+        <option value="ORD-005">ORD-005 · Diego Morales · Ñuñoa</option>
+        <option value="ORD-006">ORD-006 · Sofia Castro · La Florida</option>
+        <option value="ORD-007">ORD-007 · Roberto Silva · San Miguel</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:20px">
+      <button class="btn" style="flex:1;justify-content:center" onclick="closeModal('modal-add')">Cancelar</button>
+      <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="addStop()"><i class="ti ti-plus"></i> Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 20px;border-radius:24px;font-size:13px;font-weight:600;opacity:0;transition:all .3s;z-index:999;white-space:nowrap"></div>
+
+<script>
+// ── STATE ──────────────────────────────────────
+let gmApiKey = localStorage.getItem('gm_api_key') || '';
+let selectedStop = null;
+let dragSrc = null;
+
+const ROUTES = {
+  1: [
+    {id:'SHP-001',order_id:'ORD-001',seq:1,recipient_name:'Juan Pérez',address_street:'Av. Providencia 1234',address_city:'Providencia',status:'delivered',tracking_code:'SFABC12345',delivery_window_from:'10:00',delivery_window_to:'14:00',shipping_cost:2500,lat:-33.432,lng:-70.631,kits:[{name:'Kit Seguridad Básico',components:[{name:'Cámara IP 1080p',qty:1},{name:'Cable HDMI 3m',qty:2},{name:'Fuente poder 12V',qty:1}]}],message:null},
+    {id:'SHP-002',order_id:'ORD-002',seq:2,recipient_name:'Empresa XYZ Ltda.',address_street:'Miraflores 222 Piso 8',address_city:'Santiago Centro',status:'on_the_way',tracking_code:'SFXYZ98765',delivery_window_from:'09:00',delivery_window_to:'13:00',shipping_cost:1900,lat:-33.438,lng:-70.654,kits:[],message:'Por favor dejar con el guardia de seguridad del piso 8. Preguntar por Pedro.'},
+    {id:'SHP-003',order_id:'ORD-003',seq:3,recipient_name:'María González',address_street:'Los Militares 6543',address_city:'Las Condes',status:'ready',tracking_code:'SFLMN55555',delivery_window_from:'14:00',delivery_window_to:'18:00',shipping_cost:2500,lat:-33.411,lng:-70.582,kits:[{name:'Kit Seguridad Completo',components:[{name:'Cámara IP 1080p',qty:2},{name:'Cable HDMI 3m',qty:2},{name:'Disco duro 1TB',qty:1}]}],message:'Llamar antes de llegar al +56 9 5555 6666'},
+    {id:'SHP-004',order_id:'ORD-004',seq:4,recipient_name:'Carlos Muñoz',address_street:'Irarrázaval 3456',address_city:'Ñuñoa',status:'ready',tracking_code:'SFQRS77777',delivery_window_from:'14:00',delivery_window_to:'18:00',shipping_cost:1900,lat:-33.453,lng:-70.619,kits:[],message:null},
+    {id:'SHP-005',order_id:'ORD-005',seq:5,recipient_name:'Ana Soto',address_street:'Gran Av. 8900',address_city:'La Granja',status:'not_delivered',tracking_code:'SFPQR33333',delivery_window_from:'09:00',delivery_window_to:'13:00',shipping_cost:3500,lat:-33.524,lng:-70.634,kits:[{name:'Desayuno Ejecutivo',components:[{name:'Croissant',qty:1},{name:'Jugo naranja 500ml',qty:1},{name:'Café espresso',qty:1}]}],message:'Timbre roto. Golpear la puerta. Depto 4C segundo piso.'},
+  ],
+  2: [
+    {id:'SHP-006',order_id:'ORD-006',seq:1,recipient_name:'Diego Morales',address_street:'Av. Ossa 1234',address_city:'Ñuñoa',status:'ready',tracking_code:'SFNEW00001',delivery_window_from:'10:00',delivery_window_to:'14:00',shipping_cost:1900,lat:-33.461,lng:-70.607,kits:[],message:null},
+    {id:'SHP-007',order_id:'ORD-007',seq:2,recipient_name:'Sofia Castro',address_street:'Vicuña Mackenna 5678',address_city:'La Florida',status:'ready',tracking_code:'SFNEW00002',delivery_window_from:'10:00',delivery_window_to:'14:00',shipping_cost:2500,lat:-33.519,lng:-70.598,kits:[],message:'Edificio azul. Departamento 1202.'},
+  ]
+};
+
+let currentRoute = ROUTES[1];
+let currentRouteId = 1;
+
+// ── MAP STATE ──────────────────────────────────
+// Coordenadas → posición en canvas (Santiago simulado)
+const MAP_BOUNDS = { minLat:-33.560, maxLat:-33.380, minLng:-70.720, maxLng:-70.540 };
+
+function latLngToXY(lat, lng, w, h) {
+  const x = (lng - MAP_BOUNDS.minLng) / (MAP_BOUNDS.maxLng - MAP_BOUNDS.minLng) * w;
+  const y = (1 - (lat - MAP_BOUNDS.minLat) / (MAP_BOUNDS.maxLat - MAP_BOUNDS.minLat)) * h;
+  return { x, y };
+}
+
+// ── RENDER MAP ─────────────────────────────────
+function renderMap() {
+  const container = document.getElementById('map-container');
+  const canvas = document.getElementById('map-canvas');
+  const w = container.offsetWidth;
+  const h = container.offsetHeight;
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  // Fondo tipo mapa
+  ctx.fillStyle = '#e8edf3';
+  ctx.fillRect(0, 0, w, h);
+
+  // Grid de calles simuladas
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < w; i += 40) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,h); ctx.stroke(); }
+  for (let i = 0; i < h; i += 40) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(w,i); ctx.stroke(); }
+
+  // Avenidas
+  ctx.strokeStyle = '#d4dbe8';
+  ctx.lineWidth = 3;
+  [[0,h*0.35,w,h*0.35],[0,h*0.6,w,h*0.6],[w*0.3,0,w*0.3,h],[w*0.65,0,w*0.65,h]].forEach(([x1,y1,x2,y2])=>{
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  });
+
+  // Texto "MAPA SIMULADO" cuando no hay API key
+  if (!gmApiKey) {
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillRect(w/2-120, h/2-18, 240, 36);
+    ctx.fillStyle = '#8888a0';
+    ctx.font = '13px DM Sans, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Configura tu API Key para el mapa real', w/2, h/2+5);
+  }
+
+  // Dibujar línea de ruta
+  const sorted = [...currentRoute].sort((a,b) => a.seq-b.seq);
+  if (sorted.length > 1) {
+    ctx.strokeStyle = '#2563eb';
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([8, 5]);
+    ctx.beginPath();
+    sorted.forEach((stop, i) => {
+      const {x,y} = latLngToXY(stop.lat, stop.lng, w, h);
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Renderizar markers como HTML sobre el canvas
+  renderMarkers(w, h);
+}
+
+function renderMarkers(w, h) {
+  const layer = document.getElementById('markers-layer');
+  layer.innerHTML = '';
+  layer.style.pointerEvents = 'all';
+
+  const sorted = [...currentRoute].sort((a,b) => a.seq-b.seq);
+  sorted.forEach((stop) => {
+    const {x,y} = latLngToXY(stop.lat, stop.lng, w, h);
+    const div = document.createElement('div');
+    div.className = `map-marker ${selectedStop===stop.id?'selected':''}`;
+    div.style.left = x+'px';
+    div.style.top  = y+'px';
+    div.innerHTML = `
+      <div class="marker-pin">
+        <div class="marker-bubble s-${stop.status}">
+          <span class="marker-num">${stop.seq}</span>
+        </div>
+        <div class="marker-tail"></div>
+      </div>`;
+    div.onclick = (e) => { e.stopPropagation(); selectStop(stop.id, x, y); };
+    layer.appendChild(div);
+  });
+}
+
+function selectStop(id, mapX, mapY) {
+  if (selectedStop === id) {
+    selectedStop = null;
+    document.getElementById('map-popup').classList.add('hidden');
+    document.querySelectorAll('.stop-card').forEach(c => c.classList.remove('selected'));
+    renderMarkers(...getMapSize());
+    return;
+  }
+  selectedStop = id;
+  const stop = currentRoute.find(s => s.id === id);
+
+  // Highlight card
+  document.querySelectorAll('.stop-card').forEach(c => {
+    c.classList.toggle('selected', c.dataset.id === id);
+  });
+  const card = document.querySelector(`.stop-card[data-id="${id}"]`);
+  if (card) card.scrollIntoView({ behavior:'smooth', block:'nearest' });
+
+  // Popup
+  const popup = document.getElementById('map-popup');
+  const win = stop.delivery_window_from ? `${stop.delivery_window_from.slice(0,5)}–${stop.delivery_window_to?.slice(0,5)}` : '';
+  popup.style.left = mapX + 'px';
+  popup.style.top  = mapY + 'px';
+  popup.innerHTML = `
+    <div class="popup-name">#${stop.seq} · ${stop.recipient_name}</div>
+    <div class="popup-addr">${stop.address_street}<br>${stop.address_city}${win?' · '+win:''}</div>
+    <div class="popup-actions">
+      ${stop.kits.length?`<button class="act-btn" onclick="openComanda('${stop.id}')"><i class="ti ti-receipt"></i> Comanda</button>`:''}
+      <button class="act-btn go" onclick="changeStopStatus('${stop.id}','on_the_way')"><i class="ti ti-truck"></i> En camino</button>
+    </div>`;
+  popup.classList.remove('hidden');
+
+  renderMarkers(...getMapSize());
+}
+
+function getMapSize() {
+  const c = document.getElementById('map-container');
+  return [c.offsetWidth, c.offsetHeight];
+}
+
+document.getElementById('map-container').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget || e.target.id === 'map-canvas') {
+    selectedStop = null;
+    document.getElementById('map-popup').classList.add('hidden');
+    document.querySelectorAll('.stop-card').forEach(c => c.classList.remove('selected'));
+    renderMarkers(...getMapSize());
+  }
+});
+
+// ── RENDER STOPS LIST ──────────────────────────
+function renderStops() {
+  const sorted = [...currentRoute].sort((a,b) => a.seq-b.seq);
+  const el = document.getElementById('stops-list');
+
+  if (!sorted.length) {
+    el.innerHTML = `<div class="empty-stops"><i class="ti ti-route"></i><p>Sin paradas en esta ruta.<br>Agrega envíos con el botón +</p></div>`;
+  } else {
+    el.innerHTML = sorted.map(stop => `
+      <div class="stop-card status-${stop.status} ${selectedStop===stop.id?'selected':''}"
+           data-id="${stop.id}" draggable="true"
+           ondragstart="onDragStart(event,'${stop.id}')"
+           ondragover="onDragOver(event,'${stop.id}')"
+           ondrop="onDrop(event,'${stop.id}')"
+           ondragend="onDragEnd(event)"
+           onclick="selectStop('${stop.id}',${latLngToXY(stop.lat,stop.lng,...getMapSize()).x},${latLngToXY(stop.lat,stop.lng,...getMapSize()).y})">
+
+        <div class="stop-header">
+          <div class="stop-drag-handle"><i class="ti ti-grip-vertical" style="font-size:18px"></i></div>
+          <div class="stop-num s-${stop.status}">${stop.seq}</div>
+          <div class="stop-info">
+            <div class="stop-name">${stop.recipient_name}</div>
+            <div class="stop-addr">${stop.address_street} · ${stop.address_city}</div>
+            <div class="stop-meta">
+              <span class="stop-badge sb-${stop.status}">${statusLabel(stop.status)}</span>
+              ${stop.delivery_window_from?`<span style="font-size:11px;color:var(--ink3)"><i class="ti ti-clock" style="font-size:11px"></i> ${stop.delivery_window_from.slice(0,5)}–${stop.delivery_window_to?.slice(0,5)}</span>`:''}
+              ${stop.kits.length?`<span style="font-size:11px;color:var(--purple);font-weight:600"><i class="ti ti-stack-2" style="font-size:11px"></i> ${stop.kits.length} KIT</span>`:''}
+              ${stop.message?`<span style="font-size:11px;color:var(--amber);font-weight:600"><i class="ti ti-message" style="font-size:11px"></i> Mensaje</span>`:''}
+            </div>
+          </div>
+        </div>
+
+        <div class="stop-card-actions">
+          ${stop.kits.length||stop.message?`<button class="act-btn" onclick="openComanda('${stop.id}');event.stopPropagation()"><i class="ti ti-receipt" style="font-size:13px"></i> Comanda</button>`:''}
+          ${stop.status==='ready'?`<button class="act-btn go" onclick="changeStopStatus('${stop.id}','on_the_way');event.stopPropagation()"><i class="ti ti-truck" style="font-size:13px"></i> En camino</button>`:''}
+          ${stop.status==='on_the_way'?`
+            <button class="act-btn ok" onclick="changeStopStatus('${stop.id}','delivered');event.stopPropagation()"><i class="ti ti-check" style="font-size:13px"></i> Entregado</button>
+            <button class="act-btn fail" onclick="changeStopStatus('${stop.id}','not_delivered');event.stopPropagation()"><i class="ti ti-x" style="font-size:13px"></i> No entregado</button>
+          `:''}
+          ${stop.status==='not_delivered'?`<button class="act-btn" style="background:var(--amber-l);color:var(--amber);border-color:#fde68a" onclick="reagendar('${stop.id}');event.stopPropagation()"><i class="ti ti-calendar-event" style="font-size:13px"></i> Reagendar</button>`:''}
+        </div>
+      </div>`).join('');
+  }
+
+  updateSummary();
+}
+
+function statusLabel(s) {
+  return {ready:'Para enviar',on_the_way:'En camino',delivered:'Entregado',not_delivered:'No entregado'}[s]||s;
+}
+
+// ── DRAG & DROP ────────────────────────────────
+function onDragStart(e, id) {
+  dragSrc = id;
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function onDragOver(e, id) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.stop-card').forEach(c => c.classList.remove('drag-over'));
+  if (id !== dragSrc) e.currentTarget.classList.add('drag-over');
+}
+function onDrop(e, targetId) {
+  e.preventDefault();
+  if (dragSrc === targetId) return;
+  const src = currentRoute.find(s => s.id === dragSrc);
+  const tgt = currentRoute.find(s => s.id === targetId);
+  const srcSeq = src.seq;
+  src.seq = tgt.seq;
+  tgt.seq = srcSeq;
+  // Resequence
+  currentRoute.sort((a,b) => a.seq-b.seq).forEach((s,i) => s.seq = i+1);
+  document.querySelectorAll('.stop-card').forEach(c => c.classList.remove('drag-over','dragging'));
+  renderStops();
+  renderMap();
+  toast('🔀 Ruta reordenada');
+}
+function onDragEnd(e) {
+  document.querySelectorAll('.stop-card').forEach(c => c.classList.remove('dragging','drag-over'));
+}
+
+// ── CAMBIAR ESTADO ─────────────────────────────
+function changeStopStatus(id, newStatus) {
+  const stop = currentRoute.find(s => s.id === id);
+  if (!stop) return;
+  stop.status = newStatus;
+  document.getElementById('map-popup').classList.add('hidden');
+  selectedStop = null;
+  renderStops();
+  renderMap();
+  toast('✅ ' + statusLabel(newStatus));
+}
+
+function reagendar(id) {
+  const date = prompt('Nueva fecha (YYYY-MM-DD):');
+  if (date) {
+    changeStopStatus(id, 'ready');
+    toast('📅 Reagendado para ' + date);
+  }
+}
+
+// ── COMANDA ────────────────────────────────────
+function openComanda(id) {
+  const stop = currentRoute.find(s => s.id === id);
+  if (!stop) return;
+  document.getElementById('comanda-sub').textContent = `${stop.order_id} · ${stop.recipient_name}`;
+
+  let html = '';
+  stop.kits.forEach(kit => {
+    html += `<div style="font-size:13px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;padding:10px 0 6px">${kit.name}</div>`;
+    kit.components.forEach(comp => {
+      html += `<div class="comanda-line"><span class="comanda-qty">×${comp.qty}</span><span class="comanda-item">${comp.name}</span></div>`;
+    });
+  });
+
+  if (!stop.kits.length && !stop.message) {
+    html = `<p style="color:var(--ink3);font-size:13px;text-align:center;padding:20px">Sin KITs en esta orden.</p>`;
+  }
+
+  if (stop.message) {
+    html += `<div class="comanda-note"><i class="ti ti-message-circle" style="font-size:18px;flex-shrink:0;margin-top:1px"></i><div><strong>Mensaje para el receptor:</strong><br>${stop.message}</div></div>`;
+  }
+
+  document.getElementById('comanda-content').innerHTML = html;
+  document.getElementById('modal-comanda').classList.remove('hidden');
+}
+
+function printComanda() {
+  const content = document.getElementById('comanda-content').innerHTML;
+  const sub = document.getElementById('comanda-sub').textContent;
+  const w = window.open('','_blank','width=380,height=500');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comanda</title>
+<style>body{font-family:Arial,sans-serif;padding:20px;max-width:320px}h2{font-size:16px;margin-bottom:4px}p{font-size:12px;color:#666;margin-bottom:16px}.line{display:flex;gap:8px;padding:6px 0;border-bottom:1px dashed #ddd;font-size:14px}.qty{font-weight:700;color:#2563eb;min-width:24px}.kit-title{font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;padding:8px 0 4px}.msg{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;font-size:13px;color:#d97706;margin-top:12px}@media print{button{display:none}}</style>
+</head><body><h2>🧾 Comanda</h2><p>${sub}</p>${content.replace(/class="comanda-line"/g,'class="line"').replace(/class="comanda-qty"/g,'class="qty"').replace(/class="comanda-note"/g,'class="msg"')}<br><button onclick="window.print()">🖨️ Imprimir</button></body></html>`);
+  w.document.close();
+}
+
+// ── SUMMARY ────────────────────────────────────
+function updateSummary() {
+  const done = currentRoute.filter(s=>s.status==='delivered').length;
+  const pend = currentRoute.filter(s=>s.status==='ready'||s.status==='on_the_way').length;
+  const fail = currentRoute.filter(s=>s.status==='not_delivered').length;
+  document.getElementById('stat-done').textContent = done;
+  document.getElementById('stat-pend').textContent = pend;
+  document.getElementById('stat-fail').textContent = fail;
+  document.getElementById('hdr-stops').textContent = currentRoute.length + ' paradas';
+  document.getElementById('hdr-eta').textContent = `~${Math.ceil(currentRoute.length*0.5)}h est.`;
+}
+
+// ── ROUTE SELECTOR ─────────────────────────────
+function loadRoute(id) {
+  if (id === 'new') {
+    const name = prompt('Nombre de la nueva ruta:');
+    if (!name) { document.getElementById('route-select').value = currentRouteId; return; }
+    const newId = Object.keys(ROUTES).length + 1;
+    ROUTES[newId] = [];
+    const sel = document.getElementById('route-select');
+    const opt = document.createElement('option');
+    opt.value = newId; opt.textContent = `Ruta #${newId} — ${name}`;
+    sel.insertBefore(opt, sel.lastElementChild);
+    sel.value = newId;
+    currentRouteId = newId;
+    currentRoute = ROUTES[newId];
+    toast('✅ Ruta creada');
+  } else {
+    currentRouteId = id;
+    currentRoute = ROUTES[id] || [];
+  }
+  selectedStop = null;
+  document.getElementById('map-popup').classList.add('hidden');
+  renderStops(); renderMap();
+}
+
+// ── OPTIMIZER ──────────────────────────────────
+function runOptimizer() {
+  if (!gmApiKey) return;
+  const prog = document.getElementById('opt-progress');
+  prog.classList.remove('hidden');
+  // Simulación: en producción llamar a Google Directions API con waypoints
+  setTimeout(() => {
+    // Algoritmo simple: ordenar por latitud descendente (N→S) como heurística
+    const sorted = [...currentRoute].sort((a,b) => b.lat-a.lat);
+    sorted.forEach((s,i) => s.seq = i+1);
+    currentRoute = sorted;
+    prog.classList.add('hidden');
+    renderStops(); renderMap();
+    toast('✨ Ruta optimizada — ahorra ~23 min estimados');
+  }, 2200);
+}
+
+// ── SETTINGS & API KEY ─────────────────────────
+function toggleSettings() {
+  document.getElementById('settings-panel').classList.toggle('hidden');
+}
+function onKeyInput(val) {
+  const btn = document.getElementById('btn-optimizer');
+  if (val.trim().length > 10) {
+    btn.classList.remove('disabled');
+    btn.querySelector('.opt-key-req').style.display = 'none';
+  } else {
+    btn.classList.add('disabled');
+    btn.querySelector('.opt-key-req').style.display = '';
+  }
+}
+function saveApiKey() {
+  const key = document.getElementById('gm-key-input').value.trim();
+  if (!key) { toast('⚠️ Ingresa una API Key válida'); return; }
+  gmApiKey = key;
+  localStorage.setItem('gm_api_key', key);
+  document.getElementById('btn-optimizer').classList.remove('disabled');
+  document.getElementById('btn-optimizer').querySelector('.opt-key-req').style.display = 'none';
+  document.getElementById('settings-panel').classList.add('hidden');
+  toast('✅ API Key guardada — Route Optimizer activo');
+  renderMap(); // En prod: cargar Google Maps real
+}
+
+// Inicializar con key guardada
+if (gmApiKey && gmApiKey.length > 10) {
+  document.getElementById('btn-optimizer').classList.remove('disabled');
+  document.getElementById('btn-optimizer').querySelector('.opt-key-req').style.display = 'none';
+  document.getElementById('gm-key-input').value = gmApiKey;
+}
+
+// ── MODALS ─────────────────────────────────────
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function openNewShipmentModal() { document.getElementById('modal-add').classList.remove('hidden'); }
+function addStop() {
+  const val = document.getElementById('add-order-sel').value;
+  if (!val) { toast('⚠️ Selecciona una orden'); return; }
+  const names = {
+    'ORD-005':'Diego Morales','ORD-006':'Sofia Castro','ORD-007':'Roberto Silva'
+  };
+  const addrs = {
+    'ORD-005':'Av. Ossa 1234','ORD-006':'Vicuña Mackenna 5678','ORD-007':'San Diego 4321'
+  };
+  const lats = {'ORD-005':-33.461,'ORD-006':-33.519,'ORD-007':-33.478};
+  const lngs = {'ORD-005':-70.607,'ORD-006':-70.598,'ORD-007':-70.651};
+  const newStop = {
+    id:'SHP-NEW-'+Date.now(), order_id:val, seq:currentRoute.length+1,
+    recipient_name:names[val]||'Cliente',
+    address_street:addrs[val]||'Dirección',
+    address_city:'Santiago',status:'ready',
+    tracking_code:'SF'+Math.random().toString(36).slice(2,10).toUpperCase(),
+    delivery_window_from:'10:00',delivery_window_to:'14:00',
+    shipping_cost:2500,lat:lats[val]||(-33.44),lng:lngs[val]||(-33.62),
+    kits:[],message:null
+  };
+  currentRoute.push(newStop);
+  closeModal('modal-add');
+  renderStops(); renderMap();
+  toast('✅ Parada agregada a la ruta');
+}
+
+// ── EXPORT / PRINT ─────────────────────────────
+function exportRoute() {
+  toast('📤 Ruta enviada al repartidor');
+}
+function printRoute() {
+  toast('🖨️ Abriendo ruta para imprimir...');
+}
+
+// ── RESIZE ────────────────────────────────────
+window.addEventListener('resize', () => renderMap());
+
+// ── INIT ──────────────────────────────────────
+function toast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';
+  setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(20px)';},2800);
+}
+
+renderStops();
+setTimeout(renderMap, 100);
+</script>
+</body>
+</html>

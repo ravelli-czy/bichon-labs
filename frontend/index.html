@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito',sans-serif;background:#f5f6fa;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 16px}
+.logo{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.logo-icon{width:52px;height:52px;background:#5b4fff;border-radius:15px;display:flex;align-items:center;justify-content:center}
+.logo-icon i{color:#fff;font-size:28px}
+.logo-title{font-size:28px;font-weight:900;color:#5b4fff}
+.subtitle{font-size:14px;color:#9a9bb8;font-weight:700;margin-bottom:36px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;width:100%;max-width:680px}
+.card{background:#fff;border-radius:16px;padding:20px;text-decoration:none;color:#1a1a2e;box-shadow:0 2px 12px rgba(91,79,255,.08);transition:all .2s;border:1.5px solid #e4e5f0;display:flex;flex-direction:column;gap:8px}
+.card:hover{transform:translateY(-3px);box-shadow:0 6px 24px rgba(91,79,255,.15);border-color:#5b4fff}
+.card-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:4px}
+.card-icon i{font-size:22px}
+.card-name{font-size:15px;font-weight:900}
+.card-desc{font-size:12px;color:#9a9bb8;font-weight:600;line-height:1.4}
+.badge-new{display:inline-block;background:#ede9ff;color:#5b4fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:20px;margin-top:2px}
+</style>
+</head>
+<body>
+<div class="logo"><div class="logo-icon"><i class="ti ti-packages"></i></div><div class="logo-title">StockFlow</div></div>
+<div class="subtitle">Selecciona un módulo para abrir</div>
+<div class="grid">
+  <a href="onboarding.html" class="card">
+    <div class="card-icon" style="background:#ede9ff"><i class="ti ti-rocket" style="color:#5b4fff"></i></div>
+    <div class="card-name">Onboarding</div>
+    <div class="card-desc">Configuración inicial del negocio</div>
+    <span class="badge-new">Empezar aquí</span>
+  </a>
+  <a href="app.html" class="card">
+    <div class="card-icon" style="background:#e6faf4"><i class="ti ti-box" style="color:#0da070"></i></div>
+    <div class="card-name">Inventario & Ventas</div>
+    <div class="card-desc">Productos, KITs, órdenes de venta y compra</div>
+  </a>
+  <a href="locales.html" class="card">
+    <div class="card-icon" style="background:#f0fdfa"><i class="ti ti-building-store" style="color:#0d9488"></i></div>
+    <div class="card-name">Locales & Entrega</div>
+    <div class="card-desc">Tiendas, almacenes, formas de envío y slots</div>
+  </a>
+  <a href="delivery.html" class="card">
+    <div class="card-icon" style="background:#fffbeb"><i class="ti ti-truck-delivery" style="color:#d97706"></i></div>
+    <div class="card-name">Delivery</div>
+    <div class="card-desc">Envíos, couriers, tracking y etiquetas</div>
+  </a>
+  <a href="routes.html" class="card">
+    <div class="card-icon" style="background:#eff6ff"><i class="ti ti-route" style="color:#2563eb"></i></div>
+    <div class="card-name">Rutas de despacho</div>
+    <div class="card-desc">Armar rutas, mapa, drag & drop, optimizador</div>
+  </a>
+  <a href="driver.html" class="card">
+    <div class="card-icon" style="background:#fff0f3"><i class="ti ti-steering-wheel" style="color:#ff4d6d"></i></div>
+    <div class="card-name">App Repartidor</div>
+    <div class="card-desc">Ejecutar entregas, GPS y foto del frontis</div>
+  </a>
+</div>
+<p style="margin-top:32px;font-size:12px;color:#c0c0d8;font-weight:700">StockFlow v1.0 · Todos los módulos funcionan sin backend</p>
+</body>
+</html>
