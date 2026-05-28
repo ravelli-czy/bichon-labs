@@ -219,6 +219,13 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .slot-pill.selected .slot-pill-label{color:var(--primary)}
 .slot-pill.selected .slot-pill-time{color:var(--primary)}
 .delivery-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--primary-light);color:var(--primary)}
+
+/* OVERLAY PAGE */
+.overlay-page{position:fixed;inset:0;background:var(--bg);z-index:150;display:flex;flex-direction:column;overflow:hidden;max-width:480px;margin:0 auto}
+.overlay-page.hidden{display:none}
+.overlay-scroll{flex:1;overflow-y:auto;padding:16px;padding-bottom:32px}
+.overlay-topbar{background:var(--bg2);padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);box-shadow:var(--shadow);flex-shrink:0}
+.overlay-topbar-title{font-weight:900;font-size:17px;flex:1}
 </style>
 </head>
 <body>
@@ -477,6 +484,12 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div class="form-group"><div class="form-label">Referencia</div><input class="form-input" id="venta-addr-notes" placeholder="Depto, piso, timbre..."></div>
       </div>
 
+      <!-- DEDICATORIA -->
+      <div class="section-label" style="margin-top:14px"><i class="ti ti-heart"></i> Dedicatoria (opcional)</div>
+      <div class="form-group">
+        <textarea class="form-input" id="venta-dedicatoria" placeholder="Ej: Para mamá con todo nuestro cariño..." rows="2" style="resize:none"></textarea>
+      </div>
+
       <!-- TOTAL -->
       <div class="total-bar mt-3">
         <span style="font-size:14px;font-weight:800;color:var(--green-dark)">Total</span>
@@ -504,16 +517,16 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   </div>
 </div>
 
-<!-- SHEET: DETALLE ORDEN -->
-<div class="sheet-overlay hidden" id="sheet-orden-detalle">
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-      <div class="sheet-title" id="orden-detalle-title"><i class="ti ti-receipt" style="color:var(--green-dark)"></i> Detalle</div>
-      <button class="sheet-close" onclick="closeSheet('sheet-orden-detalle')"><i class="ti ti-x"></i></button>
-    </div>
-    <div class="sheet-content" id="orden-detalle-content"></div>
+<!-- OVERLAY: DETALLE ORDEN (pantalla completa) -->
+<div class="overlay-page hidden" id="overlay-orden">
+  <div class="overlay-topbar">
+    <button class="icon-btn" onclick="closeOrdenDetalle()" title="Volver"><i class="ti ti-arrow-left"></i></button>
+    <div class="overlay-topbar-title" id="overlay-orden-id">Detalle de orden</div>
+    <button class="btn btn-outline btn-sm" onclick="printComanda(currentDetalleId)" style="gap:5px">
+      <i class="ti ti-printer"></i> Imprimir comanda
+    </button>
   </div>
+  <div class="overlay-scroll" id="overlay-orden-content"></div>
 </div>
 
 <div id="toast"></div>
@@ -950,6 +963,7 @@ function openSheetVenta() {
   document.getElementById('venta-total').textContent = '$0';
   document.getElementById('venta-cliente').value = '';
   document.getElementById('venta-telefono').value = '';
+  document.getElementById('venta-dedicatoria').value = '';
   document.getElementById('venta-delivery-date').value = '';
   document.getElementById('venta-date-group').style.display = 'none';
   document.getElementById('venta-slot-group').style.display = 'none';
@@ -1062,10 +1076,11 @@ function saveVenta() {
 
   S.ventas.push({
     id, total,
-    cliente:   document.getElementById('venta-cliente').value || 'Cliente',
-    telefono:  document.getElementById('venta-telefono').value || '',
-    fecha:     new Date().toLocaleDateString('es-CL'),
-    items:     S.tempVentaItems.slice(),
+    cliente:     document.getElementById('venta-cliente').value || 'Cliente',
+    telefono:    document.getElementById('venta-telefono').value || '',
+    dedicatoria: document.getElementById('venta-dedicatoria').value.trim(),
+    fecha:       new Date().toLocaleDateString('es-CL'),
+    items:       S.tempVentaItems.slice(),
     delivery,
   });
 
@@ -1090,32 +1105,61 @@ function saveVenta() {
 }
 
 // ── ORDEN DETALLE ────────────────────────────
+let currentDetalleId = null;
+
 function openOrdenDetalle(id) {
   const v = S.ventas.find(x => x.id === id);
   if (!v) return;
+  currentDetalleId = id;
   const dv = v.delivery || {};
   const deliveryIcons = { store_pickup:'ti-building-store', home_delivery:'ti-home', pickup_point:'ti-map-pin', express:'ti-bolt' };
   const icon = deliveryIcons[dv.method_type] || 'ti-truck-delivery';
 
-  document.getElementById('orden-detalle-title').innerHTML = `<i class="ti ti-receipt" style="color:var(--green-dark)"></i> ${v.id}`;
-  document.getElementById('orden-detalle-content').innerHTML = `
+  document.getElementById('overlay-orden-id').textContent = v.id;
+
+  // Build items HTML — expand KIT components
+  const itemsHtml = v.items.map(item => {
+    const isKit = item.type === 'kit';
+    let compsHtml = '';
+    if (isKit) {
+      const kit = S.kits.find(k => k.sku === item.sku);
+      if (kit) {
+        compsHtml = `<div style="margin-top:6px;background:var(--bg3);border-radius:8px;overflow:hidden">` +
+          kit.items.map(comp => {
+            const prod = S.products.find(p => p.sku === comp.sku);
+            return `<div style="display:flex;justify-content:space-between;padding:5px 10px 5px 14px;border-bottom:1px dashed var(--border);font-size:12px">
+              <span style="color:var(--text2);font-weight:600"><i class="ti ti-corner-down-right" style="font-size:10px;color:var(--text3)"></i> ${prod?.name||comp.sku}</span>
+              <span style="font-weight:800;color:var(--text2)">×${comp.qty * item.qty}</span>
+            </div>`;
+          }).join('') + `</div>`;
+      }
+    }
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${tipoBadge(isKit?'kit':item.tipo)}<span style="font-size:14px;font-weight:800">${item.name}</span></div>
+          <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:2px">${fmt(item.price)} × ${item.qty}</div>
+        </div>
+        <div style="font-size:15px;font-weight:900;color:var(--green-dark);flex-shrink:0;padding-left:10px">${fmt(item.price*item.qty)}</div>
+      </div>
+      ${compsHtml}
+    </div>`;
+  }).join('');
+
+  document.getElementById('overlay-orden-content').innerHTML = `
     <div style="background:var(--bg3);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
       <div style="font-size:17px;font-weight:900">${v.cliente||'Cliente'}</div>
       ${v.telefono?`<div style="font-size:13px;color:var(--text2);font-weight:600;margin-top:3px"><i class="ti ti-phone" style="font-size:12px"></i> ${v.telefono}</div>`:''}
       <div style="font-size:12px;color:var(--text3);font-weight:600;margin-top:4px">${v.fecha}</div>
     </div>
 
+    ${v.dedicatoria?`<div style="background:var(--amber-light);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px;border:1.5px solid #fde68a">
+      <div style="font-size:11px;font-weight:800;color:var(--amber-dark);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px"><i class="ti ti-heart"></i> Dedicatoria</div>
+      <div style="font-size:14px;font-weight:700;color:var(--text);font-style:italic">"${v.dedicatoria}"</div>
+    </div>`:''}
+
     <div class="section-label"><i class="ti ti-shopping-cart"></i> Productos</div>
-    <div class="card" style="padding:10px 14px;margin-bottom:14px">
-      ${v.items.map(item=>`
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
-          <div>
-            <div style="font-size:13px;font-weight:800">${item.name}</div>
-            <div style="font-size:11px;color:var(--text3);font-weight:600">${fmt(item.price)} × ${item.qty}</div>
-          </div>
-          <div style="font-size:14px;font-weight:900;color:var(--green-dark)">${fmt(item.price*item.qty)}</div>
-        </div>`).join('')}
-    </div>
+    <div class="card" style="padding:10px 14px;margin-bottom:14px">${itemsHtml}</div>
 
     <div class="section-label"><i class="ti ti-truck-delivery"></i> Entrega</div>
     <div class="card" style="padding:12px 14px;margin-bottom:14px">
@@ -1129,11 +1173,90 @@ function openOrdenDetalle(id) {
       ${dv.address_notes?`<div style="font-size:12px;font-weight:600;color:var(--text3);margin-top:3px;margin-left:18px">${dv.address_notes}</div>`:''}
     </div>
 
-    <div class="total-bar">
+    <div class="total-bar" style="margin-bottom:8px">
       <span style="font-size:14px;font-weight:800;color:var(--green-dark)">Total de la orden</span>
       <span style="font-size:22px;font-weight:900;color:var(--green-dark)">${fmt(v.total)}</span>
     </div>`;
-  openSheet('sheet-orden-detalle');
+
+  document.getElementById('overlay-orden').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeOrdenDetalle() {
+  document.getElementById('overlay-orden').classList.add('hidden');
+  document.body.style.overflow = '';
+  currentDetalleId = null;
+}
+
+function printComanda(id) {
+  const v = S.ventas.find(x => x.id === id);
+  if (!v) return;
+  const dv = v.delivery || {};
+  const dlLabels = { store_pickup:'Retiro en tienda', home_delivery:'Despacho a domicilio', pickup_point:'Punto de retiro', express:'Express' };
+
+  // Build items rows — expand KIT components
+  let itemsRows = '';
+  v.items.forEach(item => {
+    itemsRows += `<tr>
+      <td style="padding:5px 6px;font-weight:700;vertical-align:top">${item.qty}×</td>
+      <td style="padding:5px 6px;font-weight:700;vertical-align:top">${item.name}</td>
+      <td style="padding:5px 6px;text-align:right;font-weight:700;vertical-align:top;white-space:nowrap">${fmt(item.price*item.qty)}</td>
+    </tr>`;
+    if (item.type === 'kit') {
+      const kit = S.kits.find(k => k.sku === item.sku);
+      if (kit) kit.items.forEach(comp => {
+        const prod = S.products.find(p => p.sku === comp.sku);
+        itemsRows += `<tr style="background:#f7f7f7">
+          <td style="padding:2px 6px 2px 18px;color:#555;font-size:11px">↳ ${comp.qty*item.qty}×</td>
+          <td style="padding:2px 6px;color:#555;font-size:11px" colspan="2">${prod?.name||comp.sku}</td>
+        </tr>`;
+      });
+    }
+  });
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comanda ${v.id}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Courier New',monospace;font-size:13px;color:#000;background:#fff;padding:16px;max-width:360px;margin:0 auto}
+.center{text-align:center}
+.big{font-size:20px;font-weight:900;letter-spacing:2px}
+.dashed{border-top:1px dashed #000;margin:10px 0}
+.section-lbl{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:1px;color:#555;margin-bottom:5px}
+table{width:100%;border-collapse:collapse}
+.total-row{display:flex;justify-content:space-between;font-size:17px;font-weight:900;margin-top:6px}
+.dl-row{display:flex;justify-content:space-between;font-size:12px;padding:2px 0}
+.dl-lbl{color:#555}
+.dedicatoria{border:1px solid #000;border-radius:3px;padding:7px 9px;margin-top:7px;font-style:italic;font-size:13px;background:#fafafa;line-height:1.5}
+.footer{text-align:center;font-size:10px;color:#999;margin-top:14px}
+@media print{@page{margin:8mm}body{padding:0}}
+</style></head><body>
+<div class="center"><div class="big">StockFlow</div><div style="font-size:10px;color:#555;margin-top:2px">Comanda de Pedido</div></div>
+<div class="dashed"></div>
+<div class="center" style="font-size:18px;font-weight:900;letter-spacing:1px">${v.id}</div>
+<div class="center" style="font-size:11px;color:#555;margin-top:3px">${v.fecha}</div>
+<div class="dashed"></div>
+<div class="section-lbl">Cliente</div>
+<div style="font-size:15px;font-weight:900">${v.cliente||'Cliente'}</div>
+${v.telefono?`<div style="font-size:12px;color:#555;margin-top:2px">${v.telefono}</div>`:''}
+${v.dedicatoria?`<div class="dedicatoria">&#9829; ${v.dedicatoria}</div>`:''}
+<div class="dashed"></div>
+<div class="section-lbl">Productos</div>
+<table>${itemsRows}</table>
+<div class="dashed"></div>
+<div class="total-row"><span>TOTAL</span><span>${fmt(v.total)}</span></div>
+<div class="dashed"></div>
+<div class="section-lbl">Entrega</div>
+<div class="dl-row"><span class="dl-lbl">Método</span><span>${dlLabels[dv.method_type]||dv.method_type||'—'}</span></div>
+${dv.date?`<div class="dl-row"><span class="dl-lbl">Fecha</span><span>${new Date(dv.date+'T12:00:00').toLocaleDateString('es-CL',{weekday:'short',day:'2-digit',month:'short'})}</span></div>`:''}
+${dv.slot_from?`<div class="dl-row"><span class="dl-lbl">Horario</span><span>${dv.slot_label} · ${dv.slot_from}–${dv.slot_to}</span></div>`:''}
+${dv.address_street?`<div class="dl-row"><span class="dl-lbl">Dirección</span><span>${dv.address_street}, ${dv.address_city}</span></div>`:''}
+${dv.address_notes?`<div class="dl-row"><span class="dl-lbl">Nota</span><span>${dv.address_notes}</span></div>`:''}
+<div class="footer">✓ Impreso desde StockFlow</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=420,height=680');
+  if (win) { win.document.write(html); win.document.close(); }
 }
 
 // ── SHEETS ────────────────────────────────────
