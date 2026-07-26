@@ -29,10 +29,11 @@ module.exports = async (req, res) => {
         name, brand = 'Sin marca', cat = 'General',
         tipo = 'producto', cost = 0, price = 0,
         stock = 0, threshold = 10, warehouse_id = '', barcode = '',
-        sku: explicitSku,
+        groups = [], sku: explicitSku,
       } = req.body || {};
 
       if (!name) return res.status(400).json({ error: 'name is required' });
+      if (!Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
 
       let sku;
       if (explicitSku) {
@@ -51,8 +52,8 @@ module.exports = async (req, res) => {
       }
 
       const [row] = await sql`
-        INSERT INTO products (sku, name, brand, cat, tipo, cost, price, stock, threshold, barcode, created_by, tenant_id, warehouse_id)
-        VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${cost}, ${price}, ${stock}, ${threshold}, ${barcode}, ${actor}, ${tenantId}, ${warehouse_id})
+        INSERT INTO products (sku, name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, created_by, tenant_id, warehouse_id)
+        VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${cost}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${actor}, ${tenantId}, ${warehouse_id})
         RETURNING *
       `;
 

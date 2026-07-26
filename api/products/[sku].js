@@ -28,7 +28,9 @@ module.exports = async (req, res) => {
 
     // ── PUT — update product ──────────────────────────────────────────────
     if (req.method === 'PUT') {
-      const { name, brand, cat, tipo, cost, price, stock, threshold, barcode } = req.body || {};
+      const { name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups } = req.body || {};
+      if (groups !== undefined && !Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
+      const groupsJson = groups !== undefined ? JSON.stringify(groups) : null;
       const [row] = await sql`
         UPDATE products SET
           name      = COALESCE(${name      ?? null}, name),
@@ -40,6 +42,7 @@ module.exports = async (req, res) => {
           stock     = COALESCE(${stock     ?? null}, stock),
           threshold = COALESCE(${threshold ?? null}, threshold),
           barcode   = COALESCE(${barcode   ?? null}, barcode),
+          groups    = COALESCE(${groupsJson}::jsonb, groups),
           updated_by = ${actor},
           updated_at = NOW()
         WHERE sku = ${sku} AND warehouse_id = ${warehouse_id} AND tenant_id = ${tenantId}

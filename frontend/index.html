@@ -183,6 +183,12 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .tipo-option.selected .tipo-title{color:var(--primary)}
 .tipo-desc{font-size:12px;font-weight:600;color:var(--text3);line-height:1.4}
 
+/* GROUP CHIPS (multi-selección) */
+.chip-group-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.chip-group{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:20px;border:2px solid var(--border);background:var(--bg3);cursor:pointer;font-size:13px;font-weight:700;color:var(--text);transition:all .15s}
+.chip-group.selected{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+.chip-group i{font-size:14px}
+
 /* KIT BUILD */
 .kit-build-item{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg3);border-radius:var(--radius);margin-bottom:6px}
 .qty-ctrl{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1.5px solid var(--border);border-radius:8px;padding:2px 6px;flex-shrink:0}
@@ -527,6 +533,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div class="tabs">
       <div class="tab active" id="ctab-categorias" onclick="switchCatTab('categorias',this)">Categorías</div>
       <div class="tab" id="ctab-marcas" onclick="switchCatTab('marcas',this)">Marcas</div>
+      <div class="tab" id="ctab-grupos" onclick="switchCatTab('grupos',this)">Grupos</div>
       <div class="tab" id="ctab-productos" onclick="switchCatTab('productos',this)">Productos</div>
       <div class="tab" id="ctab-skus" onclick="switchCatTab('skus',this)">SKUs</div>
     </div>
@@ -623,6 +630,10 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div class="form-group"><div class="form-label">Precio costo</div><input class="form-input" type="number" id="p-cost" placeholder="$0"></div>
         <div class="form-group"><div class="form-label" id="price-label">Precio venta</div><input class="form-input" type="number" id="p-price" placeholder="$0"></div>
       </div>
+      <div class="form-group">
+        <div class="form-label">Grupo de Productos <span style="font-weight:600;color:var(--text3)">(opcional, puedes elegir varios)</span></div>
+        <div id="p-groups-wrap" class="chip-group-wrap"></div>
+      </div>
       </div><!-- /p-prod-fields -->
       <div class="form-row" id="p-stock-row">
         <div class="form-group"><div class="form-label">Stock inicial</div><input class="form-input" type="number" id="p-stock" value="0"></div>
@@ -690,6 +701,12 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div class="add-row mt-2">
           <select id="kit-add-prod"><option value="">Seleccionar componente...</option></select>
           <button class="add-row-btn" onclick="addKitItem()"><i class="ti ti-plus"></i></button>
+        </div>
+        <div class="divider"></div>
+        <div class="form-group">
+          <div class="form-label">Grupos que determinan stock/disponibilidad <span style="font-weight:600;color:var(--text3)">(opcional)</span></div>
+          <div style="font-size:12px;color:var(--text3);font-weight:600;margin-bottom:6px">Si eliges uno o más grupos, solo los componentes que pertenezcan a esos grupos cuentan para calcular el stock y la disponibilidad del KIT. Si no eliges ninguno, cuentan todos los componentes (comportamiento actual).</div>
+          <div id="kit-groups-wrap" class="chip-group-wrap"></div>
         </div>
       </div>
       <div id="kit-sku-mode-fields" style="display:none">
@@ -1097,6 +1114,9 @@ const S = {
   products: [],
   kits: [],
   ventas: [],
+  productGroups: [],
+  tempProdGroups: [],
+  tempKitGroups: [],
   tempKitItems: [],
   _addKitSkuMode: false,
   _addKitSkuData: null,
@@ -1272,15 +1292,17 @@ function openCreateShipmentFromOrder(orderId) {
 // ── Load all data from API on startup ─────────
 async function initApp() {
   try {
-    const [products, kits, orders, tenantSettings] = await Promise.all([
+    const [products, kits, orders, tenantSettings, productGroups] = await Promise.all([
       apiFetch('/api/products'),
       apiFetch('/api/kits'),
       apiFetch('/api/orders'),
       apiFetch('/api/users?action=settings').catch(() => null),
+      apiFetch('/api/product-groups').catch(() => []),
     ]);
     S.products = Array.isArray(products) ? products : [];
     S.kits = Array.isArray(kits) ? kits : [];
     S.ventas = Array.isArray(orders) ? orders : [];
+    S.productGroups = Array.isArray(productGroups) ? productGroups : [];
     if (tenantSettings && typeof tenantSettings === 'object') {
       S._tenantSettings = tenantSettings;
       const dbTab = tenantSettings.invDefaultTab;
@@ -1325,9 +1347,25 @@ function tipoBadge(tipo) {
   return `<span class="tipo-badge ${m.css}"><i class="ti ${m.icon}" style="font-size:10px"></i>${m.label}</span>`;
 }
 
+// Componentes que efectivamente determinan el stock/disponibilidad del KIT.
+// Si el KIT tiene stock_group_ids configurado, solo cuentan los componentes
+// (no-KIT) cuyo producto pertenezca a alguno de esos grupos. Los sub-KITs
+// siempre cuentan (su propio stock ya respeta su propia configuración de grupos).
+// Sin stock_group_ids configurado: comportamiento anterior, cuentan todos.
+function kitStockItems(kit) {
+  const groupIds = kit.stock_group_ids;
+  if (!Array.isArray(groupIds) || !groupIds.length) return kit.items || [];
+  return (kit.items || []).filter(i => {
+    if (i.type === 'kit') return true;
+    const p = S.products.find(x => x.sku === i.sku && (x.warehouse_id||'') === (i.warehouse_id||''))
+           || S.products.find(x => x.sku === i.sku);
+    return !!(p && Array.isArray(p.groups) && p.groups.some(g => groupIds.includes(g)));
+  });
+}
 function kitStock(kit) {
-  if (!kit.items?.length) return 0;
-  return Math.min(...kit.items.map(i => {
+  const items = kitStockItems(kit);
+  if (!items.length) return 0;
+  return Math.min(...items.map(i => {
     if (i.type === 'kit') {
       const sub = S.kits.find(k => k.sku === i.sku && (k.warehouse_id||'') === '');
       return sub ? Math.floor(kitStock(sub) / i.qty) : 0;
@@ -1347,7 +1385,7 @@ function getAlerts() { return S.products.filter(p => alertLevel(p) && (p.warehou
 // Kit alert: 'critical' if any component is at 0, 'warning' if any is at/below threshold
 function kitAlertLevel(kit) {
   let level = null;
-  for (const item of kit.items) {
+  for (const item of kitStockItems(kit)) {
     if (item.type === 'kit') {
       const sub = S.kits.find(k => k.sku === item.sku && (k.warehouse_id||'') === '');
       if (sub) {
@@ -1818,7 +1856,7 @@ function openAddSkuSheet(prodSku) {
   S.editingProdWarehouseId = '';
   S._catalogMode = false;
   S._addSkuMode  = true;
-  S._addSkuData  = { sku: master.sku, name: master.name, brand: master.brand, cat: master.cat, tipo: master.tipo, cost: master.cost, price: master.price };
+  S._addSkuData  = { sku: master.sku, name: master.name, brand: master.brand, cat: master.cat, tipo: master.tipo, cost: master.cost, price: master.price, groups: master.groups };
   document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-barcode" style="color:var(--primary)"></i> Agregar SKU';
   document.getElementById('prod-save-btn').innerHTML    = '<i class="ti ti-check"></i> Crear SKU';
   document.getElementById('prod-dup-btn').style.display = 'none';
@@ -1879,6 +1917,8 @@ function openSheetProd() {
   _populateWarehouseSelect(S.warehouseId, false);
   _populateCatalogLists();
   populateCatSelects('');
+  S.tempProdGroups = [];
+  renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
   openSheet('sheet-prod');
 }
 
@@ -1910,7 +1950,20 @@ function openSheetProdCatalog() {
   selectTipo('producto', document.querySelector('.tipo-option:nth-child(2)'));
   _populateCatalogLists();
   populateCatSelects('');
+  S.tempProdGroups = [];
+  renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
   openSheet('sheet-prod');
+}
+
+function toggleProdGroup(id, el) {
+  const i = S.tempProdGroups.indexOf(id);
+  if (i === -1) S.tempProdGroups.push(id); else S.tempProdGroups.splice(i, 1);
+  el.classList.toggle('selected');
+}
+function toggleKitGroup(id, el) {
+  const i = S.tempKitGroups.indexOf(id);
+  if (i === -1) S.tempKitGroups.push(id); else S.tempKitGroups.splice(i, 1);
+  el.classList.toggle('selected');
 }
 
 let _skuToggleOn = false;
@@ -1948,6 +2001,8 @@ function editProd(sku, warehouseId) {
   metaEl.innerHTML  = metaHtml;
   metaEl.style.display = metaHtml ? '' : 'none';
   document.getElementById('p-barcode').value   = p.barcode || '';
+  S.tempProdGroups = Array.isArray(p.groups) ? [...p.groups] : [];
+  renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
   // Show/hide fields based on mode
   const wg = document.getElementById('p-warehouse-group');
   if (S._catalogMode) {
@@ -2022,6 +2077,8 @@ function duplicateProd() {
   populateCatSelects(p.cat !== 'General' ? (p.cat || '') : '');
   const tipoIndex = { insumo:0, producto:1, ambos:2 };
   selectTipo(p.tipo || 'producto', document.querySelectorAll('.tipo-option')[tipoIndex[p.tipo] ?? 1]);
+  S.tempProdGroups = Array.isArray(p.groups) ? [...p.groups] : [];
+  renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
   // Título indicativo
   document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-copy" style="color:var(--primary)"></i> Duplicar producto';
 }
@@ -2080,6 +2137,7 @@ async function saveProd() {
     threshold: thresholdVal,
     barcode,
     warehouse_id,
+    groups:    isAddSku ? (S._addSkuData.groups || []) : (S.tempProdGroups || []),
     ...(isAddSku ? { sku: S._addSkuData.sku } : {}), // explicit SKU for add-SKU mode
   };
   if (S.editingProdSku) {
@@ -2159,6 +2217,8 @@ function openSheetKit() {
   document.getElementById('kit-sku-mode-fields').style.display = 'none';
   _populateKitCompSelect(null);
   renderKitItemsList();
+  S.tempKitGroups = [];
+  renderGroupChips('kit-groups-wrap', S.tempKitGroups, 'toggleKitGroup');
   openSheet('sheet-kit');
 }
 function editKit(sku) {
@@ -2179,6 +2239,8 @@ function editKit(sku) {
   S.tempKitItems = kit.items.map(i => ({...i}));
   _populateKitCompSelect(sku);
   renderKitItemsList();
+  S.tempKitGroups = Array.isArray(kit.stock_group_ids) ? [...kit.stock_group_ids] : [];
+  renderGroupChips('kit-groups-wrap', S.tempKitGroups, 'toggleKitGroup');
   const metaEl = document.getElementById('kit-meta');
   const metaHtml = buildEntityMeta(kit);
   metaEl.innerHTML  = metaHtml;
@@ -2265,7 +2327,7 @@ async function saveKit() {
     const dup = S.kits.some(k => k.sku === S._addKitSkuData.sku && (k.warehouse_id||'') === warehouseId);
     if (dup) { toast('⚠️ Este almacén ya tiene un SKU de este KIT'); return; }
     const master = S._addKitSkuData;
-    const data = { sku: master.sku, name: master.name, price: master.price, items: master.items, warehouse_id: warehouseId };
+    const data = { sku: master.sku, name: master.name, price: master.price, items: master.items, warehouse_id: warehouseId, stock_group_ids: master.stock_group_ids };
     if (S._apiReady) {
       try {
         const newKit = await apiFetch('/api/kits', { method:'POST', body: JSON.stringify(data) });
@@ -2288,18 +2350,19 @@ async function saveKit() {
   if (!S.tempKitItems.length) { toast('⚠️ Agrega al menos un componente'); return; }
   const price = parseFloat(document.getElementById('kit-price').value)||0;
   const items = S.tempKitItems.slice();
+  const stock_group_ids = (S.tempKitGroups || []).slice();
 
   if (S.editingKitSku) {
     if (S._apiReady) {
       try {
-        const updated = await apiFetch(`/api/kits/${S.editingKitSku}`, { method:'PUT', body: JSON.stringify({ name, price, items }) });
-        // Sync name/price/items on all warehouse variants locally
-        S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name: updated.name, price: updated.price, items: updated.items } : k);
+        const updated = await apiFetch(`/api/kits/${S.editingKitSku}`, { method:'PUT', body: JSON.stringify({ name, price, items, stock_group_ids }) });
+        // Sync name/price/items/stock_group_ids on all warehouse variants locally
+        S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name: updated.name, price: updated.price, items: updated.items, stock_group_ids: updated.stock_group_ids } : k);
       } catch(e) {
-        S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name, price, items } : k);
+        S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name, price, items, stock_group_ids } : k);
       }
     } else {
-      S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name, price, items } : k);
+      S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name, price, items, stock_group_ids } : k);
     }
     S.editingKitSku = null;
     closeSheet('sheet-kit');
@@ -2309,15 +2372,15 @@ async function saveKit() {
     const masterCount = S.kits.filter(k => (k.warehouse_id||'') === '').length;
     if (S._apiReady) {
       try {
-        const newKit = await apiFetch('/api/kits', { method:'POST', body: JSON.stringify({ name, price, items, sku: customSku }) });
+        const newKit = await apiFetch('/api/kits', { method:'POST', body: JSON.stringify({ name, price, items, sku: customSku, stock_group_ids }) });
         S.kits.push(newKit);
       } catch(e) {
         const sku = customSku || 'KIT-'+String(masterCount+1).padStart(3,'0');
-        S.kits.push({ sku, name, price, items, warehouse_id: '' });
+        S.kits.push({ sku, name, price, items, warehouse_id: '', stock_group_ids });
       }
     } else {
       const sku = customSku || 'KIT-'+String(masterCount+1).padStart(3,'0');
-      S.kits.push({ sku, name, price, items, warehouse_id: '' });
+      S.kits.push({ sku, name, price, items, warehouse_id: '', stock_group_ids });
     }
     closeSheet('sheet-kit');
     toast('✅ KIT creado — stock calculado automáticamente');
@@ -2414,8 +2477,96 @@ function renderCatalogo() {
   if (!el) return;
   if      (tab === 'categorias') renderCategoryTreeView(el);
   else if (tab === 'marcas')     renderCatalogList(el, 'brands',     'marcas',        'ti-building-factory', 'Ej: Artesanal, Harmony, Marley...');
+  else if (tab === 'grupos')     renderProductGroupsView(el);
   else if (tab === 'productos')  renderCatalogProductsView(el);
   else if (tab === 'skus')       renderCatalogSKUsView(el);
+}
+
+// ── CATÁLOGO: Grupo de Productos ──────────────────────────────────────────
+// Agrupación transversal de productos (id correlativo dado por la plataforma).
+// Base para futuras funcionalidades (pesables, alto valor, etc) y para
+// configurar qué componentes determinan el stock/disponibilidad de un KIT.
+
+function renderProductGroupsView(el) {
+  const groups = S.productGroups || [];
+  const rows = groups.map(g => `
+    <div class="cat-list-item" id="pgroup-item-${g.id}" style="display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border);gap:8px">
+      <i class="ti ti-tags" style="font-size:15px;color:var(--primary);flex-shrink:0"></i>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:700">${g.name}</div>
+        <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:2px">ID #${g.id} · ${g.product_count||0} producto${g.product_count==1?'':'s'}</div>
+      </div>
+      <button onclick="editProductGroup(${g.id})" style="width:30px;height:30px;border-radius:8px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-pencil" style="font-size:12px"></i></button>
+      <button onclick="deleteProductGroup(${g.id})" style="width:30px;height:30px;border-radius:8px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-trash" style="font-size:12px"></i></button>
+    </div>`).join('');
+  el.innerHTML = `
+    <div class="info-box" style="background:var(--primary-light);color:var(--primary);border-radius:var(--radius);padding:10px 12px;font-size:12px;font-weight:700;margin-bottom:12px">
+      <i class="ti ti-info-circle"></i> Agrupa productos de forma transversal a la categoría. Cada producto puede pertenecer a 0..N grupos.
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input class="form-input" id="pgroup-new-name" placeholder="Ej: Pesables, Alto valor..." style="flex:1"
+        onkeydown="if(event.key==='Enter')createProductGroup()">
+      <button onclick="createProductGroup()" style="padding:0 14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius);font-weight:800;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:4px;white-space:nowrap;height:44px"><i class="ti ti-plus"></i> Agregar</button>
+    </div>
+    ${groups.length
+      ? `<div class="card" style="padding:4px 0">${rows}</div>`
+      : `<div class="empty-state"><i class="ti ti-tags"></i><p>Sin grupos aún.<br>Agrega el primero arriba.</p></div>`
+    }`;
+}
+
+async function createProductGroup() {
+  const inp = document.getElementById('pgroup-new-name');
+  const name = (inp?.value || '').trim();
+  if (!name) { toast('⚠️ Escribe un nombre'); inp?.focus(); return; }
+  try {
+    const row = await apiFetch('/api/product-groups', { method: 'POST', body: JSON.stringify({ name }) });
+    S.productGroups.push({ ...row, product_count: 0 });
+    if (inp) inp.value = '';
+    toast('✅ Grupo "' + name + '" creado');
+    renderCatalogo();
+  } catch (e) {
+    toast('❌ ' + (e.message || 'No se pudo crear el grupo'));
+  }
+}
+
+async function editProductGroup(id) {
+  const g = S.productGroups.find(x => x.id === id);
+  if (!g) return;
+  const name = prompt('Renombrar grupo:', g.name);
+  if (name === null || !name.trim() || name.trim() === g.name) return;
+  try {
+    const row = await apiFetch(`/api/product-groups/${id}`, { method: 'PUT', body: JSON.stringify({ name: name.trim() }) });
+    g.name = row.name;
+    toast('✅ Grupo renombrado');
+    renderCatalogo();
+  } catch (e) {
+    toast('❌ ' + (e.message || 'No se pudo renombrar el grupo'));
+  }
+}
+
+async function deleteProductGroup(id) {
+  const g = S.productGroups.find(x => x.id === id);
+  if (!g) return;
+  if (!confirm(`¿Eliminar el grupo "${g.name}"?\nSe quitará de los productos y KITs que lo tengan asignado.`)) return;
+  try {
+    await apiFetch(`/api/product-groups/${id}`, { method: 'DELETE' });
+    S.productGroups = S.productGroups.filter(x => x.id !== id);
+    S.products.forEach(p => { if (Array.isArray(p.groups)) p.groups = p.groups.filter(gid => gid !== id); });
+    S.kits.forEach(k => { if (Array.isArray(k.stock_group_ids)) k.stock_group_ids = k.stock_group_ids.filter(gid => gid !== id); });
+    toast('🗑 Grupo eliminado');
+    renderCatalogo();
+  } catch (e) {
+    toast('❌ ' + (e.message || 'No se pudo eliminar el grupo'));
+  }
+}
+
+function renderGroupChips(containerId, selectedIds, toggleFn) {
+  const wrap = document.getElementById(containerId);
+  if (!wrap) return;
+  const groups = S.productGroups || [];
+  wrap.innerHTML = groups.length
+    ? groups.map(g => `<div class="chip-group${(selectedIds||[]).includes(g.id) ? ' selected' : ''}" onclick="${toggleFn}(${g.id},this)"><i class="ti ti-tag"></i>${g.name}</div>`).join('')
+    : `<span style="font-size:12px;color:var(--text3);font-weight:600">Sin grupos creados aún. Puedes crearlos en Catálogo → Grupos.</span>`;
 }
 
 function renderCatalogList(el, key, label, icon, placeholder) {

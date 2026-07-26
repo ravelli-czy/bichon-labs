@@ -105,6 +105,7 @@ module.exports = async (req, res) => {
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS tenant_id    TEXT NOT NULL DEFAULT 'TEN-001'`;
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS warehouse_id TEXT NOT NULL DEFAULT ''`;
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode      TEXT DEFAULT ''`;
+    await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS groups       JSONB NOT NULL DEFAULT '[]'`;
     // Migrate PK from global sku → composite (sku, warehouse_id, tenant_id)
     try {
       await sql`ALTER TABLE products DROP CONSTRAINT IF EXISTS products_pkey CASCADE`;
@@ -129,6 +130,9 @@ module.exports = async (req, res) => {
     await sql`ALTER TABLE kits ADD COLUMN IF NOT EXISTS updated_by  TEXT DEFAULT ''`;
     await sql`ALTER TABLE kits ADD COLUMN IF NOT EXISTS tenant_id   TEXT NOT NULL DEFAULT 'TEN-001'`;
     await sql`ALTER TABLE kits ADD COLUMN IF NOT EXISTS warehouse_id TEXT NOT NULL DEFAULT ''`;
+    // Grupos de Productos que determinan el stock/disponibilidad del KIT.
+    // Vacío ([]) = comportamiento actual: todos los componentes cuentan.
+    await sql`ALTER TABLE kits ADD COLUMN IF NOT EXISTS stock_group_ids JSONB NOT NULL DEFAULT '[]'`;
     // Migrate kits PK → (sku, warehouse_id, tenant_id) — warehouse variants share master SKU
     try {
       await sql`ALTER TABLE kits DROP CONSTRAINT IF EXISTS kits_pkey CASCADE`;
@@ -136,6 +140,20 @@ module.exports = async (req, res) => {
     } catch (pkKitErr) {
       console.log('[setup] Kits PK migration skipped:', pkKitErr.message);
     }
+
+    // Grupo de Productos — agrupación transversal de productos, id correlativo
+    // asignado por la plataforma. Base para futuras funcionalidades (pesables,
+    // alto valor, etc) y para configurar qué componentes determinan el stock de un KIT.
+    await sql`
+      CREATE TABLE IF NOT EXISTS product_groups (
+        id          SERIAL PRIMARY KEY,
+        tenant_id   TEXT NOT NULL DEFAULT 'TEN-001',
+        name        TEXT NOT NULL,
+        created_by  TEXT DEFAULT '',
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (tenant_id, name)
+      )
+    `;
 
     await sql`
       CREATE TABLE IF NOT EXISTS orders (
@@ -283,7 +301,7 @@ module.exports = async (req, res) => {
     await sql`CREATE INDEX IF NOT EXISTS api_keys_tenant_idx  ON api_keys (tenant_id)`;
     await sql`CREATE INDEX IF NOT EXISTS api_keys_user_idx    ON api_keys (user_id)`;
 
-    const created = ['tenants', 'products', 'kits', 'orders', 'purchases', 'suppliers', 'shipments', 'users', 'sessions', 'audit_logs', 'api_keys'];
+    const created = ['tenants', 'products', 'kits', 'product_groups', 'orders', 'purchases', 'suppliers', 'shipments', 'users', 'sessions', 'audit_logs', 'api_keys'];
 
     // Always ensure superadmin user exists
     const [{ ucount }] = await sql`SELECT COUNT(*) AS ucount FROM users WHERE username = 'admin'`;
