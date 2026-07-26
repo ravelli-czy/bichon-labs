@@ -69,6 +69,12 @@ Todos los endpoints requieren `Authorization: Bearer <token>` salvo los indicado
 | GET | `/api/catalog/categories` | Listar categorías |
 | POST | `/api/catalog/categories` | Crear categoría |
 | DELETE | `/api/catalog/categories/:id` | Eliminar categoría |
+| GET | `/api/catalog/product-groups` | Listar grupos de productos |
+| POST | `/api/catalog/product-groups` | Crear grupo de productos (id correlativo automático) |
+| PUT | `/api/catalog/product-groups/:id` | Renombrar grupo de productos |
+| DELETE | `/api/catalog/product-groups/:id` | Eliminar grupo de productos |
+| GET | `/api/catalog/products/:sku/groups` | Grupos asignados a un producto |
+| PUT | `/api/catalog/products/:sku/groups` | Reemplazar los grupos de un producto (0..N) |
 
 ### POST /api/catalog/products
 ```json
@@ -81,9 +87,33 @@ Todos los endpoints requieren `Authorization: Bearer <token>` salvo los indicado
   "unit": "unidad",
   "cost_price": 45000,
   "sale_price": 79000,
-  "supplier_id": "SUP-001"
+  "supplier_id": "SUP-001",
+  "group_ids": [1, 3]
 }
 ```
+
+### Grupo de Productos
+
+Permite agrupar productos de forma transversal a las categorías (base para futuras
+funcionalidades: manejo de pesables, productos de alto valor, etc). Un producto puede
+pertenecer a cero, uno o varios grupos.
+
+```json
+// POST /api/catalog/product-groups
+{ "name": "Pesables" }
+
+// Response 201
+{ "data": { "id": 1, "name": "Pesables", "created_at": "2026-07-26T00:00:00.000Z" } }
+
+// PUT /api/catalog/products/PRD-001/groups
+{ "group_ids": [1, 3] }
+
+// Response 200
+{ "data": [ { "id": 1, "name": "Pesables" }, { "id": 3, "name": "Alto valor" } ] }
+```
+
+Cada producto devuelto por `GET /api/catalog/products` y `GET /api/catalog/products/:sku`
+incluye el arreglo `groups` con los grupos a los que pertenece.
 
 ---
 
