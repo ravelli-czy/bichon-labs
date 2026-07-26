@@ -156,6 +156,12 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .tipo-option.selected .tipo-title{color:var(--primary)}
 .tipo-desc{font-size:12px;font-weight:600;color:var(--text3);line-height:1.4}
 
+/* GROUP CHIPS (multi-selección) */
+.chip-group-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.chip-group{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:20px;border:2px solid var(--border);background:var(--bg3);cursor:pointer;font-size:13px;font-weight:700;color:var(--text);transition:all .15s}
+.chip-group.selected{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+.chip-group i{font-size:14px}
+
 /* KIT BUILD */
 .kit-build-item{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg3);border-radius:var(--radius);margin-bottom:6px}
 .qty-ctrl{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1.5px solid var(--border);border-radius:8px;padding:2px 6px;flex-shrink:0}
@@ -283,13 +289,14 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <div class="page" id="page-inventory">
     <div class="section-title">Inventario</div>
     <div class="section-sub">Productos, insumos y KITs</div>
-    <div class="search-bar">
+    <div class="search-bar" id="inv-search-bar">
       <i class="ti ti-search" style="color:var(--text3);font-size:20px"></i>
       <input type="text" placeholder="Buscar..." oninput="S.invQ=this.value;renderInventory()">
     </div>
     <div class="tabs">
       <div class="tab active" id="itab-todos" onclick="switchInvTab('todos',this)">Todos</div>
       <div class="tab" id="itab-alertas" onclick="switchInvTab('alertas',this)">Alertas<span class="tbadge" id="alert-tab-count" style="display:none">0</span></div>
+      <div class="tab" id="itab-grupos" onclick="switchInvTab('grupos',this)">Grupos</div>
     </div>
     <div id="inv-content"></div>
   </div>
@@ -373,6 +380,11 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="form-row">
         <div class="form-group"><div class="form-label">Stock inicial</div><input class="form-input" type="number" id="p-stock" value="0"></div>
         <div class="form-group"><div class="form-label">Alerta bajo de</div><input class="form-input" type="number" id="p-threshold" value="10"></div>
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">Grupo de Productos <span style="font-weight:600;color:var(--text3)">(opcional, puedes elegir varios)</span></div>
+        <div id="p-groups-wrap" class="chip-group-wrap"></div>
       </div>
     </div>
     <div class="sheet-footer">
@@ -508,7 +520,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div class="sheet-handle"></div>
     <div class="sheet-content" style="padding:16px 20px 28px;display:flex;flex-direction:column;gap:10px">
       <div class="form-label" style="font-size:14px;margin-bottom:2px">¿Qué quieres hacer?</div>
-      <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openSheet('sheet-prod')"><i class="ti ti-box" style="color:var(--primary)"></i> Agregar producto</button>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openSheetProd()"><i class="ti ti-box" style="color:var(--primary)"></i> Agregar producto</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openSheetKit()"><i class="ti ti-stack-2" style="color:var(--amber-dark)"></i> Crear KIT</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openSheetVenta()"><i class="ti ti-shopping-bag" style="color:var(--green-dark)"></i> Registrar venta</button>
       <button class="btn btn-outline" style="color:var(--text3)" onclick="closeSheet('sheet-fab')"><i class="ti ti-x"></i> Cancelar</button>
@@ -548,8 +560,11 @@ const S = {
     {sku:'KIT-001',name:'Kit Seguridad Básico',price:139000,items:[{sku:'PRD-001',qty:1},{sku:'PRD-002',qty:1},{sku:'PRD-003',qty:1}]},
     {sku:'KIT-002',name:'Desayuno Ejecutivo',price:4900,items:[{sku:'PRD-006',qty:1},{sku:'PRD-007',qty:1},{sku:'PRD-008',qty:1}]},
   ],
+  productGroups: [],
+  nextGroupId: 1,
   ventas: [],
   tempKitItems: [],
+  tempProdGroups: [],
   tempVentaItems: [],
   tempVentaDelivery: {},
   invTab: 'todos',
@@ -604,6 +619,7 @@ function switchInvTab(tab, el) {
   document.querySelectorAll('#page-inventory .tab').forEach(t => t.classList.remove('active'));
   const target = el || document.getElementById('itab-'+tab);
   if (target) target.classList.add('active');
+  document.getElementById('inv-search-bar').style.display = tab === 'grupos' ? 'none' : 'flex';
   if (S.currentPage === 'inventory') renderInventory();
   else showPage('inventory');
 }
@@ -719,6 +735,11 @@ function renderInventory() {
 
   const el = document.getElementById('inv-content');
 
+  if (S.invTab === 'grupos') {
+    el.innerHTML = renderGroupsSection();
+    return;
+  }
+
   if (S.invTab === 'alertas') {
     const alerted = items.filter(p => alertLevel(p)).sort((a,b) => a.stock-b.stock);
     el.innerHTML = alerted.length
@@ -752,11 +773,15 @@ function prodRow(p) {
     : lvl==='warning'
     ? `<span class="alert-tag warning"><i class="ti ti-circle-minus" style="font-size:10px"></i>Stock bajo</span>`
     : '';
+  const groupNames = (p.groups||[]).map(gid => S.productGroups.find(g => g.id===gid)?.name).filter(Boolean);
+  const groupTag = groupNames.length
+    ? `<span class="alert-tag" style="background:var(--primary-light);color:var(--primary)"><i class="ti ti-tags" style="font-size:10px"></i>${groupNames.join(', ')}</span>`
+    : '';
   return `<div class="product-item ${lvl?'alert-'+lvl:''}">
     <div class="product-icon"><i class="ti ti-box"></i>${dot}</div>
     <div class="product-info">
       <div class="product-name">${p.name}</div>
-      <div class="product-meta" style="gap:5px;margin-top:3px">${tipoBadge(p.tipo)}${tag}</div>
+      <div class="product-meta" style="gap:5px;margin-top:3px">${tipoBadge(p.tipo)}${tag}${groupTag}</div>
       <div class="progress"><div class="progress-bar" style="background:${barColor};width:${pct}%"></div></div>
     </div>
     <div class="product-right">
@@ -764,6 +789,69 @@ function prodRow(p) {
       <div class="stock-label">/ ${p.threshold} mín</div>
     </div>
   </div>`;
+}
+
+// ── GRUPOS DE PRODUCTOS ────────────────────────
+function productGroupCount(gid) {
+  return S.products.filter(p => (p.groups||[]).includes(gid)).length;
+}
+function renderGroupsSection() {
+  const rows = S.productGroups.length
+    ? S.productGroups.map(g => `
+      <div class="product-item">
+        <div class="product-icon"><i class="ti ti-tags"></i></div>
+        <div class="product-info">
+          <div class="product-name">${g.name}</div>
+          <div class="product-meta" style="margin-top:3px">
+            <span style="font-size:11px;color:var(--text3);font-weight:700">ID #${g.id} · ${productGroupCount(g.id)} producto${productGroupCount(g.id)!==1?'s':''}</span>
+          </div>
+        </div>
+        <button class="add-row-btn" style="background:var(--red-light);color:var(--red)" onclick="deleteProductGroup(${g.id})"><i class="ti ti-trash"></i></button>
+      </div>`).join('')
+    : `<div class="empty-state"><i class="ti ti-tags"></i><p>Sin grupos aún. Crea el primero.</p></div>`;
+
+  return `
+    <div class="info-box green"><i class="ti ti-info-circle"></i> Agrupa productos de forma transversal a la categoría (base para futuras reglas, como pesables o alto valor).</div>
+    <div class="add-row mt-2">
+      <input class="form-input" id="new-group-name" placeholder="Nombre del grupo (ej: Pesables)" onkeydown="if(event.key==='Enter')createProductGroup()">
+      <button class="add-row-btn" onclick="createProductGroup()"><i class="ti ti-plus"></i></button>
+    </div>
+    <div class="card" style="padding:8px 16px;margin-top:12px">${rows}</div>
+  `;
+}
+function createProductGroup() {
+  const input = document.getElementById('new-group-name');
+  const name = input.value.trim();
+  if (!name) { toast('⚠️ El nombre del grupo es obligatorio'); return; }
+  if (S.productGroups.some(g => g.name.toLowerCase() === name.toLowerCase())) {
+    toast('⚠️ Ya existe un grupo con ese nombre'); return;
+  }
+  S.productGroups.push({ id: S.nextGroupId++, name });
+  input.value = '';
+  renderInventory();
+  toast('✅ Grupo creado');
+}
+function deleteProductGroup(id) {
+  S.productGroups = S.productGroups.filter(g => g.id !== id);
+  S.products.forEach(p => { if (p.groups) p.groups = p.groups.filter(gid => gid !== id); });
+  renderInventory();
+  toast('🗑️ Grupo eliminado');
+}
+function toggleProdGroup(id, el) {
+  const i = S.tempProdGroups.indexOf(id);
+  if (i === -1) S.tempProdGroups.push(id); else S.tempProdGroups.splice(i, 1);
+  el.classList.toggle('selected');
+}
+function renderProdGroupChips() {
+  const wrap = document.getElementById('p-groups-wrap');
+  wrap.innerHTML = S.productGroups.length
+    ? S.productGroups.map(g => `<div class="chip-group" onclick="toggleProdGroup(${g.id},this)"><i class="ti ti-tag"></i>${g.name}</div>`).join('')
+    : `<span style="font-size:12px;color:var(--text3);font-weight:600">Aún no hay grupos creados. Puedes crearlos en Inventario → Grupos.</span>`;
+}
+function openSheetProd() {
+  S.tempProdGroups = [];
+  renderProdGroupChips();
+  openSheet('sheet-prod');
 }
 
 // ── KITS ──────────────────────────────────────
@@ -868,10 +956,12 @@ function saveProd() {
     price: parseFloat(document.getElementById('p-price').value)||0,
     stock: parseInt(document.getElementById('p-stock').value)||0,
     threshold: parseInt(document.getElementById('p-threshold').value)||10,
+    groups: [...S.tempProdGroups],
   });
   ['p-name','p-brand','p-cat','p-cost','p-price'].forEach(id => document.getElementById(id).value='');
   document.getElementById('p-stock').value='0';
   document.getElementById('p-threshold').value='10';
+  S.tempProdGroups = [];
   closeSheet('sheet-prod');
   toast('✅ Guardado como "' + tipoMeta[selectedTipo].label + '"');
   renderHome();
