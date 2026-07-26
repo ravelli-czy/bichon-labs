@@ -1,4 +1,6 @@
 // api/products.js — GET /api/products  POST /api/products
+// GET/POST /api/products?groups=1 — Grupo de Productos (colapsado acá para no sumar
+// otra Serverless Function; el plan Hobby de Vercel tiene tope de 12).
 const { getDb } = require('./_db');
 const cors = require('./_cors');
 const { writeLog } = require('./_log');
@@ -17,6 +19,44 @@ module.exports = async (req, res) => {
   const actor = session?.username || 'sistema';
 
   try {
+    // ── /api/products?groups=1 — Grupo de Productos ─────────────────────────
+    if (req.query?.groups === '1') {
+      if (req.method === 'GET') {
+        const rows = await sql`
+          SELECT g.*,
+            (SELECT COUNT(*) FROM products p
+             WHERE p.tenant_id = g.tenant_id AND p.warehouse_id = '' AND p.groups @> to_jsonb(g.id)
+            ) AS product_count
+          FROM product_groups g
+          WHERE g.tenant_id = ${tenantId}
+          ORDER BY g.name
+        `;
+        return res.json(rows);
+      }
+      if (req.method === 'POST') {
+        const { name } = req.body || {};
+        if (!name) return res.status(400).json({ error: 'name is required' });
+        let row;
+        try {
+          [row] = await sql`
+            INSERT INTO product_groups (tenant_id, name, created_by)
+            VALUES (${tenantId}, ${name}, ${actor})
+            RETURNING *
+          `;
+        } catch (err) {
+          if (err.code === '23505') return res.status(409).json({ error: 'Ya existe un grupo con ese nombre' });
+          throw err;
+        }
+        await writeLog(sql, {
+          tenant_id: tenantId, actor, action: 'grupo_producto.creado',
+          entity_type: 'product_group', entity_id: String(row.id), entity_name: row.name,
+          details: { id: row.id, name: row.name },
+        });
+        return res.status(201).json(row);
+      }
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
     // ── GET — list all products ───────────────────────────────────────────
     if (req.method === 'GET') {
       const rows = await sql`SELECT * FROM products WHERE tenant_id = ${tenantId} ORDER BY warehouse_id, name`;

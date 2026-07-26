@@ -1,4 +1,6 @@
 // api/products/[sku].js — GET/PUT/DELETE /api/products/:sku
+// PUT/DELETE /api/products/:id?groups=1 — Grupo de Productos (:id es el id numérico
+// del grupo). Colapsado acá para no sumar otra Serverless Function (tope 12 en Hobby).
 const { getDb } = require('../_db');
 const cors = require('../_cors');
 const { writeLog } = require('../_log');
@@ -19,6 +21,66 @@ module.exports = async (req, res) => {
   const { sku, warehouse_id = '' } = req.query;
 
   try {
+    // ── /api/products/:id?groups=1 — Grupo de Productos ─────────────────────
+    if (req.query?.groups === '1') {
+      const groupId = sku;
+
+      if (req.method === 'PUT') {
+        const { name } = req.body || {};
+        if (!name) return res.status(400).json({ error: 'name is required' });
+        let row;
+        try {
+          [row] = await sql`
+            UPDATE product_groups SET name = ${name}
+            WHERE id = ${groupId} AND tenant_id = ${tenantId}
+            RETURNING *
+          `;
+        } catch (err) {
+          if (err.code === '23505') return res.status(409).json({ error: 'Ya existe un grupo con ese nombre' });
+          throw err;
+        }
+        if (!row) return res.status(404).json({ error: 'Grupo no encontrado' });
+        await writeLog(sql, {
+          tenant_id: tenantId, actor, action: 'grupo_producto.editado',
+          entity_type: 'product_group', entity_id: String(row.id), entity_name: row.name,
+          details: { id: row.id, name: row.name },
+        });
+        return res.json(row);
+      }
+
+      if (req.method === 'DELETE') {
+        const [row] = await sql`DELETE FROM product_groups WHERE id = ${groupId} AND tenant_id = ${tenantId} RETURNING *`;
+        if (!row) return res.status(404).json({ error: 'Grupo no encontrado' });
+
+        const groupIdJson = JSON.stringify(parseInt(groupId, 10));
+        await sql`
+          UPDATE products SET groups = (
+            SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
+            FROM jsonb_array_elements(groups) elem
+            WHERE elem <> ${groupIdJson}::jsonb
+          )
+          WHERE tenant_id = ${tenantId} AND groups @> ${groupIdJson}::jsonb
+        `;
+        await sql`
+          UPDATE kits SET stock_group_ids = (
+            SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
+            FROM jsonb_array_elements(stock_group_ids) elem
+            WHERE elem <> ${groupIdJson}::jsonb
+          )
+          WHERE tenant_id = ${tenantId} AND stock_group_ids @> ${groupIdJson}::jsonb
+        `;
+
+        await writeLog(sql, {
+          tenant_id: tenantId, actor, action: 'grupo_producto.eliminado',
+          entity_type: 'product_group', entity_id: String(row.id), entity_name: row.name,
+          details: { id: row.id, name: row.name },
+        });
+        return res.json({ ok: true, deleted: row.id });
+      }
+
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
     // ── GET ───────────────────────────────────────────────────────────────
     if (req.method === 'GET') {
       const [row] = await sql`SELECT * FROM products WHERE sku = ${sku} AND warehouse_id = ${warehouse_id} AND tenant_id = ${tenantId}`;

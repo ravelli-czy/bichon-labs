@@ -1297,7 +1297,7 @@ async function initApp() {
       apiFetch('/api/kits'),
       apiFetch('/api/orders'),
       apiFetch('/api/users?action=settings').catch(() => null),
-      apiFetch('/api/product-groups').catch(() => []),
+      apiFetch('/api/products?groups=1').catch(() => []),
     ]);
     S.products = Array.isArray(products) ? products : [];
     S.kits = Array.isArray(kits) ? kits : [];
@@ -2519,7 +2519,7 @@ async function createProductGroup() {
   const name = (inp?.value || '').trim();
   if (!name) { toast('⚠️ Escribe un nombre'); inp?.focus(); return; }
   try {
-    const row = await apiFetch('/api/product-groups', { method: 'POST', body: JSON.stringify({ name }) });
+    const row = await apiFetch('/api/products?groups=1', { method: 'POST', body: JSON.stringify({ name }) });
     S.productGroups.push({ ...row, product_count: 0 });
     if (inp) inp.value = '';
     toast('✅ Grupo "' + name + '" creado');
@@ -2535,7 +2535,7 @@ async function editProductGroup(id) {
   const name = prompt('Renombrar grupo:', g.name);
   if (name === null || !name.trim() || name.trim() === g.name) return;
   try {
-    const row = await apiFetch(`/api/product-groups/${id}`, { method: 'PUT', body: JSON.stringify({ name: name.trim() }) });
+    const row = await apiFetch(`/api/products/${id}?groups=1`, { method: 'PUT', body: JSON.stringify({ name: name.trim() }) });
     g.name = row.name;
     toast('✅ Grupo renombrado');
     renderCatalogo();
@@ -2549,7 +2549,7 @@ async function deleteProductGroup(id) {
   if (!g) return;
   if (!confirm(`¿Eliminar el grupo "${g.name}"?\nSe quitará de los productos y KITs que lo tengan asignado.`)) return;
   try {
-    await apiFetch(`/api/product-groups/${id}`, { method: 'DELETE' });
+    await apiFetch(`/api/products/${id}?groups=1`, { method: 'DELETE' });
     S.productGroups = S.productGroups.filter(x => x.id !== id);
     S.products.forEach(p => { if (Array.isArray(p.groups)) p.groups = p.groups.filter(gid => gid !== id); });
     S.kits.forEach(k => { if (Array.isArray(k.stock_group_ids)) k.stock_group_ids = k.stock_group_ids.filter(gid => gid !== id); });
