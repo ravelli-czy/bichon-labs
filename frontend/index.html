@@ -1347,6 +1347,13 @@ function tipoBadge(tipo) {
   return `<span class="tipo-badge ${m.css}"><i class="ti ${m.icon}" style="font-size:10px"></i>${m.label}</span>`;
 }
 
+// ¿El producto (identificado por SKU, sin importar en qué almacén) pertenece
+// a alguno de estos grupos? Un mismo SKU puede tener varias filas (maestro +
+// una por almacén) y el grupo puede haberse asignado en cualquiera de ellas.
+function productSkuHasGroup(sku, groupIds) {
+  return S.products.some(p => p.sku === sku && Array.isArray(p.groups) && p.groups.some(g => groupIds.includes(g)));
+}
+
 // Componentes que efectivamente determinan el stock/disponibilidad del KIT.
 // Si el KIT tiene stock_group_ids configurado, solo cuentan los componentes
 // (no-KIT) cuyo producto pertenezca a alguno de esos grupos. Los sub-KITs
@@ -1355,12 +1362,7 @@ function tipoBadge(tipo) {
 function kitStockItems(kit) {
   const groupIds = kit.stock_group_ids;
   if (!Array.isArray(groupIds) || !groupIds.length) return kit.items || [];
-  return (kit.items || []).filter(i => {
-    if (i.type === 'kit') return true;
-    const p = S.products.find(x => x.sku === i.sku && (x.warehouse_id||'') === (i.warehouse_id||''))
-           || S.products.find(x => x.sku === i.sku);
-    return !!(p && Array.isArray(p.groups) && p.groups.some(g => groupIds.includes(g)));
-  });
+  return (kit.items || []).filter(i => i.type === 'kit' || productSkuHasGroup(i.sku, groupIds));
 }
 function kitStock(kit) {
   const items = kitStockItems(kit);
