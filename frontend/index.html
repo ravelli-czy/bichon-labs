@@ -2084,7 +2084,20 @@ function duplicateProd() {
   // Título indicativo
   document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-copy" style="color:var(--primary)"></i> Duplicar producto';
 }
+// Evita doble-submit: si el usuario toca "Guardar" dos veces (ej. porque no vio
+// confirmación visual clara la primera vez), el botón queda deshabilitado hasta
+// que termine el primer guardado, en vez de disparar un segundo POST y duplicar.
 async function saveProd() {
+  const btn = document.getElementById('prod-save-btn');
+  if (btn?.disabled) return;
+  if (btn) btn.disabled = true;
+  try {
+    await _saveProdImpl();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+async function _saveProdImpl() {
   // Determine mode early — add-SKU mode doesn't use p-name (it's hidden)
   const isAddSku = !!(S._addSkuMode && S._addSkuData);
   const name = isAddSku ? S._addSkuData.name : document.getElementById('p-name').value.trim();
@@ -2323,7 +2336,18 @@ function renderKitItemsList() {
   }).join('');
 }
 function adjKQ(idx,d){ S.tempKitItems[idx].qty=Math.max(1,S.tempKitItems[idx].qty+d); renderKitItemsList(); }
+// Mismo blindaje anti doble-submit que saveProd().
 async function saveKit() {
+  const btn = document.querySelector('#sheet-kit .btn-primary');
+  if (btn?.disabled) return;
+  if (btn) btn.disabled = true;
+  try {
+    await _saveKitImpl();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+async function _saveKitImpl() {
   // ── Add warehouse-specific SKU mode ──────────────────────────────────────
   if (S._addKitSkuMode && S._addKitSkuData) {
     const warehouseId = document.getElementById('kit-sku-warehouse').value;
