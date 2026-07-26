@@ -97,6 +97,15 @@ module.exports = async (req, res) => {
         RETURNING *
       `;
 
+      // El Grupo de Productos es una propiedad del producto, no del almacén:
+      // se sincroniza a todas las filas (SKUs por almacén) de este mismo sku.
+      if (explicitSku) {
+        await sql`
+          UPDATE products SET groups = ${JSON.stringify(groups)}::jsonb
+          WHERE sku = ${sku} AND tenant_id = ${tenantId} AND warehouse_id != ${warehouse_id}
+        `;
+      }
+
       await writeLog(sql, {
         tenant_id:   tenantId,
         actor,

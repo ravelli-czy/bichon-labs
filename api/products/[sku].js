@@ -112,6 +112,15 @@ module.exports = async (req, res) => {
       `;
       if (!row) return res.status(404).json({ error: 'Product not found' });
 
+      // El Grupo de Productos es una propiedad del producto, no del almacén:
+      // se sincroniza a todas las filas (SKUs por almacén) de este mismo sku.
+      if (groups !== undefined) {
+        await sql`
+          UPDATE products SET groups = ${groupsJson}::jsonb
+          WHERE sku = ${sku} AND tenant_id = ${tenantId} AND warehouse_id != ${warehouse_id}
+        `;
+      }
+
       await writeLog(sql, {
         tenant_id:   tenantId,
         actor,

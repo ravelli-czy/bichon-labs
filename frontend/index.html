@@ -2149,6 +2149,8 @@ async function saveProd() {
         const updated = await apiFetch(`/api/products/${S.editingProdSku}?warehouse_id=${encodeURIComponent(wid)}`, { method:'PUT', body: JSON.stringify(data) });
         const idx = S.products.findIndex(x => x.sku === S.editingProdSku && (x.warehouse_id || '') === wid);
         if (idx >= 0) S.products[idx] = updated;
+        // El grupo aplica al producto entero: sincronizar en todas sus filas locales
+        S.products.forEach(p => { if (p.sku === S.editingProdSku) p.groups = updated.groups; });
       } catch(e) {
         const prod = S.products.find(x => x.sku === S.editingProdSku && (x.warehouse_id || '') === wid);
         if (prod) Object.assign(prod, data);
