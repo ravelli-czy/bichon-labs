@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow — Locales</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f5f6fa;--bg2:#fff;--bg3:#f0f1f7;
+  --text:#1a1a2e;--text2:#5a5b7a;--text3:#9a9bb8;--border:#e4e5f0;
+  --primary:#5b4fff;--primary-light:#ede9ff;--primary-dark:#4035cc;
+  --green:#16c98d;--green-light:#e6faf4;--green-dark:#0da070;
+  --red:#ff4d6d;--red-light:#fff0f3;
+  --amber:#f59e0b;--amber-light:#fffbeb;--amber-dark:#d97706;
+  --blue:#3b82f6;--blue-light:#eff6ff;--blue-dark:#2563eb;
+  --teal:#0d9488;--teal-light:#f0fdfa;--teal-dark:#0f766e;
+  --r:12px;--r-lg:16px;--r-xl:20px;
+  --sh:0 2px 12px rgba(91,79,255,.08);--sh-md:0 4px 20px rgba(91,79,255,.13);
+}
+body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;max-width:520px;margin:0 auto}
+
+.topbar{background:var(--bg2);padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:var(--sh)}
+.logo-icon{width:36px;height:36px;background:var(--primary);border-radius:10px;display:flex;align-items:center;justify-content:center}
+.logo-icon i{color:#fff;font-size:20px}
+.topbar-title{font-weight:900;font-size:17px}
+.topbar-right{margin-left:auto;display:flex;gap:8px}
+
+.content{padding:16px}
+
+/* TABS */
+.tabs{display:flex;gap:4px;background:var(--bg3);padding:4px;border-radius:12px;margin-bottom:20px}
+.tab{flex:1;padding:9px;border-radius:9px;text-align:center;font-size:13px;font-weight:800;color:var(--text3);cursor:pointer;transition:all .15s}
+.tab.active{background:var(--bg2);color:var(--primary);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+
+/* CARDS */
+.card{background:var(--bg2);border-radius:var(--r-lg);padding:16px;margin-bottom:12px;box-shadow:var(--sh)}
+.card-title{font-size:15px;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+
+/* LOCAL CARD */
+.local-card{background:var(--bg2);border-radius:var(--r-lg);padding:16px;margin-bottom:12px;box-shadow:var(--sh);border-left:4px solid var(--primary);cursor:pointer;transition:all .15s}
+.local-card:active{transform:scale(.98)}
+.lc-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.lc-name{font-size:17px;font-weight:900}
+.lc-addr{font-size:12px;color:var(--text3);font-weight:600;margin-top:2px;display:flex;align-items:center;gap:4px}
+.lc-stats{display:flex;gap:10px;flex-wrap:wrap}
+.lc-stat{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--text2)}
+.lc-stat i{font-size:14px}
+
+/* WAREHOUSE ITEM */
+.wh-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.wh-item:last-child{border-bottom:none;padding-bottom:0}
+.wh-icon{width:38px;height:38px;background:var(--teal-light);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.wh-icon i{font-size:20px;color:var(--teal-dark)}
+.wh-info{flex:1}
+.wh-name{font-size:14px;font-weight:800}
+.wh-desc{font-size:11px;color:var(--text3);font-weight:600;margin-top:1px}
+
+/* DELIVERY METHOD */
+.dm-card{background:var(--bg3);border-radius:var(--r-lg);padding:14px;margin-bottom:10px;border:1.5px solid var(--border)}
+.dm-header{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:10px}
+.dm-name{font-size:14px;font-weight:800;display:flex;align-items:center;gap:6px}
+.dm-type-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:800}
+.dm-home{background:var(--primary-light);color:var(--primary)}
+.dm-pickup{background:var(--green-light);color:var(--green-dark)}
+.dm-point{background:var(--blue-light);color:var(--blue-dark)}
+
+/* SLOTS GRID */
+.slots-grid{display:grid;grid-template-columns:1fr;gap:6px}
+.day-row{background:var(--bg2);border-radius:var(--r);overflow:hidden}
+.day-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;cursor:pointer;font-size:13px;font-weight:800}
+.day-header:hover{background:var(--bg3)}
+.day-slots{padding:6px 12px 10px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:5px}
+.slot-item{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg3);border-radius:8px;font-size:12px}
+.slot-time{font-weight:800;color:var(--primary);min-width:90px}
+.slot-label{color:var(--text2);font-weight:600;flex:1}
+.slot-cost{font-size:11px;font-weight:700;color:var(--text3)}
+.slot-del{width:26px;height:26px;background:var(--red-light);border:none;border-radius:7px;cursor:pointer;color:var(--red);font-size:14px;display:flex;align-items:center;justify-content:center}
+.slot-edit{width:26px;height:26px;background:var(--primary-light);border:none;border-radius:7px;cursor:pointer;color:var(--primary);font-size:14px;display:flex;align-items:center;justify-content:center}
+
+/* SHEET */
+.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-end;backdrop-filter:blur(2px)}
+.sheet-overlay.hidden{display:none}
+.sheet{background:var(--bg2);border-radius:24px 24px 0 0;width:100%;max-height:93vh;overflow-y:auto;animation:slideUp .25s ease}
+@keyframes slideUp{from{transform:translateY(60px);opacity:.5}to{transform:translateY(0);opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sheet-handle{width:40px;height:4px;background:var(--border);border-radius:4px;margin:12px auto 0}
+.sheet-header{padding:14px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.sheet-title{font-size:17px;font-weight:900;display:flex;align-items:center;gap:8px}
+.sheet-close{width:32px;height:32px;background:var(--bg3);border:none;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2)}
+.sheet-content{padding:16px 20px}
+.sheet-footer{padding:12px 20px 28px;border-top:1px solid var(--border);display:flex;gap:10px}
+
+/* FORM */
+.form-group{margin-bottom:13px}
+.form-label{display:block;font-size:12px;font-weight:800;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
+.form-input{width:100%;background:var(--bg3);border:2px solid var(--border);border-radius:var(--r);padding:11px 14px;color:var(--text);font-size:15px;font-family:'Nunito',sans-serif;font-weight:600;outline:none;transition:border-color .15s;appearance:none}
+.form-input:focus{border-color:var(--primary);background:#fff}
+.form-input::placeholder{color:var(--text3)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ORDER FLOW — selector de slot */
+.method-option{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r);border:2px solid var(--border);cursor:pointer;transition:all .15s;background:var(--bg3);margin-bottom:8px}
+.method-option.selected{border-color:var(--primary);background:var(--primary-light)}
+.method-option-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.method-option.selected .method-option-icon{background:var(--primary);color:#fff}
+.method-option-icon{background:var(--bg3)}
+.method-option-icon i{font-size:22px;color:var(--text2)}
+.method-option.selected .method-option-icon i{color:#fff}
+.method-option-body{flex:1}
+.method-option-name{font-size:14px;font-weight:800}
+.method-option-desc{font-size:12px;color:var(--text3);font-weight:600;margin-top:2px}
+
+.date-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:8px}
+.date-btn{padding:8px 4px;border-radius:10px;text-align:center;cursor:pointer;transition:all .15s;border:1.5px solid var(--border);background:var(--bg3)}
+.date-btn.has-slots{background:var(--bg2);border-color:var(--primary-light)}
+.date-btn.selected{background:var(--primary);border-color:var(--primary);color:#fff}
+.date-btn.no-slots{opacity:.35;cursor:not-allowed}
+.date-btn .date-day{font-size:9px;font-weight:700;color:inherit;opacity:.7;text-transform:uppercase}
+.date-btn .date-num{font-size:15px;font-weight:900;line-height:1;margin-top:1px}
+.date-btn.selected .date-day,.date-btn.selected .date-num{color:#fff}
+
+.slot-option{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-radius:var(--r);border:2px solid var(--border);cursor:pointer;transition:all .15s;background:var(--bg3);margin-bottom:7px}
+.slot-option.selected{border-color:var(--primary);background:var(--primary-light)}
+.slot-time-range{font-size:14px;font-weight:800}
+.slot-option.selected .slot-time-range{color:var(--primary)}
+.slot-info-right{text-align:right}
+.slot-label-text{font-size:11px;font-weight:700;color:var(--text3)}
+.slot-cost-text{font-size:12px;font-weight:800;color:var(--green-dark)}
+.slot-option.selected .slot-label-text{color:var(--primary)}
+
+/* PILLS */
+.pill-select{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.pill-opt{padding:7px 14px;border-radius:20px;border:2px solid var(--border);font-size:13px;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text2);transition:all .15s}
+.pill-opt.selected{background:var(--primary-light);border-color:var(--primary);color:var(--primary)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 20px;border-radius:var(--r);border:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:15px;cursor:pointer;transition:all .15s;width:100%}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:active{background:var(--primary-dark);transform:scale(.98)}
+.btn-outline{background:var(--bg3);color:var(--text);border:1.5px solid var(--border)}
+.btn-green{background:var(--green);color:#fff}
+.btn-teal{background:var(--teal);color:#fff}
+.btn-sm{padding:7px 12px;font-size:12px;border-radius:9px;width:auto}
+
+.info-box{border-radius:var(--r);padding:10px 12px;font-size:12px;font-weight:700;margin-bottom:12px}
+.info-box.primary{background:var(--primary-light);color:var(--primary)}
+.info-box.green{background:var(--green-light);color:var(--green-dark)}
+.info-box.amber{background:var(--amber-light);color:var(--amber-dark)}
+.divider{height:1px;background:var(--border);margin:14px 0}
+.flex{display:flex}.items-center{align-items:center}.justify-between{justify-content:space-between}.gap-2{gap:8px}.mt-2{margin-top:8px}.mt-3{margin-top:12px}.mb-2{margin-bottom:8px}.font-bold{font-weight:800}.text-sm{font-size:13px}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:800}
+.badge-green{background:var(--green-light);color:var(--green-dark)}
+.badge-amber{background:var(--amber-light);color:var(--amber-dark)}
+.empty-state{text-align:center;padding:28px 16px;color:var(--text3)}
+.empty-state i{font-size:44px;display:block;margin-bottom:10px;opacity:.4}
+.empty-state p{font-size:13px;font-weight:700}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;padding:10px 20px;border-radius:24px;font-size:14px;font-weight:700;opacity:0;transition:all .3s;z-index:999;white-space:nowrap}
+.fab{position:fixed;bottom:24px;right:16px;width:56px;height:56px;background:var(--primary);border-radius:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(91,79,255,.4);border:none;cursor:pointer;z-index:90;color:#fff;font-size:28px;transition:transform .2s}
+.fab:active{transform:scale(.93)}
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — Desktop ≥ 768 px
+═══════════════════════════════════════════════ */
+@media(min-width:768px){
+  body{max-width:100%}
+  .topbar{max-width:100%}
+
+  /* Wrapper: two-column split */
+  .desktop-layout{
+    display:grid;
+    grid-template-columns:360px 1fr;
+    gap:0;
+    min-height:calc(100vh - 65px);
+  }
+
+  /* Left panel: locales list */
+  .desktop-left{
+    border-right:1px solid var(--border);
+    padding:20px 16px;
+    overflow-y:auto;
+    max-height:calc(100vh - 65px);
+    position:sticky;
+    top:65px;
+  }
+
+  /* Right panel: config */
+  .desktop-right{
+    padding:20px 24px;
+    overflow-y:auto;
+  }
+
+  /* Hide tab switcher, always show both panels */
+  .tabs-nav{display:none}
+
+  /* Both panels always visible */
+  #tab-locales,#tab-config{display:block!important}
+
+  /* Adjust FAB */
+  .fab{right:28px;bottom:28px}
+
+  /* Sheet: centered dialog */
+  .sheet-overlay{align-items:center;justify-content:center}
+  .sheet{max-width:580px;width:100%;border-radius:20px;max-height:88vh;animation:sheetIn .2s ease}
+  @keyframes sheetIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+  .sheet-handle{display:none}
+}
+
+@media(min-width:1100px){
+  .desktop-layout{grid-template-columns:420px 1fr}
+}
+
+/* ═══════════════════════════════════════════════
+   EMBED MODE (loaded inside app iframe)
+═══════════════════════════════════════════════ */
+body.embedded .topbar{display:none}
+body.embedded .content{padding-top:12px}
+body.embedded .desktop-left{top:0;max-height:100vh}
+body.embedded .desktop-layout{min-height:100vh}
+.embed-page-header{display:none;margin-bottom:4px}
+body.embedded .embed-page-header{display:block}
+.embed-page-title{font-size:20px;font-weight:900;color:var(--text);margin-bottom:2px}
+.embed-page-sub{font-size:13px;color:var(--text3);font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <button onclick="history.length>1?history.back():location.href='/'" style="background:var(--bg3);border:none;border-radius:9px;padding:6px 10px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:5px;flex-shrink:0"><i class="ti ti-arrow-left" style="font-size:15px"></i> Volver</button>
+  <div class="topbar-title">Locales & Entrega</div>
+</div>
+
+<!-- Mobile: tab switcher -->
+<div class="content" style="padding-bottom:8px">
+  <div class="embed-page-header">
+    <div class="embed-page-title">Locales</div>
+    <div class="embed-page-sub" style="margin-bottom:16px">Locales, almacenes y horarios de entrega</div>
+  </div>
+  <div class="tabs tabs-nav">
+    <div class="tab active" onclick="switchTab('locales',this)">Locales</div>
+    <div class="tab" onclick="switchTab('config',this)">Configurar</div>
+  </div>
+</div>
+
+<!-- Desktop two-panel / Mobile single-panel -->
+<div class="desktop-layout">
+  <!-- LEFT / LOCALES -->
+  <div class="desktop-left">
+    <div class="content" style="padding-top:0">
+      <div id="tab-locales">
+        <div id="locales-list"></div>
+        <button class="btn btn-primary" onclick="openNewLocalSheet()">
+          <i class="ti ti-plus"></i> Agregar local
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT / CONFIG -->
+  <div class="desktop-right">
+    <div class="content" style="padding-top:0">
+      <div id="tab-config" style="display:none">
+        <div id="config-content"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="fab" onclick="openNewOrder()"><i class="ti ti-shopping-bag"></i></button>
+
+<!-- SHEET: NUEVO LOCAL -->
+<div class="sheet-overlay hidden" id="sheet-local">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-building-store" style="color:var(--primary)"></i> Nuevo local</div>
+      <button class="sheet-close" onclick="closeLocalSheet()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content">
+      <div class="form-group"><div class="form-label">Nombre del local *</div><input class="form-input" id="loc-name" placeholder="Ej: Tienda Centro"></div>
+      <div class="form-group"><div class="form-label">Dirección *</div><input class="form-input" id="loc-street" placeholder="Av. Providencia 1234"></div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Ciudad *</div><input class="form-input" id="loc-city" placeholder="Santiago"></div>
+        <div class="form-group"><div class="form-label">Región</div><input class="form-input" id="loc-region" placeholder="RM"></div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin:4px 0 8px">
+        <div id="loc-geo-status" style="font-size:12px;font-weight:700;color:var(--text3)">
+          <i class="ti ti-alert-triangle" style="color:var(--amber-dark)"></i> Sin geocoordenadas
+        </div>
+        <button id="btn-get-geo-local" onclick="getGeoForLocal()"
+          style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;color:var(--primary)">
+          <i class="ti ti-map-search"></i> Obtener Geo
+        </button>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Teléfono</div><input class="form-input" id="loc-phone" placeholder="+56 2 ..."></div>
+        <div class="form-group"><div class="form-label">Email</div><input class="form-input" id="loc-email" placeholder="tienda@..."></div>
+      </div>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-outline" onclick="closeLocalSheet()" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveLocal()" style="flex:2"><i class="ti ti-check"></i> Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: NUEVO ALMACÉN -->
+<div class="sheet-overlay hidden" id="sheet-wh">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-building-warehouse" style="color:var(--teal-dark)"></i> Nuevo almacén</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-wh')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content">
+      <div class="form-group"><div class="form-label">Nombre *</div><input class="form-input" id="wh-name" placeholder="Ej: Bodega Principal"></div>
+      <div class="form-group"><div class="form-label">Descripción</div><input class="form-input" id="wh-desc" placeholder="Ej: Productos secos y electrónica"></div>
+      <input type="hidden" id="wh-local-id">
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-wh')" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-teal" onclick="saveWarehouse()" style="flex:2"><i class="ti ti-check"></i> Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: NUEVA FORMA DE ENTREGA -->
+<div class="sheet-overlay hidden" id="sheet-dm">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-truck-delivery" style="color:var(--primary)"></i> Forma de entrega</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-dm')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content">
+      <div class="form-group"><div class="form-label">Nombre *</div><input class="form-input" id="dm-name" placeholder="Ej: Despacho Express"></div>
+      <div class="form-group">
+        <div class="form-label">Tipo</div>
+        <div class="pill-select">
+          <div class="pill-opt selected" onclick="selDmType(this,'home_delivery')">🏠 Despacho a domicilio</div>
+          <div class="pill-opt" onclick="selDmType(this,'store_pickup')">🏪 Retiro en tienda</div>
+          <div class="pill-opt" onclick="selDmType(this,'pickup_point')">📦 Punto de retiro</div>
+        </div>
+        <input type="hidden" id="dm-type" value="home_delivery">
+      </div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Costo base ($)</div><input class="form-input" type="number" id="dm-cost" placeholder="0"></div>
+        <div class="form-group"><div class="form-label">Gratis sobre ($)</div><input class="form-input" type="number" id="dm-free" placeholder="Sin límite"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Prep. mínima (hrs)</div><input class="form-input" type="number" id="dm-prep" value="2" placeholder="2"></div>
+        <div class="form-group"><div class="form-label">Dist. máx (km)</div><input class="form-input" type="number" id="dm-dist" placeholder="Sin límite"></div>
+      </div>
+      <input type="hidden" id="dm-local-id">
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-dm')" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveDeliveryMethod()" style="flex:2"><i class="ti ti-check"></i> Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: AGREGAR SLOT -->
+<div class="sheet-overlay hidden" id="sheet-slot">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-clock" style="color:var(--amber-dark)"></i> Agregar slot</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-slot')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content">
+      <div class="info-box primary"><i class="ti ti-info-circle"></i> Los slots se configuran por día de la semana y se repiten cada semana automáticamente.</div>
+      <div class="form-group">
+        <div class="form-label">Días de la semana</div>
+        <div class="pill-select" id="slot-days-pills" style="flex-wrap:wrap;gap:5px">
+          <div class="pill-opt" onclick="toggleDayPill(this,0)">Dom</div>
+          <div class="pill-opt" onclick="toggleDayPill(this,1)">Lun</div>
+          <div class="pill-opt" onclick="toggleDayPill(this,2)">Mar</div>
+          <div class="pill-opt" onclick="toggleDayPill(this,3)">Mié</div>
+          <div class="pill-opt" onclick="toggleDayPill(this,4)">Jue</div>
+          <div class="pill-opt" onclick="toggleDayPill(this,5)">Vie</div>
+          <div class="pill-opt" onclick="toggleDayPill(this,6)">Sáb</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Desde *</div><input class="form-input" type="time" id="slot-from" value="09:00"></div>
+        <div class="form-group"><div class="form-label">Hasta *</div><input class="form-input" type="time" id="slot-to" value="13:00"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Etiqueta</div><input class="form-input" id="slot-label" placeholder="Ej: Mañana (auto)"></div>
+        <div class="form-group"><div class="form-label">Costo extra ($)</div><input class="form-input" type="number" id="slot-cost" value="0"></div>
+      </div>
+      <div class="form-group"><div class="form-label">Máx. órdenes por slot</div><input class="form-input" type="number" id="slot-max" value="20" placeholder="20"></div>
+      <input type="hidden" id="slot-method-id">
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-slot')" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveSlot()" style="flex:2"><i class="ti ti-check"></i> Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: NUEVA ORDEN CON SLOT -->
+<div class="sheet-overlay hidden" id="sheet-order">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-shopping-bag" style="color:var(--green-dark)"></i> Nueva orden</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-order')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content" id="order-content"></div>
+    <div class="sheet-footer" id="order-footer"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// Embed mode: hide topbar when loaded inside app iframe
+if (new URLSearchParams(location.search).has('embed')) document.body.classList.add('embedded');
+
+// ── AUTH GUARD ──────────────────────────────────
+(function(){
+  const token = localStorage.getItem('sf_token');
+  if (!token) {
+    const target = window.top !== window.self ? window.top : window;
+    target.location.replace('/login');
+  }
+})();
+
+const fmt = n => '$' + Math.round(n).toLocaleString('es-CL');
+const DOW = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+const DOW_FULL = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+
+// ── LOCALSTORAGE PERSISTENCE ───────────────────
+const DEFAULT_LOCALES = [
+  {id:'LOC-001',name:'Tienda Centro',address_street:'Av. Providencia 1234',address_city:'Santiago',address_region:'RM',phone:'+56 2 2222 3333',email:'centro@tienda.cl',
+   warehouses:[
+     {id:'WHS-001',name:'Bodega Principal',description:'Electrónica y seguridad'},
+     {id:'WHS-002',name:'Bodega Accesorios',description:'Cables y pequeños componentes'},
+   ],
+   delivery_methods:[
+     {id:'DLM-001',name:'Despacho a domicilio',type:'home_delivery',base_cost:2900,free_above:50000,prep_hours:2,requires_address:true,
+      slots:[
+        {id:1,day_of_week:1,time_from:'09:00',time_to:'13:00',label:'Mañana',max_orders:20,extra_cost:0},
+        {id:2,day_of_week:1,time_from:'14:00',time_to:'18:00',label:'Tarde',max_orders:20,extra_cost:0},
+        {id:3,day_of_week:2,time_from:'09:00',time_to:'13:00',label:'Mañana',max_orders:20,extra_cost:0},
+        {id:4,day_of_week:2,time_from:'14:00',time_to:'18:00',label:'Tarde',max_orders:20,extra_cost:0},
+        {id:5,day_of_week:3,time_from:'09:00',time_to:'13:00',label:'Mañana',max_orders:15,extra_cost:0},
+        {id:6,day_of_week:3,time_from:'14:00',time_to:'18:00',label:'Tarde',max_orders:15,extra_cost:0},
+        {id:7,day_of_week:3,time_from:'18:00',time_to:'22:00',label:'Noche Express',max_orders:8,extra_cost:1500},
+        {id:8,day_of_week:4,time_from:'09:00',time_to:'18:00',label:'Todo el día',max_orders:30,extra_cost:0},
+        {id:9,day_of_week:5,time_from:'09:00',time_to:'13:00',label:'Mañana',max_orders:20,extra_cost:0},
+        {id:10,day_of_week:6,time_from:'09:00',time_to:'14:00',label:'Mañana Sábado',max_orders:10,extra_cost:500},
+      ]},
+     {id:'DLM-002',name:'Retiro en tienda',type:'store_pickup',base_cost:0,free_above:null,prep_hours:1,requires_address:false,
+      slots:[
+        {id:11,day_of_week:1,time_from:'10:00',time_to:'19:00',label:'Horario normal',max_orders:50,extra_cost:0},
+        {id:12,day_of_week:2,time_from:'10:00',time_to:'19:00',label:'Horario normal',max_orders:50,extra_cost:0},
+        {id:13,day_of_week:3,time_from:'10:00',time_to:'19:00',label:'Horario normal',max_orders:50,extra_cost:0},
+        {id:14,day_of_week:4,time_from:'10:00',time_to:'19:00',label:'Horario normal',max_orders:50,extra_cost:0},
+        {id:15,day_of_week:5,time_from:'10:00',time_to:'19:00',label:'Horario normal',max_orders:50,extra_cost:0},
+        {id:16,day_of_week:6,time_from:'10:00',time_to:'15:00',label:'Horario Sábado',max_orders:20,extra_cost:0},
+      ]},
+   ]
+  },
+  {id:'LOC-002',name:'Sucursal Norte',address_street:'Recoleta 5678',address_city:'Recoleta',address_region:'RM',phone:'+56 2 4444 5555',email:'norte@tienda.cl',
+   warehouses:[{id:'WHS-003',name:'Bodega Norte',description:'Stock local'}],
+   delivery_methods:[
+     {id:'DLM-003',name:'Despacho zona norte',type:'home_delivery',base_cost:1900,free_above:30000,prep_hours:3,requires_address:true,
+      slots:[
+        {id:17,day_of_week:2,time_from:'09:00',time_to:'13:00',label:'Mañana',max_orders:10,extra_cost:0},
+        {id:18,day_of_week:4,time_from:'14:00',time_to:'18:00',label:'Tarde',max_orders:10,extra_cost:0},
+      ]}
+   ]
+  },
+];
+
+function _localesKey() {
+  return 'sf_locales_' + (localStorage.getItem('sf_tenant_id') || 'default');
+}
+function saveLocales() {
+  try { localStorage.setItem(_localesKey(), JSON.stringify(S.locales)); } catch(e) {}
+  // Also save a flattened slots index so index.html can read delivery slots
+  try {
+    const slotsIndex = {};
+    S.locales.forEach(loc => loc.delivery_methods.forEach(m => {
+      slotsIndex[m.type] = slotsIndex[m.type] || [];
+      m.slots.forEach(sl => {
+        if (!slotsIndex[m.type].find(x => x.id === sl.id)) {
+          slotsIndex[m.type].push({ id: sl.id, label: sl.label, time_from: sl.time_from, time_to: sl.time_to, day_of_week: sl.day_of_week, extra_cost: sl.extra_cost });
+        }
+      });
+    }));
+    localStorage.setItem(_localesKey() + '_slots', JSON.stringify(slotsIndex));
+  } catch(e) {}
+}
+function loadLocalesFromStorage() {
+  try {
+    const raw = localStorage.getItem(_localesKey());
+    if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed) && parsed.length) return parsed; }
+  } catch(e) {}
+  return JSON.parse(JSON.stringify(DEFAULT_LOCALES)); // deep clone defaults
+}
+
+// ── STATE ──────────────────────────────────────
+const S = {
+  locales: loadLocalesFromStorage(),
+  currentLocal: null,
+  editingLocalId: null,
+  editingDmLocalId: null,
+  editingDmId: null,
+  editingSlotMethodId: null,
+  editingSlotId: null,
+  selectedDays: new Set(),
+  order: { step:1, local:null, warehouse:null, method:null, date:null, slot:null }
+};
+
+// ── TABS ──────────────────────────────────────
+function isDesktop() { return window.innerWidth >= 768; }
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  if (isDesktop()) {
+    // Both panels always visible on desktop
+    document.getElementById('tab-locales').style.display = '';
+    document.getElementById('tab-config').style.display  = '';
+    renderConfig();
+  } else {
+    document.getElementById('tab-locales').style.display = tab==='locales' ? '' : 'none';
+    document.getElementById('tab-config').style.display  = tab==='config'  ? '' : 'none';
+    if (tab==='config') renderConfig();
+  }
+}
+
+// ── LOCALES LIST ──────────────────────────────
+function renderLocales() {
+  const el = document.getElementById('locales-list');
+  el.innerHTML = S.locales.map(loc => `
+    <div class="local-card">
+      <div class="lc-header" onclick="selectLocal('${loc.id}')" style="cursor:pointer">
+        <div style="flex:1">
+          <div class="lc-name">${loc.name}</div>
+          <div class="lc-addr"><i class="ti ti-map-pin" style="font-size:12px"></i>${loc.address_street}, ${loc.address_city}</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();editLocal('${loc.id}')" title="Editar">
+            <i class="ti ti-pencil"></i>
+          </button>
+          <button class="btn btn-sm" style="background:var(--red-light);color:var(--red);border:none" onclick="event.stopPropagation();deleteLocal('${loc.id}')" title="Eliminar">
+            <i class="ti ti-trash"></i>
+          </button>
+          <i class="ti ti-chevron-right" style="color:var(--text3);font-size:20px" onclick="selectLocal('${loc.id}')"></i>
+        </div>
+      </div>
+      <div class="lc-stats" onclick="selectLocal('${loc.id}')" style="cursor:pointer">
+        <div class="lc-stat"><i class="ti ti-building-warehouse" style="color:var(--teal-dark)"></i>${loc.warehouses.length} almacén${loc.warehouses.length!==1?'es':''}</div>
+        <div class="lc-stat"><i class="ti ti-truck-delivery" style="color:var(--primary)"></i>${loc.delivery_methods.length} forma${loc.delivery_methods.length!==1?'s':''} de entrega</div>
+        <div class="lc-stat"><i class="ti ti-clock" style="color:var(--amber-dark)"></i>${loc.delivery_methods.reduce((s,m)=>s+m.slots.length,0)} slots</div>
+      </div>
+    </div>`).join('') + (S.locales.length ? '' : `<div class="empty-state"><i class="ti ti-building-store"></i><p>Sin locales. Crea el primero.</p></div>`);
+}
+
+function selectLocal(id) {
+  S.currentLocal = S.locales.find(l => l.id === id);
+  if (isDesktop()) {
+    document.getElementById('tab-config').style.display = '';
+    renderConfig();
+  } else {
+    const tabs = document.querySelectorAll('.tab');
+    tabs[1].click();
+  }
+}
+
+// ── CONFIG ────────────────────────────────────
+function renderConfig() {
+  const loc = S.currentLocal;
+  if (!loc) {
+    document.getElementById('config-content').innerHTML = `<div class="empty-state"><i class="ti ti-building-store"></i><p>Selecciona un local de la pestaña "Locales"</p></div>`;
+    return;
+  }
+
+  let html = `
+    <div class="card" style="border-left:4px solid var(--primary)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div>
+          <div class="card-title" style="margin-bottom:4px"><i class="ti ti-building-store" style="color:var(--primary)"></i>${loc.name}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:4px"><i class="ti ti-map-pin" style="font-size:14px"></i> ${loc.address_street}, ${loc.address_city}</div>
+          ${loc.phone?`<div style="font-size:12px;color:var(--text3);font-weight:600"><i class="ti ti-phone" style="font-size:12px"></i> ${loc.phone}</div>`:''}
+        </div>
+        <button class="btn btn-sm btn-outline" onclick="editLocal('${loc.id}')" style="flex-shrink:0;width:auto;padding:6px 10px" title="Editar local">
+          <i class="ti ti-pencil"></i> Editar
+        </button>
+      </div>
+    </div>
+
+    <!-- ALMACENES -->
+    <div class="card">
+      <div class="card-title"><i class="ti ti-building-warehouse" style="color:var(--teal-dark)"></i>Almacenes</div>
+      ${loc.warehouses.map(w => `
+        <div class="wh-item">
+          <div class="wh-icon"><i class="ti ti-box"></i></div>
+          <div class="wh-info">
+            <div class="wh-name">${w.name}</div>
+            <div class="wh-desc">${w.description||'Sin descripción'}</div>
+          </div>
+          <button class="btn btn-sm" style="background:var(--red-light);color:var(--red);border:none;width:auto;flex-shrink:0"
+            onclick="deleteWarehouse('${loc.id}','${w.id}')" title="Eliminar almacén">
+            <i class="ti ti-trash"></i>
+          </button>
+        </div>`).join('')}
+      <button class="btn btn-outline mt-2 btn-sm" onclick="openWHSheet('${loc.id}')">
+        <i class="ti ti-plus"></i> Agregar almacén
+      </button>
+    </div>
+
+    <!-- FORMAS DE ENTREGA -->
+    <div class="card-title" style="padding:0 0 10px"><i class="ti ti-truck-delivery" style="color:var(--primary)"></i>Formas de entrega</div>
+    ${loc.delivery_methods.map(m => renderMethodCard(m, loc.id)).join('')}
+    <button class="btn btn-primary mt-2" onclick="openDMSheet('${loc.id}')">
+      <i class="ti ti-plus"></i> Agregar forma de entrega
+    </button>`;
+
+  document.getElementById('config-content').innerHTML = html;
+}
+
+function renderMethodCard(m, localId) {
+  const typeLabels = { home_delivery:'Despacho', store_pickup:'Retiro tienda', pickup_point:'Punto retiro' };
+  const typeCss    = { home_delivery:'dm-home', store_pickup:'dm-pickup', pickup_point:'dm-point' };
+  const typeIcons  = { home_delivery:'ti-home', store_pickup:'ti-building-store', pickup_point:'ti-package' };
+
+  // Agrupar slots por día
+  const byDay = {};
+  m.slots.forEach(s => { if(!byDay[s.day_of_week]) byDay[s.day_of_week]=[]; byDay[s.day_of_week].push(s); });
+
+  const slotsHtml = Object.entries(byDay).map(([d,slots]) => `
+    <div class="day-row">
+      <div class="day-header" onclick="toggleDay(this)">
+        <span><strong>${DOW_FULL[d]}</strong> — ${slots.length} slot${slots.length!==1?'s':''}</span>
+        <i class="ti ti-chevron-down" style="font-size:16px;color:var(--text3);transition:transform .2s"></i>
+      </div>
+      <div class="day-slots" style="display:none">
+        ${slots.map(s => `
+          <div class="slot-item">
+            <span class="slot-time">${s.time_from.slice(0,5)} – ${s.time_to.slice(0,5)}</span>
+            <span class="slot-label">${s.label}</span>
+            ${s.extra_cost>0?`<span class="slot-cost">+${fmt(s.extra_cost)}</span>`:''}
+            <span style="font-size:10px;color:var(--text3);font-weight:600">${s.max_orders} máx</span>
+            <button class="slot-edit" onclick="editSlot('${m.id}',${s.id})"><i class="ti ti-pencil" style="font-size:13px"></i></button>
+            <button class="slot-del" onclick="deleteSlot('${m.id}',${s.id})"><i class="ti ti-trash" style="font-size:13px"></i></button>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+
+  return `<div class="dm-card">
+    <div class="dm-header">
+      <div>
+        <div class="dm-name">
+          <i class="ti ${typeIcons[m.type]||'ti-truck'}" style="font-size:16px;color:var(--primary)"></i>
+          ${m.name}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:5px">
+          <span class="dm-type-badge ${typeCss[m.type]||'dm-home'}">${typeLabels[m.type]||m.type}</span>
+          <span style="font-size:11px;color:var(--text3);font-weight:600">${fmt(m.base_cost)} base</span>
+          ${m.free_above?`<span style="font-size:11px;font-weight:700;color:var(--green-dark)">Gratis +${fmt(m.free_above)}</span>`:''}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:12px;font-weight:700;color:var(--text3)">${m.slots.length} slots</span>
+        <button class="btn btn-sm" style="background:var(--primary-light);color:var(--primary);border:none;width:auto"
+          onclick="editDeliveryMethod('${localId}','${m.id}')" title="Editar forma de entrega">
+          <i class="ti ti-pencil"></i>
+        </button>
+        <button class="btn btn-sm" style="background:var(--red-light);color:var(--red);border:none;width:auto"
+          onclick="deleteDeliveryMethod('${localId}','${m.id}')" title="Eliminar forma de entrega">
+          <i class="ti ti-trash"></i>
+        </button>
+      </div>
+    </div>
+    <div class="slots-grid" style="margin-bottom:10px">${slotsHtml||'<p style="font-size:12px;color:var(--text3);padding:4px 0">Sin slots configurados</p>'}</div>
+    <button class="btn btn-outline btn-sm" onclick="openSlotSheet('${m.id}')">
+      <i class="ti ti-clock"></i> Agregar slot
+    </button>
+  </div>`;
+}
+
+function toggleDay(header) {
+  const body = header.nextElementSibling;
+  const icon = header.querySelector('.ti-chevron-down');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  if (icon) icon.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+// ── LOCAL CRUD ────────────────────────────────
+function _updateLocalGeoStatus(lat, lng) {
+  const el = document.getElementById('loc-geo-status');
+  if (!el) return;
+  if (lat && lng) {
+    el.style.color = 'var(--green-dark)';
+    el.innerHTML = `<i class="ti ti-map-check"></i> Geo asignada · ${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
+  } else {
+    el.style.color = 'var(--text3)';
+    el.innerHTML = '<i class="ti ti-alert-triangle" style="color:var(--amber-dark)"></i> Sin geocoordenadas';
+  }
+}
+
+async function getGeoForLocal() {
+  const street = document.getElementById('loc-street').value.trim();
+  const city   = document.getElementById('loc-city').value.trim();
+  const region = document.getElementById('loc-region').value.trim();
+  if (!street || !city) { toast('⚠️ Completa la dirección y ciudad antes de obtener geo'); return; }
+
+  const btn = document.getElementById('btn-get-geo-local');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Buscando...'; }
+
+  const q = [street, city, region, 'Chile'].filter(Boolean).join(', ');
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=cl`,
+      { headers: { 'Accept-Language': 'es', 'User-Agent': 'StockFlow-Bichon/1.0' } }
+    );
+    const results = await r.json();
+    if (results && results.length > 0) {
+      const lat = parseFloat(results[0].lat);
+      const lng = parseFloat(results[0].lon);
+      if (S.editingLocalId) {
+        const loc = S.locales.find(l => l.id === S.editingLocalId);
+        if (loc) { loc.lat = lat; loc.lng = lng; }
+        saveLocales();
+      } else {
+        S._pendingLocalGeo = { lat, lng };
+      }
+      _updateLocalGeoStatus(lat, lng);
+      toast(`✅ Geo asignada · ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    } else {
+      toast('⚠️ Dirección no encontrada — agrega número, ciudad o región más completos');
+    }
+  } catch(e) {
+    console.error('[Geo Local]', e);
+    toast('❌ Error al obtener geo: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-map-search"></i> Obtener Geo'; }
+  }
+}
+
+function openNewLocalSheet() {
+  S.editingLocalId = null;
+  S._pendingLocalGeo = null;
+  document.querySelector('#sheet-local .sheet-title').innerHTML = '<i class="ti ti-building-store" style="color:var(--primary)"></i> Nuevo local';
+  ['loc-name','loc-street','loc-city','loc-region','loc-phone','loc-email'].forEach(id => document.getElementById(id).value = '');
+  _updateLocalGeoStatus(null, null);
+  openSheet('sheet-local');
+}
+function editLocal(id) {
+  const loc = S.locales.find(l => l.id === id);
+  if (!loc) return;
+  S.editingLocalId = id;
+  S._pendingLocalGeo = null;
+  document.querySelector('#sheet-local .sheet-title').innerHTML = '<i class="ti ti-pencil" style="color:var(--primary)"></i> Editar local';
+  document.getElementById('loc-name').value   = loc.name;
+  document.getElementById('loc-street').value = loc.address_street;
+  document.getElementById('loc-city').value   = loc.address_city;
+  document.getElementById('loc-region').value = loc.address_region||'';
+  document.getElementById('loc-phone').value  = loc.phone||'';
+  document.getElementById('loc-email').value  = loc.email||'';
+  _updateLocalGeoStatus(loc.lat, loc.lng);
+  openSheet('sheet-local');
+}
+function closeLocalSheet() {
+  S.editingLocalId = null;
+  closeSheet('sheet-local');
+}
+function deleteLocal(id) {
+  const loc = S.locales.find(l => l.id === id);
+  if (!loc) return;
+  if (!confirm(`¿Eliminar "${loc.name}" y todos sus almacenes y formas de entrega?`)) return;
+  S.locales = S.locales.filter(l => l.id !== id);
+  if (S.currentLocal?.id === id) S.currentLocal = null;
+  saveLocales();
+  renderLocales();
+  toast('🗑️ Local eliminado');
+}
+
+// ── SAVE FUNCTIONS ────────────────────────────
+function saveLocal() {
+  const name   = document.getElementById('loc-name').value.trim();
+  const street = document.getElementById('loc-street').value.trim();
+  const city   = document.getElementById('loc-city').value.trim();
+  if (!name||!street||!city) { toast('⚠️ Nombre, dirección y ciudad son obligatorios'); return; }
+  if (S.editingLocalId) {
+    const loc = S.locales.find(l => l.id === S.editingLocalId);
+    if (loc) {
+      loc.name = name; loc.address_street = street; loc.address_city = city;
+      loc.address_region = document.getElementById('loc-region').value;
+      loc.phone = document.getElementById('loc-phone').value;
+      loc.email = document.getElementById('loc-email').value;
+      if (S.currentLocal?.id === S.editingLocalId) S.currentLocal = loc;
+    }
+    S.editingLocalId = null;
+    saveLocales();
+    closeSheet('sheet-local');
+    renderLocales();
+    toast('✅ Local actualizado');
+  } else {
+    const id = 'LOC-' + String(Date.now()).slice(-5);
+    S.locales.push({
+      id, name, address_street:street, address_city:city,
+      address_region:document.getElementById('loc-region').value,
+      phone:document.getElementById('loc-phone').value,
+      email:document.getElementById('loc-email').value,
+      lat: S._pendingLocalGeo?.lat || null,
+      lng: S._pendingLocalGeo?.lng || null,
+      warehouses:[], delivery_methods:[]
+    });
+    S._pendingLocalGeo = null;
+    saveLocales();
+    closeSheet('sheet-local');
+    renderLocales();
+    toast('✅ Local creado');
+  }
+}
+
+function openWHSheet(localId) {
+  document.getElementById('wh-local-id').value = localId;
+  document.getElementById('wh-name').value = '';
+  document.getElementById('wh-desc').value = '';
+  openSheet('sheet-wh');
+}
+function saveWarehouse() {
+  const name = document.getElementById('wh-name').value.trim();
+  if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
+  const localId = document.getElementById('wh-local-id').value;
+  const loc = S.locales.find(l => l.id === localId);
+  if (!loc) return;
+  loc.warehouses.push({
+    id:'WHS-'+String(Date.now()).slice(-4),
+    name, description:document.getElementById('wh-desc').value
+  });
+  saveLocales();
+  closeSheet('sheet-wh');
+  renderConfig();
+  toast('✅ Almacén agregado');
+}
+
+function openDMSheet(localId) {
+  S.editingDmId = null;
+  S.editingDmLocalId = null;
+  document.querySelector('#sheet-dm .sheet-title').innerHTML = '<i class="ti ti-truck-delivery" style="color:var(--primary)"></i> Nueva forma de entrega';
+  document.getElementById('dm-local-id').value = localId;
+  document.getElementById('dm-name').value = '';
+  document.getElementById('dm-cost').value = '0';
+  document.getElementById('dm-free').value = '';
+  document.getElementById('dm-prep').value = '2';
+  document.getElementById('dm-type').value = 'home_delivery';
+  document.querySelectorAll('#sheet-dm .pill-opt').forEach((p,i) => p.classList.toggle('selected',i===0));
+  openSheet('sheet-dm');
+}
+function editDeliveryMethod(localId, methodId) {
+  const loc = S.locales.find(l => l.id === localId);
+  if (!loc) return;
+  const m = loc.delivery_methods.find(x => x.id === methodId);
+  if (!m) return;
+  S.editingDmLocalId = localId;
+  S.editingDmId = methodId;
+  document.querySelector('#sheet-dm .sheet-title').innerHTML = '<i class="ti ti-pencil" style="color:var(--primary)"></i> Editar forma de entrega';
+  document.getElementById('dm-local-id').value = localId;
+  document.getElementById('dm-name').value = m.name;
+  document.getElementById('dm-cost').value = m.base_cost || 0;
+  document.getElementById('dm-free').value = m.free_above || '';
+  document.getElementById('dm-prep').value = m.prep_hours || 2;
+  document.getElementById('dm-type').value = m.type;
+  document.querySelectorAll('#sheet-dm .pill-opt').forEach(p => {
+    p.classList.toggle('selected', p.getAttribute('onclick')?.includes(`'${m.type}'`));
+  });
+  openSheet('sheet-dm');
+}
+function selDmType(el, val) {
+  document.getElementById('dm-type').value = val;
+  document.querySelectorAll('#sheet-dm .pill-opt').forEach(p => p.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function saveDeliveryMethod() {
+  const name = document.getElementById('dm-name').value.trim();
+  if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
+  const localId = document.getElementById('dm-local-id').value;
+  const loc = S.locales.find(l => l.id === localId);
+  if (!loc) return;
+  const type      = document.getElementById('dm-type').value;
+  const base_cost = parseFloat(document.getElementById('dm-cost').value)||0;
+  const free_above= parseFloat(document.getElementById('dm-free').value)||null;
+  const prep_hours= parseInt(document.getElementById('dm-prep').value)||2;
+  if (S.editingDmId) {
+    const m = loc.delivery_methods.find(x => x.id === S.editingDmId);
+    if (m) Object.assign(m, { name, type, base_cost, free_above, prep_hours, requires_address: type !== 'store_pickup' });
+    S.editingDmId = null; S.editingDmLocalId = null;
+    saveLocales(); closeSheet('sheet-dm'); renderConfig();
+    toast('✅ Forma de entrega actualizada');
+  } else {
+    loc.delivery_methods.push({ id:'DLM-'+String(Date.now()).slice(-4), name, type, base_cost, free_above, prep_hours, requires_address: type !== 'store_pickup', slots:[] });
+    saveLocales(); closeSheet('sheet-dm'); renderConfig();
+    toast('✅ Forma de entrega creada — agrega los slots');
+  }
+}
+
+function openSlotSheet(methodId) {
+  S.editingSlotId = null;
+  S.editingSlotMethodId = null;
+  document.querySelector('#sheet-slot .sheet-title').innerHTML = '<i class="ti ti-clock" style="color:var(--amber-dark)"></i> Agregar slot';
+  document.getElementById('slot-method-id').value = methodId;
+  document.getElementById('slot-from').value = '09:00';
+  document.getElementById('slot-to').value = '13:00';
+  document.getElementById('slot-label').value = '';
+  document.getElementById('slot-cost').value = '0';
+  document.getElementById('slot-max').value = '20';
+  S.selectedDays.clear();
+  document.querySelectorAll('#slot-days-pills .pill-opt').forEach(p => p.classList.remove('selected'));
+  openSheet('sheet-slot');
+}
+function editSlot(methodId, slotId) {
+  let target = null;
+  for (const loc of S.locales) {
+    const m = loc.delivery_methods.find(x => x.id === methodId);
+    if (m) { target = m.slots.find(s => s.id === slotId); break; }
+  }
+  if (!target) return;
+  S.editingSlotId = slotId;
+  S.editingSlotMethodId = methodId;
+  document.querySelector('#sheet-slot .sheet-title').innerHTML = '<i class="ti ti-pencil" style="color:var(--amber-dark)"></i> Editar slot';
+  document.getElementById('slot-method-id').value = methodId;
+  document.getElementById('slot-from').value = target.time_from.slice(0,5);
+  document.getElementById('slot-to').value   = target.time_to.slice(0,5);
+  document.getElementById('slot-label').value = target.label || '';
+  document.getElementById('slot-cost').value  = target.extra_cost || 0;
+  document.getElementById('slot-max').value   = target.max_orders || 20;
+  S.selectedDays.clear();
+  S.selectedDays.add(Number(target.day_of_week));
+  document.querySelectorAll('#slot-days-pills .pill-opt').forEach((p, i) => p.classList.toggle('selected', i === Number(target.day_of_week)));
+  openSheet('sheet-slot');
+}
+function toggleDayPill(el, dow) {
+  if (S.selectedDays.has(dow)) { S.selectedDays.delete(dow); el.classList.remove('selected'); }
+  else { S.selectedDays.add(dow); el.classList.add('selected'); }
+}
+function saveSlot() {
+  if (!S.selectedDays.size) { toast('⚠️ Selecciona al menos un día'); return; }
+  const from = document.getElementById('slot-from').value;
+  const to   = document.getElementById('slot-to').value;
+  if (!from||!to) { toast('⚠️ Completa los horarios'); return; }
+  const methodId = document.getElementById('slot-method-id').value;
+  const label = document.getElementById('slot-label').value;
+  const cost  = parseFloat(document.getElementById('slot-cost').value)||0;
+  const max   = parseInt(document.getElementById('slot-max').value)||20;
+  if (S.editingSlotId) {
+    for (const loc of S.locales) {
+      const m = loc.delivery_methods.find(x => x.id === methodId);
+      if (m) {
+        const idx = m.slots.findIndex(s => s.id === S.editingSlotId);
+        if (idx >= 0) {
+          const dow = [...S.selectedDays][0];
+          m.slots[idx] = { ...m.slots[idx], day_of_week:dow, time_from:from, time_to:to, label:label||autoLabel(from), max_orders:max, extra_cost:cost };
+        }
+        break;
+      }
+    }
+    S.editingSlotId = null; S.editingSlotMethodId = null;
+    saveLocales(); closeSheet('sheet-slot'); renderConfig();
+    toast('✅ Slot actualizado');
+  } else {
+    let idCounter = Date.now();
+    for (const loc of S.locales) {
+      const m = loc.delivery_methods.find(x => x.id === methodId);
+      if (m) {
+        for (const dow of S.selectedDays) {
+          m.slots.push({ id:idCounter++, day_of_week:dow, time_from:from, time_to:to, label:label||autoLabel(from), max_orders:max, extra_cost:cost });
+        }
+        break;
+      }
+    }
+    saveLocales(); closeSheet('sheet-slot'); renderConfig();
+    toast(`✅ Slot agregado para ${S.selectedDays.size} día${S.selectedDays.size>1?'s':''}`);
+  }
+}
+function autoLabel(timeFrom) {
+  const h = parseInt(timeFrom.split(':')[0]);
+  if (h < 12) return 'Mañana'; if (h < 17) return 'Tarde'; return 'Noche';
+}
+function deleteSlot(methodId, slotId) {
+  for (const loc of S.locales) {
+    const m = loc.delivery_methods.find(x => x.id === methodId);
+    if (m) { m.slots = m.slots.filter(s => s.id !== slotId); break; }
+  }
+  saveLocales();
+  renderConfig();
+  toast('🗑️ Slot eliminado');
+}
+function deleteWarehouse(localId, whId) {
+  const loc = S.locales.find(l => l.id === localId);
+  if (!loc) return;
+  const wh = loc.warehouses.find(w => w.id === whId);
+  if (!wh || !confirm(`¿Eliminar el almacén "${wh.name}"?`)) return;
+  loc.warehouses = loc.warehouses.filter(w => w.id !== whId);
+  saveLocales();
+  renderConfig();
+  toast('🗑️ Almacén eliminado');
+}
+function deleteDeliveryMethod(localId, methodId) {
+  const loc = S.locales.find(l => l.id === localId);
+  if (!loc) return;
+  const dm = loc.delivery_methods.find(m => m.id === methodId);
+  if (!dm || !confirm(`¿Eliminar "${dm.name}" y todos sus slots?`)) return;
+  loc.delivery_methods = loc.delivery_methods.filter(m => m.id !== methodId);
+  saveLocales();
+  renderConfig();
+  toast('🗑️ Forma de entrega eliminada');
+}
+
+// ══════════════════════════════════════════════════════
+// NUEVA ORDEN CON SELECTOR DE SLOT
+// ══════════════════════════════════════════════════════
+let orderState = {};
+
+function openNewOrder() {
+  orderState = { step:1, local:null, warehouse:null, method:null, date:null, slot:null, address:null };
+  renderOrderStep();
+  openSheet('sheet-order');
+}
+
+function renderOrderStep() {
+  const s = orderState;
+  let html = '';
+  let footer = '';
+
+  if (s.step === 1) {
+    // Paso 1: Elegir local y almacén
+    html += `<div style="font-size:13px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Paso 1 de 3 — Local y almacén</div>`;
+    html += S.locales.map(loc => `
+      <div class="method-option ${s.local?.id===loc.id?'selected':''}" onclick="selectOrderLocal('${loc.id}')">
+        <div class="method-option-icon"><i class="ti ti-building-store"></i></div>
+        <div class="method-option-body">
+          <div class="method-option-name">${loc.name}</div>
+          <div class="method-option-desc">${loc.address_street}, ${loc.address_city}</div>
+        </div>
+      </div>`).join('');
+    if (s.local) {
+      html += `<div class="divider"></div>`;
+      html += `<div style="font-size:13px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Almacén de origen</div>`;
+      html += s.local.warehouses.map(w => `
+        <div class="method-option ${s.warehouse?.id===w.id?'selected':''}" onclick="selectOrderWarehouse('${w.id}')">
+          <div class="method-option-icon"><i class="ti ti-box"></i></div>
+          <div class="method-option-body">
+            <div class="method-option-name">${w.name}</div>
+            <div class="method-option-desc">${w.description||''}</div>
+          </div>
+        </div>`).join('');
+    }
+    footer = `<button class="btn btn-outline" onclick="closeSheet('sheet-order')" style="flex:1;width:auto">Cancelar</button>
+              <button class="btn btn-primary" onclick="nextOrderStep()" style="flex:2" ${!s.warehouse?'disabled style="opacity:.4"':''}>Continuar →</button>`;
+
+  } else if (s.step === 2) {
+    // Paso 2: Forma de entrega + fecha + slot
+    html += `<div style="font-size:13px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Paso 2 de 3 — Cómo y cuándo</div>`;
+    html += `<div class="form-group"><div class="form-label">Forma de entrega</div>`;
+    html += s.local.delivery_methods.map(m => {
+      const icons = {home_delivery:'ti-home',store_pickup:'ti-building-store',pickup_point:'ti-package'};
+      return `<div class="method-option ${s.method?.id===m.id?'selected':''}" onclick="selectOrderMethod('${m.id}')">
+        <div class="method-option-icon"><i class="ti ${icons[m.type]||'ti-truck'}"></i></div>
+        <div class="method-option-body">
+          <div class="method-option-name">${m.name}</div>
+          <div class="method-option-desc">${m.base_cost>0?fmt(m.base_cost)+' de envío':'Gratis'}${m.free_above?' · Gratis sobre '+fmt(m.free_above):''}</div>
+        </div>
+      </div>`;
+    }).join('');
+    html += `</div>`;
+
+    if (s.method) {
+      // Selector de fecha (próximos 14 días)
+      html += `<div class="form-group"><div class="form-label">Selecciona la fecha</div>`;
+      html += `<div class="date-grid">`;
+      const today = new Date();
+      for (let i = 0; i < 14; i++) {
+        const d = new Date(today); d.setDate(today.getDate() + i);
+        const dow = d.getDay();
+        const dateStr = d.toISOString().split('T')[0];
+        const hasSlots = s.method.slots.some(sl => sl.day_of_week === dow);
+        const isSelected = s.date === dateStr;
+        html += `<div class="date-btn ${hasSlots?'has-slots':'no-slots'} ${isSelected?'selected':''}"
+          onclick="${hasSlots?`selectOrderDate('${dateStr}',${dow})`:''}">
+          <div class="date-day">${DOW[dow]}</div>
+          <div class="date-num">${d.getDate()}</div>
+        </div>`;
+      }
+      html += `</div></div>`;
+
+      if (s.date !== null) {
+        const dow = new Date(s.date + 'T12:00:00').getDay();
+        const daySlots = s.method.slots.filter(sl => sl.day_of_week === dow);
+        html += `<div class="form-group"><div class="form-label">Elige el horario</div>`;
+        html += daySlots.map(sl => `
+          <div class="slot-option ${s.slot?.id===sl.id?'selected':''}" onclick="selectOrderSlot(${sl.id})">
+            <div>
+              <div class="slot-time-range">${sl.time_from.slice(0,5)} – ${sl.time_to.slice(0,5)}</div>
+              <div class="slot-label-text">${sl.label}</div>
+            </div>
+            <div class="slot-info-right">
+              ${sl.extra_cost>0?`<div class="slot-cost-text">+${fmt(sl.extra_cost)}</div>`:`<div class="slot-cost-text" style="color:var(--green-dark)">Sin costo extra</div>`}
+              <div style="font-size:10px;color:var(--text3);font-weight:600">${sl.max_orders} máx</div>
+            </div>
+          </div>`).join('');
+        html += `</div>`;
+      }
+
+      // Dirección si aplica
+      if (s.method.requires_address && s.slot) {
+        html += `<div class="divider"></div>`;
+        html += `<div class="form-group"><div class="form-label">Dirección de entrega</div>
+          <input class="form-input" id="ord-street" placeholder="Calle y número" oninput="orderState.address=this.value">
+          <input class="form-input mt-2" id="ord-city" placeholder="Ciudad / Comuna" style="margin-top:8px">
+          <input class="form-input mt-2" id="ord-notes" placeholder="Notas (opcional)" style="margin-top:8px">
+        </div>`;
+      }
+    }
+
+    footer = `<button class="btn btn-outline" onclick="orderState.step=1;renderOrderStep()" style="flex:1;width:auto">← Atrás</button>
+              <button class="btn btn-primary" onclick="nextOrderStep()" style="flex:2" ${!s.slot?'disabled style="opacity:.4"':''}>Continuar →</button>`;
+
+  } else if (s.step === 3) {
+    // Paso 3: Confirmar
+    html += `<div style="font-size:13px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Paso 3 de 3 — Confirmar</div>`;
+    html += `<div class="card" style="background:var(--green-light);border:1.5px solid #a7f3d0;box-shadow:none;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:800;color:var(--green-dark);margin-bottom:10px">✅ Resumen de la orden</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="display:flex;justify-content:space-between;font-size:13px">
+          <span style="color:var(--text2);font-weight:600">Local</span>
+          <span style="font-weight:800">${s.local.name}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px">
+          <span style="color:var(--text2);font-weight:600">Almacén</span>
+          <span style="font-weight:800">${s.warehouse.name}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px">
+          <span style="color:var(--text2);font-weight:600">Entrega</span>
+          <span style="font-weight:800">${s.method.name}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px">
+          <span style="color:var(--text2);font-weight:600">Fecha</span>
+          <span style="font-weight:800">${s.date}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px">
+          <span style="color:var(--text2);font-weight:600">Horario</span>
+          <span style="font-weight:800">${s.slot.time_from.slice(0,5)} – ${s.slot.time_to.slice(0,5)} · ${s.slot.label}</span>
+        </div>
+        ${s.method.base_cost+s.slot.extra_cost > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--text2);font-weight:600">Costo envío</span><span style="font-weight:900;color:var(--primary)">${fmt(s.method.base_cost+s.slot.extra_cost)}</span></div>` : ''}
+      </div>
+    </div>`;
+    html += `<div class="form-group"><div class="form-label">Cliente</div><input class="form-input" id="ord-customer" placeholder="Nombre del cliente"></div>`;
+    html += `<div class="form-group"><div class="form-label">Mensaje para el receptor (opcional)</div><textarea class="form-input" id="ord-message" placeholder="Ej: Dejar con el portero..." rows="2" style="resize:none"></textarea></div>`;
+
+    footer = `<button class="btn btn-outline" onclick="orderState.step=2;renderOrderStep()" style="flex:1;width:auto">← Atrás</button>
+              <button class="btn btn-green" onclick="confirmOrder()" style="flex:2"><i class="ti ti-check"></i> Crear orden</button>`;
+  }
+
+  document.getElementById('order-content').innerHTML = html;
+  document.getElementById('order-footer').innerHTML = footer;
+}
+
+function selectOrderLocal(id) {
+  orderState.local     = S.locales.find(l => l.id === id);
+  orderState.warehouse = null;
+  orderState.method    = null;
+  orderState.date      = null;
+  orderState.slot      = null;
+  renderOrderStep();
+}
+function selectOrderWarehouse(id) {
+  orderState.warehouse = orderState.local?.warehouses.find(w => w.id === id);
+  renderOrderStep();
+}
+function selectOrderMethod(id) {
+  orderState.method = orderState.local?.delivery_methods.find(m => m.id === id);
+  orderState.date   = null;
+  orderState.slot   = null;
+  renderOrderStep();
+}
+function selectOrderDate(dateStr, dow) {
+  orderState.date = dateStr;
+  orderState.slot = null;
+  renderOrderStep();
+}
+function selectOrderSlot(slotId) {
+  orderState.slot = orderState.method?.slots.find(s => s.id === slotId);
+  renderOrderStep();
+}
+function nextOrderStep() {
+  if (orderState.step === 1 && orderState.warehouse) { orderState.step = 2; renderOrderStep(); }
+  else if (orderState.step === 2 && orderState.slot) { orderState.step = 3; renderOrderStep(); }
+}
+function confirmOrder() {
+  const s = orderState;
+  const customer = document.getElementById('ord-customer')?.value?.trim() || '';
+  const message  = document.getElementById('ord-message')?.value?.trim() || '';
+  const city = document.getElementById('ord-city')?.value?.trim() || '';
+  const notes = document.getElementById('ord-notes')?.value?.trim() || '';
+
+  // Build delivery payload to pass to parent app
+  const orderPayload = {
+    local:          { id: s.local.id,     name: s.local.name },
+    warehouse:      { id: s.warehouse.id, name: s.warehouse.name },
+    method:         { id: s.method.id,    name: s.method.name, type: s.method.type, base_cost: s.method.base_cost },
+    date:           s.date,
+    slot:           { id: s.slot.id, label: s.slot.label, time_from: s.slot.time_from, time_to: s.slot.time_to, extra_cost: s.slot.extra_cost },
+    address_street: s.method.requires_address ? (document.getElementById('ord-street')?.value?.trim() || '') : '',
+    address_city:   city,
+    address_notes:  notes,
+    customer,
+    message,
+    shipping_cost:  (s.method.base_cost || 0) + (s.slot.extra_cost || 0),
+  };
+
+  closeSheet('sheet-order');
+  toast(`✅ Orden creada · ${s.method.name} · ${s.date} · ${s.slot.time_from.slice(0,5)}–${s.slot.time_to.slice(0,5)}`);
+
+  // Notify parent frame to open venta sheet pre-filled with delivery info
+  try {
+    const target = window.parent !== window ? window.parent : null;
+    if (target) target.postMessage({ type: 'sf_create_order', payload: orderPayload }, '*');
+  } catch(e) {}
+}
+
+// ── SHEETS ────────────────────────────────────
+function openSheet(id) { document.getElementById(id).classList.remove('hidden'); document.body.style.overflow='hidden'; }
+function closeSheet(id) { document.getElementById(id).classList.add('hidden'); document.body.style.overflow=''; }
+document.querySelectorAll('.sheet-overlay').forEach(o => o.addEventListener('click', e => { if(e.target===o) closeSheet(o.id); }));
+
+function toast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';
+  setTimeout(()=>{ t.style.opacity='0';t.style.transform='translateX(-50%) translateY(20px)'; },3000);
+}
+
+// INIT — persist defaults on first load
+saveLocales();
+renderLocales();
+</script>
+</body>
+</html>

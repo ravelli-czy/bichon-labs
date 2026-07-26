@@ -1,0 +1,8 @@
+{
+  "name": "stockflow",
+  "version": "1.0.0",
+  "description": "StockFlow WMS+OMS — Vercel Functions + Neon PostgreSQL",
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4"
+  }
+}

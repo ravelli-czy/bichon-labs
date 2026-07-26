@@ -1,0 +1,16 @@
+{
+  "name": "stockflow-delivery",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "amqplib": "^0.10.3",
+    "qrcode": "^1.5.3",
+    "cors": "^2.8.5",
+    "mysql2": "^3.9.0"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Start-Sleep -Seconds 20; npx vercel inspect \"https://bichon-labs-53jex9gk8-ravellis-projects.vercel.app\" 2>&1)",
+      "PowerShell($r = Invoke-WebRequest -Uri \"https://bichon-labs-j6ezn7vbk-ravellis-projects.vercel.app\" -UseBasicParsing -TimeoutSec 10; \"Status: $\\($r.StatusCode\\)\"; \\($r.Content -split \"`n\" | Select-String \"<title>\"\\)[0])"
+    ]
+  }
+}

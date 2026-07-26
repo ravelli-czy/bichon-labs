@@ -1,0 +1,166 @@
+version: "3.9"
+
+services:
+  # ─── INFRASTRUCTURE ───────────────────────────
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: stockflow123
+      MYSQL_USER: stockflow
+      MYSQL_PASSWORD: stockflow123
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./shared/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "3306:3306"
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  # ─── GATEWAY ──────────────────────────────────
+  gateway:
+    build: ./gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - CATALOG_URL=http://catalog:3001
+      - LOCALES_URL=http://locales:3009
+      - WMS_URL=http://wms:3002
+      - OMS_URL=http://oms:3003
+      - PURCHASES_URL=http://purchases:3004
+      - SUPPLIERS_URL=http://suppliers:3005
+      - USERS_URL=http://users:3006
+      - DELIVERY_URL=http://delivery:3008
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+    depends_on: [users]
+
+  # ─── SERVICES ─────────────────────────────────
+  catalog:
+    build: ./services/catalog
+    ports:
+      - "3001:3001"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=stockflow
+      - DB_PASSWORD=stockflow123
+      - DB_NAME=catalog_db
+      - REDIS_URL=redis://redis:6379
+    depends_on: [mysql, redis]
+
+  wms:
+    build: ./services/wms
+    ports:
+      - "3002:3002"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=stockflow
+      - DB_PASSWORD=stockflow123
+      - DB_NAME=wms_db
+      - RABBITMQ_URL=amqp://rabbitmq
+      - CATALOG_URL=http://catalog:3001
+      - SUPPLIERS_URL=http://suppliers:3005
+    depends_on: [mysql, rabbitmq]
+
+  oms:
+    build: ./services/oms
+    ports:
+      - "3003:3003"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=stockflow
+      - DB_PASSWORD=stockflow123
+      - DB_NAME=oms_db
+      - RABBITMQ_URL=amqp://rabbitmq
+      - WMS_URL=http://wms:3002
+      - CATALOG_URL=http://catalog:3001
+      - LOCALES_URL=http://locales:3009
+      - SHOPIFY_WEBHOOK_SECRET=${SHOPIFY_WEBHOOK_SECRET:-}
+    depends_on: [mysql, rabbitmq]
+
+  purchases:
+    build: ./services/purchases
+    ports:
+      - "3004:3004"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=stockflow
+      - DB_PASSWORD=stockflow123
+      - DB_NAME=purchases_db
+      - RABBITMQ_URL=amqp://rabbitmq
+      - WMS_URL=http://wms:3002
+      - SUPPLIERS_URL=http://suppliers:3005
+    depends_on: [mysql, rabbitmq]
+
+  suppliers:
+    build: ./services/suppliers
+    ports:
+      - "3005:3005"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=stockflow
+      - DB_PASSWORD=stockflow123
+      - DB_NAME=suppliers_db
+    depends_on: [mysql]
+
+  users:
+    build: ./services/users
+    ports:
+      - "3006:3006"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=stockflow
+      - DB_PASSWORD=stockflow123
+      - DB_NAME=users_db
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+      - JWT_EXPIRY=7d
+    depends_on: [mysql]
+
+  locales:
+    build: ./services/locales
+    ports:
+      - "3009:3009"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=stockflow
+      - DB_PASSWORD=stockflow123
+      - DB_NAME=locales_db
+    depends_on: [mysql]
+
+  delivery:
+    build: ./services/delivery
+    ports:
+      - "3008:3008"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=stockflow
+      - DB_PASSWORD=stockflow123
+      - DB_NAME=delivery_db
+      - RABBITMQ_URL=amqp://rabbitmq
+      - BASE_URL=${BASE_URL:-http://localhost:3008}
+    depends_on: [mysql, rabbitmq]
+
+  notifications:
+    build: ./services/notifications
+    ports:
+      - "3007:3007"
+    environment:
+      - RABBITMQ_URL=amqp://rabbitmq
+      - TWILIO_SID=${TWILIO_SID:-}
+      - TWILIO_TOKEN=${TWILIO_TOKEN:-}
+      - TWILIO_WHATSAPP_FROM=${TWILIO_WHATSAPP_FROM:-}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
+      - SUPPLIERS_URL=http://suppliers:3005
+    depends_on: [rabbitmq]
+
+volumes:
+  mysql_data:

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow — Activar cuenta</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f6fa;--bg2:#fff;--bg3:#f0f1f7;
+  --text:#1a1a2e;--text2:#5a5b7a;--text3:#9a9bb8;--border:#e4e5f0;
+  --primary:#5b4fff;--primary-light:#ede9ff;--primary-dark:#4035cc;
+  --green:#16c98d;--green-light:#e6faf4;--green-dark:#0da070;
+  --red:#ff4d6d;--red-light:#fff0f3;
+  --radius:12px;--radius-lg:16px;--shadow:0 4px 24px rgba(91,79,255,.12);
+}
+body{background:var(--bg);font-family:'Nunito',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:var(--bg2);border-radius:24px;box-shadow:var(--shadow);width:100%;max-width:400px;overflow:hidden}
+.card-header{background:var(--primary);padding:32px 32px 28px;text-align:center}
+.app-icon{width:64px;height:64px;background:rgba(255,255,255,.15);border-radius:18px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:32px}
+.app-name{font-size:24px;font-weight:900;color:#fff;letter-spacing:-.5px}
+.app-sub{font-size:12px;color:rgba(255,255,255,.65);margin-top:4px;font-weight:600}
+.card-body{padding:32px}
+.step-title{font-size:20px;font-weight:900;color:var(--text);margin-bottom:6px}
+.step-sub{font-size:14px;color:var(--text3);font-weight:600;margin-bottom:24px;line-height:1.5}
+.user-chip{display:inline-flex;align-items:center;gap:6px;background:var(--primary-light);color:var(--primary);padding:5px 12px;border-radius:20px;font-size:13px;font-weight:800;margin-bottom:20px}
+.form-group{margin-bottom:14px;position:relative}
+.form-label{display:block;font-size:11px;font-weight:900;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px}
+.form-input{width:100%;background:var(--bg3);border:2px solid var(--border);border-radius:var(--radius);padding:12px 44px 12px 14px;color:var(--text);font-size:15px;font-family:'Nunito',sans-serif;font-weight:700;outline:none;transition:border-color .15s}
+.form-input:focus{border-color:var(--primary);background:#fff}
+.eye-btn{position:absolute;right:12px;top:36px;background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;padding:2px}
+.strength-bar{height:4px;border-radius:4px;background:var(--border);margin-top:6px;overflow:hidden}
+.strength-fill{height:100%;border-radius:4px;transition:all .3s;width:0}
+.strength-fill.weak{background:var(--red);width:33%}
+.strength-fill.medium{background:#f59e0b;width:66%}
+.strength-fill.strong{background:var(--green);width:100%}
+.strength-label{font-size:11px;font-weight:700;margin-top:4px}
+.strength-label.weak{color:var(--red)}.strength-label.medium{color:#d97706}.strength-label.strong{color:var(--green-dark)}
+.btn{width:100%;padding:14px;border-radius:var(--radius);border:none;font-family:'Nunito',sans-serif;font-weight:900;font-size:16px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-primary:disabled{background:var(--text3);cursor:not-allowed}
+.error-box{background:var(--red-light);border:1px solid #ffc8d2;border-radius:var(--radius);padding:12px 14px;font-size:13px;font-weight:700;color:var(--red);margin-bottom:16px;display:none;align-items:center;gap:8px}
+.success-card{text-align:center;padding:24px}
+.success-icon{width:72px;height:72px;background:var(--green-light);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:36px}
+.link-btn{background:none;border:none;color:var(--primary);font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;text-decoration:underline}
+.expired-card{text-align:center;padding:24px}
+</style>
+</head>
+<body>
+<div class="card" id="main-card">
+  <div class="card-header">
+    <div class="app-icon"><i class="ti ti-chart-bar" style="color:#fff"></i></div>
+    <div class="app-name">StockFlow</div>
+    <div class="app-sub">OMS · WMS · Sistema de gestión</div>
+  </div>
+  <div class="card-body" id="card-body">
+    <div class="step-title">Activar cuenta</div>
+    <div class="step-sub">Crea tu contraseña para acceder a StockFlow</div>
+
+    <div class="user-chip" id="username-chip">
+      <i class="ti ti-user" style="font-size:14px"></i>
+      <span id="username-display">Cargando...</span>
+    </div>
+
+    <div class="error-box" id="error-box">
+      <i class="ti ti-alert-circle" style="font-size:18px;flex-shrink:0"></i>
+      <span id="error-msg"></span>
+    </div>
+
+    <form onsubmit="event.preventDefault();doActivate()">
+      <div class="form-group">
+        <label class="form-label">Nueva contraseña</label>
+        <input class="form-input" type="password" id="pw1" placeholder="Mínimo 6 caracteres"
+               oninput="evalStrength()" autocomplete="new-password" required>
+        <button type="button" class="eye-btn" onclick="toggleEye('pw1',this)">
+          <i class="ti ti-eye"></i>
+        </button>
+        <div class="strength-bar"><div class="strength-fill" id="strength-fill"></div></div>
+        <div class="strength-label" id="strength-label"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirmar contraseña</label>
+        <input class="form-input" type="password" id="pw2" placeholder="Repite la contraseña"
+               autocomplete="new-password" required>
+        <button type="button" class="eye-btn" onclick="toggleEye('pw2',this)">
+          <i class="ti ti-eye"></i>
+        </button>
+      </div>
+      <button class="btn btn-primary" type="submit" id="activate-btn">
+        <i class="ti ti-check"></i> Activar cuenta
+      </button>
+    </form>
+  </div>
+</div>
+
+<script>
+const params   = new URLSearchParams(location.search);
+const token    = params.get('token') || '';
+const username = params.get('u') || '';
+
+if (!token || !username) {
+  document.getElementById('card-body').innerHTML = `
+    <div class="expired-card">
+      <div style="font-size:48px;margin-bottom:12px">🔗</div>
+      <div style="font-size:18px;font-weight:900;color:var(--text);margin-bottom:8px">Enlace inválido</div>
+      <div style="font-size:14px;color:var(--text3);font-weight:600;margin-bottom:20px">Este enlace no es válido. Solicita una nueva invitación al administrador.</div>
+      <a href="/login" style="color:var(--primary);font-weight:800;font-size:14px">← Ir al inicio de sesión</a>
+    </div>`;
+} else {
+  document.getElementById('username-display').textContent = username;
+}
+
+function toggleEye(inputId, btn) {
+  const inp = document.getElementById(inputId);
+  const isPass = inp.type === 'password';
+  inp.type = isPass ? 'text' : 'password';
+  btn.querySelector('i').className = isPass ? 'ti ti-eye-off' : 'ti ti-eye';
+}
+
+function evalStrength() {
+  const pw = document.getElementById('pw1').value;
+  const fill = document.getElementById('strength-fill');
+  const label = document.getElementById('strength-label');
+  if (!pw) { fill.className = 'strength-fill'; fill.style.width='0'; label.textContent=''; return; }
+  let score = 0;
+  if (pw.length >= 6)  score++;
+  if (pw.length >= 10) score++;
+  if (/[A-Z]/.test(pw) && /[0-9]/.test(pw)) score++;
+  const levels = [
+    { cls:'weak',   label:'Débil' },
+    { cls:'medium', label:'Regular' },
+    { cls:'strong', label:'Segura ✓' },
+  ];
+  const l = levels[Math.min(score, 2)];
+  fill.className = 'strength-fill ' + l.cls;
+  label.textContent = l.label;
+  label.className = 'strength-label ' + l.cls;
+}
+
+function showError(msg) {
+  const box = document.getElementById('error-box');
+  document.getElementById('error-msg').textContent = msg;
+  box.style.display = 'flex';
+}
+
+async function doActivate() {
+  const pw1 = document.getElementById('pw1').value;
+  const pw2 = document.getElementById('pw2').value;
+  document.getElementById('error-box').style.display = 'none';
+
+  if (pw1.length < 6) { showError('La contraseña debe tener al menos 6 caracteres'); return; }
+  if (pw1 !== pw2)    { showError('Las contraseñas no coinciden'); return; }
+
+  const btn = document.getElementById('activate-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Activando...';
+
+  try {
+    const r = await fetch('/api/auth/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, reset_token: token, new_password: pw1 }),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      if (r.status === 400 && data.error?.includes('inválido')) {
+        // Token expirado o inválido
+        document.getElementById('card-body').innerHTML = `
+          <div class="expired-card">
+            <div style="font-size:48px;margin-bottom:12px">⏰</div>
+            <div style="font-size:18px;font-weight:900;color:var(--text);margin-bottom:8px">Enlace expirado</div>
+            <div style="font-size:14px;color:var(--text3);font-weight:600;margin-bottom:20px">
+              El enlace ha expirado. Solicita al administrador que te envíe una nueva invitación.
+            </div>
+            <a href="/login" style="color:var(--primary);font-weight:800;font-size:14px">← Ir al inicio de sesión</a>
+          </div>`;
+        return;
+      }
+      showError(data.error || 'Error al activar cuenta');
+      return;
+    }
+
+    // Éxito
+    document.getElementById('card-body').innerHTML = `
+      <div class="success-card">
+        <div class="success-icon">✅</div>
+        <div style="font-size:20px;font-weight:900;color:var(--text);margin-bottom:8px">¡Cuenta activada!</div>
+        <div style="font-size:14px;color:var(--text3);font-weight:600;margin-bottom:24px;line-height:1.5">
+          Tu contraseña fue configurada exitosamente. Ya puedes iniciar sesión.
+        </div>
+        <a href="/login" style="display:block;background:var(--primary);color:#fff;text-decoration:none;padding:14px 24px;border-radius:12px;font-weight:900;font-size:15px;text-align:center">
+          <i class="ti ti-login" style="font-size:16px"></i> Iniciar sesión
+        </a>
+      </div>`;
+  } catch(e) {
+    showError('Sin conexión. Verifica tu internet e intenta de nuevo.');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-check"></i> Activar cuenta';
+  }
+}
+
+// Spin animation
+const style = document.createElement('style');
+style.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+document.head.appendChild(style);
+</script>
+</body>
+</html>

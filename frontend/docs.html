@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow — API Reference</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f5f6fa;--bg2:#fff;--bg3:#f0f1f7;
+  --text:#1a1a2e;--text2:#5a5b7a;--text3:#9a9bb8;--border:#e4e5f0;
+  --primary:#5b4fff;--primary-light:#ede9ff;--primary-dark:#4035cc;
+  --green:#16c98d;--green-light:#e6faf4;--green-dark:#0da070;
+  --red:#ff4d6d;--red-light:#fff0f3;--red-dark:#cc3a56;
+  --amber:#f59e0b;--amber-light:#fffbeb;--amber-dark:#d97706;
+  --blue:#3b82f6;--blue-light:#eff6ff;--blue-dark:#2563eb;
+  --code-bg:#0f172a;--code-bg2:#1e293b;--code-text:#e2e8f0;
+  --r:10px;--r-lg:14px;--sh:0 2px 12px rgba(91,79,255,.08);
+}
+body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;display:flex;flex-direction:column}
+
+/* TOPBAR */
+.topbar{background:var(--bg2);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:200;box-shadow:var(--sh)}
+.tb-left{display:flex;align-items:center;gap:12px}
+.back-btn{display:flex;align-items:center;gap:6px;background:var(--bg3);border:none;border-radius:9px;padding:7px 13px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;color:var(--text2);cursor:pointer;text-decoration:none;white-space:nowrap}
+.logo-area{display:flex;align-items:center;gap:8px}
+.logo-icon{width:34px;height:34px;background:var(--primary);border-radius:9px;display:flex;align-items:center;justify-content:center}
+.logo-icon i{color:#fff;font-size:18px}
+.logo-name{font-size:16px;font-weight:900;color:var(--primary)}
+.logo-sub{font-size:10px;color:var(--text3);font-weight:600}
+.api-badge{background:var(--green-light);color:var(--green-dark);font-size:11px;font-weight:900;padding:3px 9px;border-radius:20px}
+
+/* LAYOUT */
+.layout{display:flex;flex:1;min-height:0}
+.sidebar{width:260px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;position:sticky;top:57px;height:calc(100vh - 57px)}
+.content{flex:1;overflow-y:auto;padding:32px 40px 60px;max-width:860px}
+
+/* SIDEBAR NAV */
+.nav-section{margin-bottom:6px}
+.nav-section-label{font-size:10px;font-weight:900;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;padding:10px 20px 4px}
+.nav-link{display:flex;align-items:center;gap:8px;padding:8px 20px;font-size:13px;font-weight:700;color:var(--text2);text-decoration:none;border-left:2px solid transparent;transition:all .15s;cursor:pointer}
+.nav-link:hover{background:var(--bg3);color:var(--text)}
+.nav-link.active{border-left-color:var(--primary);background:var(--primary-light);color:var(--primary);font-weight:900}
+.nav-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.nav-method{font-size:9px;font-weight:900;padding:1px 5px;border-radius:4px;font-family:'JetBrains Mono',monospace}
+.m-get{background:var(--green-light);color:var(--green-dark)}
+.m-post{background:var(--blue-light);color:var(--blue-dark)}
+.m-put{background:var(--amber-light);color:var(--amber-dark)}
+.m-del{background:var(--red-light);color:var(--red-dark)}
+
+/* CONTENT */
+.doc-section{margin-bottom:48px;scroll-margin-top:80px}
+.doc-section-header{margin-bottom:24px}
+.doc-section-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:900;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+.chip-oms{background:#ede9ff;color:#4c1d95}
+.chip-wms{background:#e6faf4;color:#065f46}
+.chip-shm{background:#fffbeb;color:#78350f}
+.chip-iam{background:#eff6ff;color:#1e40af}
+.chip-auth{background:#fff0f3;color:#9f1239}
+.chip-intro{background:var(--bg3);color:var(--text2)}
+.doc-h1{font-size:28px;font-weight:900;color:var(--text);line-height:1.2;margin-bottom:8px}
+.doc-h2{font-size:22px;font-weight:900;color:var(--text);margin-bottom:16px}
+.doc-h3{font-size:15px;font-weight:900;color:var(--text);margin-bottom:10px;margin-top:24px}
+.doc-p{font-size:14px;line-height:1.7;color:var(--text2);margin-bottom:12px}
+.doc-divider{height:1px;background:var(--border);margin:32px 0}
+
+/* ENDPOINT */
+.endpoint{background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:16px}
+.endpoint-header{display:flex;align-items:center;gap:10px;padding:14px 18px;background:var(--bg3);border-bottom:1px solid var(--border)}
+.method-badge{font-size:11px;font-weight:900;padding:4px 10px;border-radius:7px;font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.method-GET{background:var(--green-light);color:var(--green-dark)}
+.method-POST{background:var(--blue-light);color:var(--blue-dark)}
+.method-PUT{background:var(--amber-light);color:var(--amber-dark)}
+.method-DELETE{background:var(--red-light);color:var(--red-dark)}
+.endpoint-path{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:var(--text);flex:1;word-break:break-all}
+.endpoint-desc{font-size:12px;color:var(--text3);font-weight:600;white-space:nowrap}
+.endpoint-body{padding:16px 18px}
+
+/* CODE BLOCK */
+.code-block{background:var(--code-bg);border-radius:var(--r);overflow:hidden;margin:12px 0;position:relative}
+.code-block-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:var(--code-bg2);border-bottom:1px solid rgba(255,255,255,.06)}
+.code-lang{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px}
+.copy-btn{background:rgba(255,255,255,.08);border:none;color:#94a3b8;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;cursor:pointer;font-family:'Nunito',sans-serif;transition:all .15s;display:flex;align-items:center;gap:4px}
+.copy-btn:hover{background:rgba(255,255,255,.15);color:#e2e8f0}
+pre{margin:0;padding:16px;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#334155 transparent}
+pre::-webkit-scrollbar{height:4px}
+pre::-webkit-scrollbar-track{background:transparent}
+pre::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
+code{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;color:var(--code-text)}
+.token-key{color:#7dd3fc}
+.token-str{color:#86efac}
+.token-num{color:#fb923c}
+.token-bool{color:#f472b6}
+.token-url{color:#a78bfa}
+.token-cmt{color:#475569;font-style:italic}
+.token-mth{color:#f87171;font-weight:600}
+.token-hdr{color:#fbbf24}
+
+/* PARAMS TABLE */
+.params-table{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0 16px}
+.params-table th{text-align:left;font-size:10px;font-weight:900;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:6px 10px;background:var(--bg3);border-bottom:1px solid var(--border)}
+.params-table td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text2)}
+.params-table tr:last-child td{border-bottom:none}
+.param-name{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--primary)}
+.param-type{font-size:10px;font-weight:800;padding:2px 6px;border-radius:5px;background:var(--bg3);color:var(--text3)}
+.param-req{font-size:10px;font-weight:800;padding:2px 6px;border-radius:5px;background:var(--red-light);color:var(--red-dark)}
+.param-opt{font-size:10px;font-weight:800;padding:2px 6px;border-radius:5px;background:var(--bg3);color:var(--text3)}
+
+/* ALERT BOX */
+.alert-info{background:var(--blue-light);border:1px solid #bfdbfe;border-radius:var(--r);padding:12px 14px;font-size:13px;font-weight:700;color:var(--blue-dark);margin:12px 0;display:flex;align-items:flex-start;gap:9px;line-height:1.5}
+.alert-warn{background:var(--amber-light);border:1px solid #fde68a;border-radius:var(--r);padding:12px 14px;font-size:13px;font-weight:700;color:var(--amber-dark);margin:12px 0;display:flex;align-items:flex-start;gap:9px;line-height:1.5}
+
+/* BASE URL BOX */
+.base-url-box{background:var(--code-bg);border-radius:var(--r-lg);padding:18px 20px;margin:16px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.base-url-label{font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.base-url-value{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--code-text);word-break:break-all;flex:1}
+.base-url-value .slug{color:#a78bfa;font-weight:600}
+
+/* STATUS TABLE */
+.status-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin:10px 0}
+.status-row{display:flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px}
+.status-code{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;min-width:36px}
+.status-code.s2{color:var(--green-dark)}
+.status-code.s4{color:var(--amber-dark)}
+.status-code.s5{color:var(--red-dark)}
+.status-msg{font-size:12px;font-weight:700;color:var(--text2)}
+
+/* MOBILE */
+@media(max-width:768px){
+  .sidebar{display:none}
+  .content{padding:20px 16px 40px}
+  .doc-h1{font-size:22px}
+  .endpoint-desc{display:none}
+}
+@media(min-width:1200px){
+  .content{padding:40px 60px 80px}
+  .sidebar{width:280px}
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="tb-left">
+    <a href="/" class="back-btn"><i class="ti ti-arrow-left"></i> Inicio</a>
+    <div class="logo-area">
+      <div class="logo-icon"><i class="ti ti-api"></i></div>
+      <div>
+        <div class="logo-name">API Reference</div>
+        <div class="logo-sub">StockFlow REST API</div>
+      </div>
+    </div>
+    <span class="api-badge">v1</span>
+  </div>
+  <a href="/users" style="text-decoration:none;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:800;color:var(--primary)">
+    <i class="ti ti-key"></i> Mis API Keys
+  </a>
+</div>
+
+<div class="layout">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="nav-section">
+    <div class="nav-section-label">Introducción</div>
+    <a class="nav-link active" onclick="scrollToSection(this,'intro')"><i class="ti ti-book" style="font-size:14px"></i> Inicio rápido</a>
+    <a class="nav-link" onclick="scrollToSection(this,'auth')"><i class="ti ti-shield-lock" style="font-size:14px"></i> Autenticación</a>
+    <a class="nav-link" onclick="scrollToSection(this,'baseurl')"><i class="ti ti-link" style="font-size:14px"></i> URL Base</a>
+    <a class="nav-link" onclick="scrollToSection(this,'errors')"><i class="ti ti-alert-circle" style="font-size:14px"></i> Errores</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label"><span style="color:#4c1d95">OMS</span> — Orders</div>
+    <a class="nav-link" onclick="scrollToSection(this,'oms-list')"><span class="nav-method m-get">GET</span> Listar órdenes</a>
+    <a class="nav-link" onclick="scrollToSection(this,'oms-get')"><span class="nav-method m-get">GET</span> Obtener orden</a>
+    <a class="nav-link" onclick="scrollToSection(this,'oms-post')"><span class="nav-method m-post">POST</span> Crear orden</a>
+    <a class="nav-link" onclick="scrollToSection(this,'oms-put')"><span class="nav-method m-put">PUT</span> Actualizar orden</a>
+    <a class="nav-link" onclick="scrollToSection(this,'oms-del')"><span class="nav-method m-del">DEL</span> Eliminar orden</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label"><span style="color:#065f46">WMS</span> — Warehouse</div>
+    <a class="nav-link" onclick="scrollToSection(this,'wms-prod-list')"><span class="nav-method m-get">GET</span> Listar productos</a>
+    <a class="nav-link" onclick="scrollToSection(this,'wms-prod-get')"><span class="nav-method m-get">GET</span> Obtener producto</a>
+    <a class="nav-link" onclick="scrollToSection(this,'wms-prod-post')"><span class="nav-method m-post">POST</span> Crear producto</a>
+    <a class="nav-link" onclick="scrollToSection(this,'wms-prod-put')"><span class="nav-method m-put">PUT</span> Actualizar producto</a>
+    <a class="nav-link" onclick="scrollToSection(this,'wms-prod-del')"><span class="nav-method m-del">DEL</span> Eliminar producto</a>
+    <a class="nav-link" onclick="scrollToSection(this,'wms-kits')"><span class="nav-method m-get">GET</span> Kits</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label"><span style="color:#78350f">SHM</span> — Shipments</div>
+    <a class="nav-link" onclick="scrollToSection(this,'shm-list')"><span class="nav-method m-get">GET</span> Listar envíos</a>
+    <a class="nav-link" onclick="scrollToSection(this,'shm-get')"><span class="nav-method m-get">GET</span> Obtener envío</a>
+    <a class="nav-link" onclick="scrollToSection(this,'shm-put')"><span class="nav-method m-put">PUT</span> Actualizar envío</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label"><span style="color:#1e40af">IAM</span> — Access</div>
+    <a class="nav-link" onclick="scrollToSection(this,'iam-users')"><span class="nav-method m-get">GET</span> Usuarios</a>
+    <a class="nav-link" onclick="scrollToSection(this,'iam-logs')"><span class="nav-method m-get">GET</span> Audit logs</a>
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="content">
+
+  <!-- ─── INTRO ─── -->
+  <div class="doc-section" id="intro">
+    <div class="doc-section-header">
+      <div class="doc-section-chip chip-intro"><i class="ti ti-rocket" style="font-size:13px"></i> Introducción</div>
+      <h1 class="doc-h1">StockFlow REST API</h1>
+      <p class="doc-p">API pública para integrar tu sistema de inventario, pedidos, envíos y más con aplicaciones externas — ERP, ecommerce, automatizaciones o tu propio frontend.</p>
+    </div>
+
+    <div class="alert-info"><i class="ti ti-info-circle" style="font-size:18px;flex-shrink:0"></i>
+      <span>Todas las rutas requieren autenticación mediante <strong>API Key + API Secret</strong>. Crea tus credenciales en <a href="/users" style="color:var(--blue-dark);font-weight:900">Usuarios → API Keys</a>.</span>
+    </div>
+
+    <h3 class="doc-h3">Ejemplo rápido — Listar órdenes</h3>
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-lang">cURL</span>
+        <button class="copy-btn" onclick="copyCode(this)"><i class="ti ti-copy" style="font-size:12px"></i> Copiar</button>
+      </div>
+      <pre><code><span class="token-mth">curl</span> https://bichon-labs.vercel.app/api/v1/<span class="token-url">harmony</span>/OMS/orders \
+  -H <span class="token-str">"X-API-Key: sfk_a1b2c3d4e5f6..."</span> \
+  -H <span class="token-str">"X-API-Secret: 4f3a2b1c..."</span></code></pre>
+    </div>
+  </div>
+
+  <div class="doc-divider"></div>
+
+  <!-- ─── AUTH ─── -->
+  <div class="doc-section" id="auth">
+    <div class="doc-section-chip chip-auth"><i class="ti ti-shield-lock" style="font-size:13px"></i> Autenticación</div>
+    <h2 class="doc-h2">API Keys</h2>
+    <p class="doc-p">Cada solicitud debe incluir dos headers HTTP: el identificador público (<code style="background:var(--bg3);padding:1px 5px;border-radius:4px;font-family:monospace">X-API-Key</code>) y el secreto (<code style="background:var(--bg3);padding:1px 5px;border-radius:4px;font-family:monospace">X-API-Secret</code>).</p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-lang">HTTP Headers</span>
+        <button class="copy-btn" onclick="copyCode(this)"><i class="ti ti-copy" style="font-size:12px"></i> Copiar</button>
+      </div>
+      <pre><code><span class="token-hdr">X-API-Key</span>: sfk_a1b2c3d4e5f6a1b2c3d4e5f6
+<span class="token-hdr">X-API-Secret</span>: 4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c</code></pre>
+    </div>
+
+    <div class="alert-warn"><i class="ti ti-alert-triangle" style="font-size:18px;flex-shrink:0"></i>
+      <span>El <strong>API Secret</strong> se muestra una única vez al crearse. Guárdalo en un lugar seguro — no puede recuperarse. Si lo pierdes, revoca la key y crea una nueva.</span>
+    </div>
+
+    <h3 class="doc-h3">Cómo crear API Keys</h3>
+    <p class="doc-p">Las API Keys se crean por usuario, dentro de la sección <a href="/users" style="color:var(--primary);font-weight:900">Usuarios</a>. Cada usuario puede tener hasta 10 keys activas. Las keys heredan los permisos del usuario (admin o staff).</p>
+
+    <h3 class="doc-h3">Seguridad recomendada</h3>
+    <p class="doc-p">• Nunca expongas el API Secret en código front-end o repos públicos.<br>
+    • Usa variables de entorno o vaults para almacenarlos.<br>
+    • Crea keys específicas por integración — así puedes revocar accesos individualmente.<br>
+    • Revisa el campo <code style="background:var(--bg3);padding:1px 5px;border-radius:4px;font-family:monospace">last_used_at</code> para detectar keys inactivas.</p>
+  </div>
+
+  <div class="doc-divider"></div>
+
+  <!-- ─── BASE URL ─── -->
+  <div class="doc-section" id="baseurl">
+    <div class="doc-section-chip chip-intro"><i class="ti ti-link" style="font-size:13px"></i> URL Base</div>
+    <h2 class="doc-h2">Estructura de rutas</h2>
+    <p class="doc-p">Todas las rutas de la API v1 incluyen el <strong>slug de tu cuenta</strong> (nombre abreviado del cliente), el <strong>microservicio</strong> y el <strong>recurso</strong>.</p>
+
+    <div class="base-url-box">
+      <span class="base-url-label">Base URL</span>
+      <span class="base-url-value">https://bichon-labs.vercel.app/api/v1/<span class="slug">{account}</span>/<span class="slug">{microservicio}</span>/{recurso}</span>
+    </div>
+
+    <table class="params-table">
+      <tr><th>Segmento</th><th>Descripción</th><th>Ejemplo</th></tr>
+      <tr><td><span class="param-name">{account}</span></td><td>Slug de tu cuenta/tienda</td><td><code style="font-family:monospace;font-size:12px">harmony</code></td></tr>
+      <tr><td><span class="param-name">{microservicio}</span></td><td>OMS / WMS / SHM / IAM</td><td><code style="font-family:monospace;font-size:12px">OMS</code></td></tr>
+      <tr><td><span class="param-name">{recurso}</span></td><td>Nombre del recurso</td><td><code style="font-family:monospace;font-size:12px">orders</code></td></tr>
+    </table>
+
+    <h3 class="doc-h3">Microservicios disponibles</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0">
+      <div style="background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="width:32px;height:32px;background:#ede9ff;border-radius:9px;display:flex;align-items:center;justify-content:center"><i class="ti ti-shopping-cart" style="color:#4c1d95;font-size:16px"></i></div><strong>OMS</strong></div>
+        <div style="font-size:12px;color:var(--text3);font-weight:700">Order Management System</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Órdenes de venta y compra</div>
+      </div>
+      <div style="background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="width:32px;height:32px;background:#e6faf4;border-radius:9px;display:flex;align-items:center;justify-content:center"><i class="ti ti-box" style="color:#065f46;font-size:16px"></i></div><strong>WMS</strong></div>
+        <div style="font-size:12px;color:var(--text3);font-weight:700">Warehouse Management System</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Productos, KITs y stock</div>
+      </div>
+      <div style="background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="width:32px;height:32px;background:#fffbeb;border-radius:9px;display:flex;align-items:center;justify-content:center"><i class="ti ti-truck-delivery" style="color:#78350f;font-size:16px"></i></div><strong>SHM</strong></div>
+        <div style="font-size:12px;color:var(--text3);font-weight:700">Shipment Management</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Envíos, couriers y tracking</div>
+      </div>
+      <div style="background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="width:32px;height:32px;background:#eff6ff;border-radius:9px;display:flex;align-items:center;justify-content:center"><i class="ti ti-users" style="color:#1e40af;font-size:16px"></i></div><strong>IAM</strong></div>
+        <div style="font-size:12px;color:var(--text3);font-weight:700">Identity & Access Management</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Usuarios y registros de actividad</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-divider"></div>
+
+  <!-- ═══ OMS ═══ -->
+  <div class="doc-section" id="oms">
+    <div class="doc-section-chip chip-oms"><i class="ti ti-shopping-cart" style="font-size:13px"></i> OMS — Order Management</div>
+    <h2 class="doc-h2">Órdenes</h2>
+    <p class="doc-p">Gestión completa de órdenes de venta: creación, consulta, actualización de estado y eliminación.</p>
+
+    <!-- LIST ORDERS -->
+    <div id="oms-list" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-GET">GET</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/OMS/orders</span>
+        <span class="endpoint-desc">Listar órdenes</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="doc-p">Retorna todas las órdenes del tenant, ordenadas por fecha descendente.</p>
+        <h3 class="doc-h3">Query params opcionales</h3>
+        <table class="params-table">
+          <tr><th>Parámetro</th><th>Tipo</th><th>Descripción</th></tr>
+          <tr><td><span class="param-name">status</span></td><td><span class="param-type">string</span></td><td>Filtrar por estado: <code style="font-family:monospace;font-size:11px">pending</code> · <code style="font-family:monospace;font-size:11px">processing</code> · <code style="font-family:monospace;font-size:11px">done</code> · <code style="font-family:monospace;font-size:11px">cancelled</code></td></tr>
+        </table>
+        <h3 class="doc-h3">Respuesta</h3>
+        <div class="code-block">
+          <div class="code-block-header"><span class="code-lang">JSON Array</span><button class="copy-btn" onclick="copyCode(this)"><i class="ti ti-copy" style="font-size:12px"></i> Copiar</button></div>
+          <pre><code>[
+  {
+    <span class="token-key">"id"</span>: <span class="token-str">"ORD-001"</span>,
+    <span class="token-key">"cliente"</span>: <span class="token-str">"María González"</span>,
+    <span class="token-key">"telefono"</span>: <span class="token-str">"+56 9 1234 5678"</span>,
+    <span class="token-key">"total"</span>: <span class="token-num">139000</span>,
+    <span class="token-key">"fecha"</span>: <span class="token-str">"2026-05-30"</span>,
+    <span class="token-key">"status"</span>: <span class="token-str">"pending"</span>,
+    <span class="token-key">"items"</span>: [{ <span class="token-key">"sku"</span>: <span class="token-str">"KIT-001"</span>, <span class="token-key">"qty"</span>: <span class="token-num">1</span>, <span class="token-key">"type"</span>: <span class="token-str">"kit"</span> }],
+    <span class="token-key">"delivery"</span>: { <span class="token-key">"method_type"</span>: <span class="token-str">"home_delivery"</span> },
+    <span class="token-key">"created_at"</span>: <span class="token-str">"2026-05-30T12:00:00Z"</span>
+  }
+]</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- GET ONE ORDER -->
+    <div id="oms-get" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-GET">GET</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/OMS/orders/<span style="color:var(--amber-dark)">:id</span></span>
+        <span class="endpoint-desc">Obtener orden por ID</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="doc-p">Retorna el detalle de una orden específica incluyendo estado del envío asociado.</p>
+        <div class="code-block">
+          <div class="code-block-header"><span class="code-lang">cURL</span><button class="copy-btn" onclick="copyCode(this)"><i class="ti ti-copy" style="font-size:12px"></i> Copiar</button></div>
+          <pre><code><span class="token-mth">curl</span> https://bichon-labs.vercel.app/api/v1/harmony/OMS/orders/ORD-001 \
+  -H <span class="token-str">"X-API-Key: sfk_..."</span> \
+  -H <span class="token-str">"X-API-Secret: ..."</span></code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- POST ORDER -->
+    <div id="oms-post" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-POST">POST</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/OMS/orders</span>
+        <span class="endpoint-desc">Crear orden</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="doc-p">Crea una nueva orden y descuenta stock automáticamente. También crea el envío asociado si se especifica delivery.</p>
+        <h3 class="doc-h3">Body (application/json)</h3>
+        <table class="params-table">
+          <tr><th>Campo</th><th>Tipo</th><th>Req.</th><th>Descripción</th></tr>
+          <tr><td><span class="param-name">cliente</span></td><td><span class="param-type">string</span></td><td><span class="param-req">req</span></td><td>Nombre del cliente</td></tr>
+          <tr><td><span class="param-name">telefono</span></td><td><span class="param-type">string</span></td><td><span class="param-opt">opt</span></td><td>Teléfono de contacto</td></tr>
+          <tr><td><span class="param-name">fecha</span></td><td><span class="param-type">string</span></td><td><span class="param-req">req</span></td><td>Fecha en formato YYYY-MM-DD</td></tr>
+          <tr><td><span class="param-name">items</span></td><td><span class="param-type">array</span></td><td><span class="param-req">req</span></td><td>Array de <code style="font-family:monospace;font-size:11px">{ sku, qty, type }</code> (type: product | kit)</td></tr>
+          <tr><td><span class="param-name">delivery</span></td><td><span class="param-type">object</span></td><td><span class="param-opt">opt</span></td><td>Objeto de entrega (ver abajo)</td></tr>
+          <tr><td><span class="param-name">dedicatoria</span></td><td><span class="param-type">string</span></td><td><span class="param-opt">opt</span></td><td>Mensaje dedicatoria</td></tr>
+        </table>
+        <div class="code-block">
+          <div class="code-block-header"><span class="code-lang">JSON Body</span><button class="copy-btn" onclick="copyCode(this)"><i class="ti ti-copy" style="font-size:12px"></i> Copiar</button></div>
+          <pre><code>{
+  <span class="token-key">"cliente"</span>: <span class="token-str">"María González"</span>,
+  <span class="token-key">"telefono"</span>: <span class="token-str">"+56912345678"</span>,
+  <span class="token-key">"fecha"</span>: <span class="token-str">"2026-05-30"</span>,
+  <span class="token-key">"items"</span>: [
+    { <span class="token-key">"sku"</span>: <span class="token-str">"KIT-001"</span>, <span class="token-key">"qty"</span>: <span class="token-num">2</span>, <span class="token-key">"type"</span>: <span class="token-str">"kit"</span> },
+    { <span class="token-key">"sku"</span>: <span class="token-str">"PRD-001"</span>, <span class="token-key">"qty"</span>: <span class="token-num">1</span>, <span class="token-key">"type"</span>: <span class="token-str">"product"</span> }
+  ],
+  <span class="token-key">"delivery"</span>: {
+    <span class="token-key">"method_type"</span>: <span class="token-str">"home_delivery"</span>,
+    <span class="token-key">"address_street"</span>: <span class="token-str">"Av. Providencia 1234"</span>,
+    <span class="token-key">"address_city"</span>: <span class="token-str">"Santiago"</span>
+  }
+}</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- PUT ORDER -->
+    <div id="oms-put" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-PUT">PUT</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/OMS/orders/<span style="color:var(--amber-dark)">:id</span></span>
+        <span class="endpoint-desc">Actualizar orden</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="doc-p">Actualiza el estado u otros campos de una orden existente.</p>
+        <table class="params-table">
+          <tr><th>Campo</th><th>Tipo</th><th>Descripción</th></tr>
+          <tr><td><span class="param-name">status</span></td><td><span class="param-type">string</span></td><td><code style="font-family:monospace;font-size:11px">pending</code> · <code style="font-family:monospace;font-size:11px">processing</code> · <code style="font-family:monospace;font-size:11px">done</code> · <code style="font-family:monospace;font-size:11px">cancelled</code></td></tr>
+          <tr><td><span class="param-name">dedicatoria</span></td><td><span class="param-type">string</span></td><td>Mensaje dedicatoria</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- DELETE ORDER -->
+    <div id="oms-del" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-DELETE">DELETE</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/OMS/orders/<span style="color:var(--amber-dark)">:id</span></span>
+        <span class="endpoint-desc">Eliminar orden</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="doc-p">Elimina la orden. El stock <strong>no se devuelve</strong> automáticamente.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-divider"></div>
+
+  <!-- ═══ WMS ═══ -->
+  <div class="doc-section" id="wms">
+    <div class="doc-section-chip chip-wms"><i class="ti ti-box" style="font-size:13px"></i> WMS — Warehouse Management</div>
+    <h2 class="doc-h2">Productos</h2>
+    <p class="doc-p">Catálogo de productos con stock, precios y control de umbral de alerta.</p>
+
+    <div id="wms-prod-list" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-GET">GET</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/WMS/products</span>
+        <span class="endpoint-desc">Listar productos</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="doc-p">Retorna todos los productos del tenant con su stock actual.</p>
+        <div class="code-block">
+          <div class="code-block-header"><span class="code-lang">JSON Array</span><button class="copy-btn" onclick="copyCode(this)"><i class="ti ti-copy" style="font-size:12px"></i> Copiar</button></div>
+          <pre><code>[
+  {
+    <span class="token-key">"sku"</span>: <span class="token-str">"PRD-001"</span>,
+    <span class="token-key">"name"</span>: <span class="token-str">"Cámara IP 1080p"</span>,
+    <span class="token-key">"brand"</span>: <span class="token-str">"Hikvision"</span>,
+    <span class="token-key">"cat"</span>: <span class="token-str">"Seguridad"</span>,
+    <span class="token-key">"tipo"</span>: <span class="token-str">"producto"</span>,
+    <span class="token-key">"cost"</span>: <span class="token-num">45000</span>,
+    <span class="token-key">"price"</span>: <span class="token-num">79000</span>,
+    <span class="token-key">"stock"</span>: <span class="token-num">24</span>,
+    <span class="token-key">"threshold"</span>: <span class="token-num">10</span>
+  }
+]</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <div id="wms-prod-get" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-GET">GET</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/WMS/products/<span style="color:var(--amber-dark)">:sku</span></span>
+        <span class="endpoint-desc">Obtener producto</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="doc-p">Retorna el detalle de un producto por su SKU.</p>
+      </div>
+    </div>
+
+    <div id="wms-prod-post" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-POST">POST</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/WMS/products</span>
+        <span class="endpoint-desc">Crear producto</span>
+      </div>
+      <div class="endpoint-body">
+        <table class="params-table">
+          <tr><th>Campo</th><th>Tipo</th><th>Req.</th><th>Descripción</th></tr>
+          <tr><td><span class="param-name">name</span></td><td><span class="param-type">string</span></td><td><span class="param-req">req</span></td><td>Nombre del producto</td></tr>
+          <tr><td><span class="param-name">brand</span></td><td><span class="param-type">string</span></td><td><span class="param-opt">opt</span></td><td>Marca</td></tr>
+          <tr><td><span class="param-name">cat</span></td><td><span class="param-type">string</span></td><td><span class="param-opt">opt</span></td><td>Categoría</td></tr>
+          <tr><td><span class="param-name">tipo</span></td><td><span class="param-type">string</span></td><td><span class="param-opt">opt</span></td><td><code style="font-family:monospace;font-size:11px">producto</code> · <code style="font-family:monospace;font-size:11px">insumo</code> · <code style="font-family:monospace;font-size:11px">ambos</code></td></tr>
+          <tr><td><span class="param-name">cost</span></td><td><span class="param-type">integer</span></td><td><span class="param-opt">opt</span></td><td>Costo unitario</td></tr>
+          <tr><td><span class="param-name">price</span></td><td><span class="param-type">integer</span></td><td><span class="param-opt">opt</span></td><td>Precio de venta</td></tr>
+          <tr><td><span class="param-name">stock</span></td><td><span class="param-type">integer</span></td><td><span class="param-opt">opt</span></td><td>Stock inicial</td></tr>
+          <tr><td><span class="param-name">threshold</span></td><td><span class="param-type">integer</span></td><td><span class="param-opt">opt</span></td><td>Umbral de alerta de stock bajo</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div id="wms-prod-put" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-PUT">PUT</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/WMS/products/<span style="color:var(--amber-dark)">:sku</span></span>
+        <span class="endpoint-desc">Actualizar producto</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="doc-p">Actualiza nombre, precios, stock o threshold. Envía solo los campos a modificar.</p>
+      </div>
+    </div>
+
+    <div id="wms-prod-del" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-DELETE">DELETE</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/WMS/products/<span style="color:var(--amber-dark)">:sku</span></span>
+        <span class="endpoint-desc">Eliminar producto</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="doc-p">Elimina el producto del catálogo. Solo disponible para admins.</p>
+      </div>
+    </div>
+
+    <h2 class="doc-h2" style="margin-top:32px">KITs</h2>
+    <p class="doc-p">Bundles compuestos por varios productos. Al vender un KIT, se descuenta el stock de cada componente.</p>
+
+    <div id="wms-kits" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-GET">GET</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/WMS/kits</span>
+        <span class="endpoint-desc">Listar KITs</span>
+      </div>
+      <div class="endpoint-body">
+        <div class="code-block">
+          <div class="code-block-header"><span class="code-lang">JSON Array</span><button class="copy-btn" onclick="copyCode(this)"><i class="ti ti-copy" style="font-size:12px"></i> Copiar</button></div>
+          <pre><code>[
+  {
+    <span class="token-key">"sku"</span>: <span class="token-str">"KIT-001"</span>,
+    <span class="token-key">"name"</span>: <span class="token-str">"Kit Seguridad Básico"</span>,
+    <span class="token-key">"price"</span>: <span class="token-num">139000</span>,
+    <span class="token-key">"items"</span>: [
+      { <span class="token-key">"sku"</span>: <span class="token-str">"PRD-001"</span>, <span class="token-key">"qty"</span>: <span class="token-num">1</span> },
+      { <span class="token-key">"sku"</span>: <span class="token-str">"PRD-002"</span>, <span class="token-key">"qty"</span>: <span class="token-num">1</span> }
+    ]
+  }
+]</code></pre>
+        </div>
+        <div class="alert-info"><i class="ti ti-info-circle" style="font-size:16px;flex-shrink:0"></i>
+          Los mismos endpoints GET/:sku, POST, PUT, DELETE están disponibles en <code style="font-family:monospace;font-size:11px">/WMS/kits/:sku</code> con los mismos campos que productos.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-divider"></div>
+
+  <!-- ═══ SHM ═══ -->
+  <div class="doc-section" id="shm">
+    <div class="doc-section-chip chip-shm"><i class="ti ti-truck-delivery" style="font-size:13px"></i> SHM — Shipment Management</div>
+    <h2 class="doc-h2">Envíos</h2>
+    <p class="doc-p">Seguimiento de envíos asociados a órdenes. Soporta múltiples métodos de entrega y couriers.</p>
+
+    <div id="shm-list" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-GET">GET</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/SHM/shipments</span>
+        <span class="endpoint-desc">Listar envíos</span>
+      </div>
+      <div class="endpoint-body">
+        <div class="code-block">
+          <div class="code-block-header"><span class="code-lang">JSON Array</span><button class="copy-btn" onclick="copyCode(this)"><i class="ti ti-copy" style="font-size:12px"></i> Copiar</button></div>
+          <pre><code>[
+  {
+    <span class="token-key">"id"</span>: <span class="token-str">"SHP-001"</span>,
+    <span class="token-key">"order_id"</span>: <span class="token-str">"ORD-001"</span>,
+    <span class="token-key">"tracking_code"</span>: <span class="token-str">"CHX12345678"</span>,
+    <span class="token-key">"recipient_name"</span>: <span class="token-str">"María González"</span>,
+    <span class="token-key">"address_street"</span>: <span class="token-str">"Av. Providencia 1234"</span>,
+    <span class="token-key">"address_city"</span>: <span class="token-str">"Santiago"</span>,
+    <span class="token-key">"status"</span>: <span class="token-str">"ready"</span>,
+    <span class="token-key">"scheduled_date"</span>: <span class="token-str">"2026-05-31"</span>
+  }
+]</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <div id="shm-get" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-GET">GET</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/SHM/shipments/<span style="color:var(--amber-dark)">:id</span></span>
+        <span class="endpoint-desc">Obtener envío</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="doc-p">Retorna el detalle de un envío incluyendo su historial de estado.</p>
+      </div>
+    </div>
+
+    <div id="shm-put" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-PUT">PUT</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/SHM/shipments/<span style="color:var(--amber-dark)">:id</span></span>
+        <span class="endpoint-desc">Actualizar envío</span>
+      </div>
+      <div class="endpoint-body">
+        <table class="params-table">
+          <tr><th>Campo</th><th>Tipo</th><th>Descripción</th></tr>
+          <tr><td><span class="param-name">status</span></td><td><span class="param-type">string</span></td><td><code style="font-family:monospace;font-size:11px">ready</code> · <code style="font-family:monospace;font-size:11px">in_transit</code> · <code style="font-family:monospace;font-size:11px">delivered</code> · <code style="font-family:monospace;font-size:11px">failed</code> · <code style="font-family:monospace;font-size:11px">returned</code></td></tr>
+          <tr><td><span class="param-name">tracking_code</span></td><td><span class="param-type">string</span></td><td>Código de seguimiento del courier</td></tr>
+          <tr><td><span class="param-name">notes</span></td><td><span class="param-type">string</span></td><td>Notas internas</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-divider"></div>
+
+  <!-- ═══ IAM ═══ -->
+  <div class="doc-section" id="iam">
+    <div class="doc-section-chip chip-iam"><i class="ti ti-users" style="font-size:13px"></i> IAM — Identity & Access</div>
+    <h2 class="doc-h2">Usuarios y Logs</h2>
+    <p class="doc-p">Consulta de usuarios del tenant y registro de actividad. Solo admins pueden acceder.</p>
+
+    <div id="iam-users" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-GET">GET</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/IAM/users</span>
+        <span class="endpoint-desc">Listar usuarios</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="doc-p">Retorna todos los usuarios del tenant con su rol y estado. Requiere API key de usuario <strong>admin</strong>.</p>
+      </div>
+    </div>
+
+    <div id="iam-logs" class="endpoint">
+      <div class="endpoint-header">
+        <span class="method-badge method-GET">GET</span>
+        <span class="endpoint-path">/api/v1/<span style="color:var(--primary)">:account</span>/IAM/logs</span>
+        <span class="endpoint-desc">Audit logs</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="doc-p">Registro de actividad del tenant. Soporta filtros y paginación.</p>
+        <table class="params-table">
+          <tr><th>Parámetro</th><th>Tipo</th><th>Descripción</th></tr>
+          <tr><td><span class="param-name">entity_type</span></td><td><span class="param-type">string</span></td><td>Filtrar por tipo: <code style="font-family:monospace;font-size:11px">orden</code> · <code style="font-family:monospace;font-size:11px">producto</code> · <code style="font-family:monospace;font-size:11px">usuario</code> · <code style="font-family:monospace;font-size:11px">api_key</code></td></tr>
+          <tr><td><span class="param-name">actor</span></td><td><span class="param-type">string</span></td><td>Filtrar por usuario que realizó la acción</td></tr>
+          <tr><td><span class="param-name">limit</span></td><td><span class="param-type">integer</span></td><td>Registros por página (default: 60, max: 500)</td></tr>
+          <tr><td><span class="param-name">offset</span></td><td><span class="param-type">integer</span></td><td>Desplazamiento para paginación</td></tr>
+        </table>
+        <div class="code-block">
+          <div class="code-block-header"><span class="code-lang">JSON</span><button class="copy-btn" onclick="copyCode(this)"><i class="ti ti-copy" style="font-size:12px"></i> Copiar</button></div>
+          <pre><code>{
+  <span class="token-key">"rows"</span>: [
+    {
+      <span class="token-key">"id"</span>: <span class="token-str">"LOG-001"</span>,
+      <span class="token-key">"actor"</span>: <span class="token-str">"jperez"</span>,
+      <span class="token-key">"action"</span>: <span class="token-str">"orden.creada"</span>,
+      <span class="token-key">"entity_type"</span>: <span class="token-str">"orden"</span>,
+      <span class="token-key">"entity_id"</span>: <span class="token-str">"ORD-042"</span>,
+      <span class="token-key">"details"</span>: {},
+      <span class="token-key">"created_at"</span>: <span class="token-str">"2026-05-30T12:00:00Z"</span>
+    }
+  ],
+  <span class="token-key">"total"</span>: <span class="token-num">128</span>,
+  <span class="token-key">"limit"</span>: <span class="token-num">60</span>,
+  <span class="token-key">"offset"</span>: <span class="token-num">0</span>
+}</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-divider"></div>
+
+  <!-- ═══ ERRORS ═══ -->
+  <div class="doc-section" id="errors">
+    <div class="doc-section-chip chip-intro"><i class="ti ti-alert-circle" style="font-size:13px"></i> Errores</div>
+    <h2 class="doc-h2">Códigos de respuesta</h2>
+    <p class="doc-p">La API usa códigos HTTP estándar. Los errores incluyen siempre un campo <code style="background:var(--bg3);padding:1px 5px;border-radius:4px;font-family:monospace">error</code> descriptivo.</p>
+
+    <div class="status-grid">
+      <div class="status-row"><span class="status-code s2">200</span><span class="status-msg">OK — Éxito</span></div>
+      <div class="status-row"><span class="status-code s2">201</span><span class="status-msg">Created — Recurso creado</span></div>
+      <div class="status-row"><span class="status-code s4">400</span><span class="status-msg">Bad Request — Datos inválidos</span></div>
+      <div class="status-row"><span class="status-code s4">401</span><span class="status-msg">Unauthorized — Sin credenciales</span></div>
+      <div class="status-row"><span class="status-code s4">403</span><span class="status-msg">Forbidden — Sin permisos</span></div>
+      <div class="status-row"><span class="status-code s4">404</span><span class="status-msg">Not Found — Recurso no existe</span></div>
+      <div class="status-row"><span class="status-code s4">409</span><span class="status-msg">Conflict — Ya existe (SKU duplicado)</span></div>
+      <div class="status-row"><span class="status-code s5">500</span><span class="status-msg">Server Error — Error interno</span></div>
+    </div>
+
+    <div class="code-block" style="margin-top:16px">
+      <div class="code-block-header"><span class="code-lang">Error Response</span><button class="copy-btn" onclick="copyCode(this)"><i class="ti ti-copy" style="font-size:12px"></i> Copiar</button></div>
+      <pre><code>{
+  <span class="token-key">"error"</span>: <span class="token-str">"Stock insuficiente para PRD-001 (disponible: 2, requerido: 5)"</span>
+}</code></pre>
+    </div>
+  </div>
+
+</div><!-- /content -->
+</div><!-- /layout -->
+
+<script>
+// Fix #4: pass caller element explicitly — don't rely on global `event`
+function scrollToSection(callerEl, id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  if (callerEl) callerEl.classList.add('active');
+}
+// Backward-compat alias (in case HTML onclick still uses old name)
+function scrollTo(id) { scrollToSection(null, id); }
+
+function copyCode(btn) {
+  const pre = btn.closest('.code-block').querySelector('pre');
+  const text = pre.innerText || pre.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="ti ti-check" style="font-size:12px"></i> ¡Copiado!';
+    btn.style.color = '#86efac';
+    setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; }, 2000);
+  });
+}
+
+// Fix #5: scroll spy — match section ID to nav-link by data attribute, not by index
+const sections = ['intro','auth','baseurl','oms-list','oms-get','oms-post','oms-put','oms-del',
+  'wms-prod-list','wms-prod-get','wms-prod-post','wms-prod-put','wms-prod-del','wms-kits',
+  'shm-list','shm-get','shm-put','iam-users','iam-logs','errors'];
+
+const content = document.querySelector('.content');
+content.addEventListener('scroll', () => {
+  const scrollTop = content.scrollTop + 120;
+  let activeId = sections[0];
+  for (let i = sections.length - 1; i >= 0; i--) {
+    const el = document.getElementById(sections[i]);
+    if (el && el.offsetTop <= scrollTop) { activeId = sections[i]; break; }
+  }
+  // Find the nav-link whose onclick references the active section ID
+  document.querySelectorAll('.nav-link').forEach(l => {
+    const onclick = l.getAttribute('onclick') || '';
+    const matches = onclick.includes("'" + activeId + "'") || onclick.includes('"' + activeId + '"');
+    l.classList.toggle('active', matches);
+  });
+}, { passive: true });
+</script>
+</body>
+</html>

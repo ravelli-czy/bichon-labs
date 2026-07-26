@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow — Usuarios</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f5f6fa;--bg2:#fff;--bg3:#f0f1f7;
+  --text:#1a1a2e;--text2:#5a5b7a;--text3:#9a9bb8;--border:#e4e5f0;
+  --primary:#5b4fff;--primary-light:#ede9ff;--primary-dark:#4035cc;
+  --green:#16c98d;--green-light:#e6faf4;--green-dark:#0da070;
+  --red:#ff4d6d;--red-light:#fff0f3;--red-dark:#cc3a56;
+  --amber:#f59e0b;--amber-light:#fffbeb;--amber-dark:#d97706;
+  --radius:12px;--radius-lg:16px;--shadow:0 2px 12px rgba(91,79,255,.08);
+}
+body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;display:flex;flex-direction:column;max-width:480px;margin:0 auto}
+
+@media(min-width:768px){
+  body{max-width:100%}
+  .topbar{padding:14px 32px}
+  .content{padding:20px 32px 32px}
+  #users-list{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
+  .user-card{margin-bottom:0}
+  .sheet-overlay{align-items:center;justify-content:center}
+  .sheet{max-width:540px;width:100%;border-radius:20px;max-height:88vh}
+  @keyframes up{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+  .sheet-handle{display:none}
+  .fab{right:32px;bottom:28px}
+  #toast{bottom:28px}
+}
+@media(min-width:1200px){
+  .content{padding:24px 48px 40px}
+  #users-list{grid-template-columns:repeat(3,1fr)}
+}
+
+/* ── TOPBAR ─────────────────────────────────────────────────────────── */
+.topbar{background:var(--bg2);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:var(--shadow)}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.back-btn{display:flex;align-items:center;gap:6px;background:var(--bg3);border:none;border-radius:10px;padding:7px 12px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;color:var(--text2);cursor:pointer;text-decoration:none}
+.topbar-logo{display:flex;align-items:center;gap:8px}
+.logo-icon{width:36px;height:36px;background:var(--primary);border-radius:10px;display:flex;align-items:center;justify-content:center}
+.logo-icon i{color:#fff;font-size:20px}
+.logo-title{font-weight:900;font-size:18px;color:var(--primary)}
+.logo-sub{font-size:10px;color:var(--text3);font-weight:600;display:block;line-height:1}
+
+/* ── CONTENT ─────────────────────────────────────────────────────────── */
+.content{flex:1;padding:16px;padding-bottom:100px}
+.section-header{margin-bottom:20px}
+.section-title{font-size:22px;font-weight:900;color:var(--text)}
+.section-sub{font-size:13px;color:var(--text3);font-weight:600;margin-top:2px}
+
+/* ── USER CARDS ──────────────────────────────────────────────────────── */
+.user-card{background:var(--bg2);border-radius:var(--radius-lg);border:1.5px solid var(--border);padding:16px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
+.user-avatar{width:44px;height:44px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:var(--primary);flex-shrink:0;text-transform:uppercase}
+.user-info{flex:1;min-width:0}
+.user-name{font-size:15px;font-weight:900;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-username{font-size:12px;color:var(--text3);font-weight:700;margin-top:1px}
+.user-badges{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:800}
+.badge-admin{background:var(--primary-light);color:var(--primary)}
+.badge-staff{background:var(--bg3);color:var(--text2)}
+.badge-active{background:var(--green-light);color:var(--green-dark)}
+.badge-pending{background:var(--amber-light);color:var(--amber-dark)}
+.user-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.icon-btn{width:34px;height:34px;background:var(--bg3);border:none;border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2);font-size:17px;transition:all .15s}
+.icon-btn:hover{background:var(--border)}
+.icon-btn.danger:hover{background:var(--red-light);color:var(--red)}
+.icon-btn.amber:hover{background:var(--amber-light);color:var(--amber-dark)}
+
+/* ── EMPTY STATE ─────────────────────────────────────────────────────── */
+.empty-state{text-align:center;padding:60px 24px;color:var(--text3)}
+.empty-state i{font-size:48px;margin-bottom:12px;display:block}
+.empty-state p{font-size:14px;font-weight:700}
+
+/* ── LOADING ─────────────────────────────────────────────────────────── */
+.skeleton{background:linear-gradient(90deg,var(--bg3) 25%,var(--border) 50%,var(--bg3) 75%);background-size:200% 100%;animation:shimmer 1.2s infinite;border-radius:var(--radius-lg);height:80px;margin-bottom:10px}
+@keyframes shimmer{to{background-position:-200% 0}}
+
+/* ── FAB ─────────────────────────────────────────────────────────────── */
+.fab{position:fixed;right:16px;bottom:24px;background:var(--primary);color:#fff;border:none;border-radius:16px;padding:14px 20px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:900;cursor:pointer;display:flex;align-items:center;gap:8px;box-shadow:0 6px 24px rgba(91,79,255,.35);z-index:200;transition:all .15s}
+.fab:hover{background:var(--primary-dark);transform:translateY(-2px)}
+
+/* ── SHEET ───────────────────────────────────────────────────────────── */
+.sheet-overlay{position:fixed;inset:0;background:rgba(20,20,40,.45);z-index:400;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.sheet-overlay.open{opacity:1;pointer-events:all}
+.sheet{background:var(--bg2);width:100%;max-height:90vh;border-radius:20px 20px 0 0;overflow-y:auto;transform:translateY(100%);transition:transform .25s cubic-bezier(.32,1,.64,1)}
+.sheet-overlay.open .sheet{transform:translateY(0)}
+.sheet-handle{width:40px;height:4px;background:var(--border);border-radius:4px;margin:12px auto 4px}
+.sheet-head{padding:16px 20px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.sheet-title{font-size:17px;font-weight:900;color:var(--text)}
+.sheet-close{background:var(--bg3);border:none;border-radius:9px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2);font-size:18px}
+.sheet-body{padding:20px}
+
+/* ── FORM ────────────────────────────────────────────────────────────── */
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:11px;font-weight:900;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px}
+.form-input,.form-select{width:100%;background:var(--bg3);border:2px solid var(--border);border-radius:var(--radius);padding:12px 14px;color:var(--text);font-size:15px;font-family:'Nunito',sans-serif;font-weight:700;outline:none;transition:border-color .15s;appearance:none;-webkit-appearance:none}
+.form-input:focus,.form-select:focus{border-color:var(--primary);background:#fff}
+.form-hint{font-size:11px;color:var(--text3);font-weight:600;margin-top:5px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* ── BUTTONS ─────────────────────────────────────────────────────────── */
+.btn{width:100%;padding:13px;border-radius:var(--radius);border:none;font-family:'Nunito',sans-serif;font-weight:900;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .15s}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-primary:disabled{background:var(--text3);cursor:not-allowed}
+.btn-danger{background:var(--red-light);color:var(--red)}
+.btn-danger:hover{background:var(--red);color:#fff}
+.btn-secondary{background:var(--bg3);color:var(--text2)}
+.btn-secondary:hover{background:var(--border)}
+.btn-sm{width:auto;padding:9px 16px;font-size:13px;border-radius:10px}
+
+/* ── ERROR BOX ───────────────────────────────────────────────────────── */
+.error-box{background:var(--red-light);border:1px solid #ffc8d2;border-radius:var(--radius);padding:11px 14px;font-size:13px;font-weight:700;color:var(--red);margin-bottom:14px;display:none;align-items:center;gap:8px}
+.success-box{background:var(--green-light);border:1px solid #b2f0dc;border-radius:var(--radius);padding:11px 14px;font-size:13px;font-weight:700;color:var(--green-dark);margin-bottom:14px;display:none;align-items:center;gap:8px}
+
+/* ── CONFIRM SHEET ───────────────────────────────────────────────────── */
+.confirm-body{padding:24px 20px}
+.confirm-icon{width:56px;height:56px;background:var(--red-light);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:28px}
+.confirm-title{font-size:17px;font-weight:900;text-align:center;margin-bottom:6px}
+.confirm-sub{font-size:13px;color:var(--text3);font-weight:600;text-align:center;margin-bottom:22px;line-height:1.5}
+.confirm-actions{display:flex;gap:10px}
+
+/* ── TOAST ───────────────────────────────────────────────────────────── */
+#toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;padding:11px 20px;border-radius:24px;font-size:13px;font-weight:800;z-index:999;opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap;max-width:90vw}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── EDIT ROLE SELECT (inline) ───────────────────────────────────────── */
+.role-select{background:var(--bg3);border:1.5px solid var(--border);border-radius:8px;padding:4px 8px;font-family:'Nunito',sans-serif;font-size:12px;font-weight:800;color:var(--text2);cursor:pointer;outline:none}
+.role-select:focus{border-color:var(--primary)}
+
+/* ── INVITE LINK BOX ─────────────────────────────────────────────────── */
+.invite-result{background:var(--primary-light);border:1.5px solid var(--primary);border-radius:var(--radius);padding:14px;margin-top:16px;display:none}
+.invite-result-title{font-size:13px;font-weight:900;color:var(--primary);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.invite-url{font-size:11px;color:var(--primary-dark);font-weight:700;word-break:break-all;background:rgba(91,79,255,.08);padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .15s}
+.invite-url:hover{background:rgba(91,79,255,.15)}
+.invite-note{font-size:11px;color:var(--text3);font-weight:600;margin-top:6px}
+
+/* ── API KEYS ─────────────────────────────────────────────────────────── */
+.apikey-row{background:var(--bg3);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;border:1.5px solid var(--border)}
+.apikey-row:last-child{margin-bottom:0}
+.apikey-name{font-size:13px;font-weight:900;color:var(--text)}
+.apikey-id{font-size:11px;font-weight:700;color:var(--text3);font-family:monospace;margin-top:2px}
+.apikey-meta{font-size:10px;color:var(--text3);font-weight:600;margin-top:4px;display:flex;align-items:center;gap:8px}
+.apikey-actions{display:flex;justify-content:flex-end;margin-top:10px}
+.apikey-empty{text-align:center;padding:24px 16px;color:var(--text3);font-size:13px;font-weight:700}
+.secret-box{background:#0f172a;border-radius:var(--radius);padding:14px;margin-top:14px;display:none}
+.secret-box-title{font-size:12px;font-weight:900;color:#f87171;margin-bottom:8px;display:flex;align-items:center;gap:5px}
+.secret-box-title i{font-size:15px}
+.secret-label{font-size:10px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.secret-val{font-family:monospace;font-size:12px;color:#e2e8f0;word-break:break-all;background:rgba(255,255,255,.05);padding:8px 10px;border-radius:7px;cursor:pointer;transition:background .15s;margin-bottom:8px}
+.secret-val:hover{background:rgba(255,255,255,.1)}
+.secret-note{font-size:10px;color:#94a3b8;font-weight:600;line-height:1.5}
+.secret-confirm-btn{display:block;width:100%;margin-top:12px;padding:10px;background:#22c55e;border:none;border-radius:9px;color:#fff;font-family:'Nunito',sans-serif;font-size:13px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s}
+.secret-confirm-btn:hover{background:#16a34a}
+.secret-close-warning{background:#7f1d1d;border-radius:var(--radius);padding:12px 14px;margin-top:10px;display:none;animation:fadeIn .2s}
+.secret-close-warning-title{font-size:12px;font-weight:900;color:#fca5a5;margin-bottom:8px;display:flex;align-items:center;gap:5px}
+.secret-close-warning-actions{display:flex;gap:8px;margin-top:10px}
+.secret-close-warning-actions button{flex:1;padding:8px;border:none;border-radius:8px;font-family:'Nunito',sans-serif;font-size:12px;font-weight:900;cursor:pointer}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <a href="/" class="back-btn">
+      <i class="ti ti-arrow-left"></i> Inicio
+    </a>
+    <div class="topbar-logo">
+      <div class="logo-icon"><i class="ti ti-users"></i></div>
+      <div>
+        <div class="logo-title">Usuarios</div>
+        <span class="logo-sub">Gestión de equipo</span>
+      </div>
+    </div>
+  </div>
+  <a href="/logs" class="icon-btn" title="Registro de actividad" style="text-decoration:none;color:var(--text2)">
+    <i class="ti ti-history"></i>
+  </a>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+  <div class="section-header">
+    <div class="section-title">Equipo</div>
+    <div class="section-sub">Administra los accesos a StockFlow</div>
+  </div>
+
+  <!-- Loading skeletons -->
+  <div id="loading-area">
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton" style="opacity:.5"></div>
+  </div>
+
+  <!-- Users list -->
+  <div id="users-list" style="display:none"></div>
+
+  <!-- Empty state -->
+  <div id="empty-state" class="empty-state" style="display:none">
+    <i class="ti ti-users"></i>
+    <p>No hay usuarios todavía.<br>Crea el primero con el botón +.</p>
+  </div>
+</div>
+
+<!-- FAB -->
+<button class="fab" onclick="openCreate()">
+  <i class="ti ti-plus" style="font-size:20px"></i> Nuevo usuario
+</button>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SHEET: CREAR USUARIO
+══════════════════════════════════════════════════════════════════════ -->
+<div class="sheet-overlay" id="sheet-create" onclick="sheetOutsideClose(event,'sheet-create')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <div class="sheet-title">Nuevo usuario</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-create')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-body">
+      <div class="error-box" id="create-error"><i class="ti ti-alert-circle" style="font-size:18px;flex-shrink:0"></i><span id="create-error-msg"></span></div>
+
+      <div class="form-group">
+        <label class="form-label">Nombre de usuario</label>
+        <input class="form-input" id="new-username" type="text" placeholder="ej: jperez" autocomplete="off">
+        <div class="form-hint">Solo letras, números y guión bajo (3–32 caracteres)</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Correo electrónico</label>
+        <input class="form-input" id="new-email" type="email" placeholder="correo@empresa.com">
+        <div class="form-hint">Se enviará la invitación a esta dirección</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nombre completo <span style="font-size:10px;opacity:.6">(opcional)</span></label>
+        <input class="form-input" id="new-display-name" type="text" placeholder="Juan Pérez">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Rol</label>
+        <select class="form-select" id="new-role">
+          <option value="staff">Staff — acceso estándar</option>
+          <option value="admin">Admin — acceso completo</option>
+        </select>
+      </div>
+
+      <!-- Invite result (shown after creation) -->
+      <div class="invite-result" id="invite-result">
+        <div class="invite-result-title"><i class="ti ti-mail-check"></i> Invitación generada</div>
+        <div class="invite-url" id="invite-url-display" onclick="copyInviteUrl()" title="Clic para copiar"></div>
+        <div class="invite-note" id="invite-note">Válido por 7 días · Clic en el enlace para copiar</div>
+      </div>
+
+      <div style="margin-top:6px">
+        <button class="btn btn-primary" id="create-btn" onclick="doCreate()">
+          <i class="ti ti-send"></i> Crear y enviar invitación
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SHEET: EDITAR USUARIO
+══════════════════════════════════════════════════════════════════════ -->
+<div class="sheet-overlay" id="sheet-edit" onclick="sheetOutsideClose(event,'sheet-edit')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <div class="sheet-title">Editar usuario</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-edit')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-body">
+      <div class="error-box" id="edit-error"><i class="ti ti-alert-circle" style="font-size:18px;flex-shrink:0"></i><span id="edit-error-msg"></span></div>
+
+      <input type="hidden" id="edit-id">
+      <div class="form-group">
+        <label class="form-label">Nombre de usuario</label>
+        <input class="form-input" id="edit-username" type="text" disabled style="opacity:.5;cursor:not-allowed">
+        <div class="form-hint">El nombre de usuario no se puede cambiar</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nombre completo</label>
+        <input class="form-input" id="edit-display-name" type="text" placeholder="Nombre completo">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Rol</label>
+        <select class="form-select" id="edit-role">
+          <option value="staff">Staff — acceso estándar</option>
+          <option value="admin">Admin — acceso completo</option>
+        </select>
+      </div>
+
+      <button class="btn btn-primary" id="edit-btn" onclick="doEdit()">
+        <i class="ti ti-check"></i> Guardar cambios
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SHEET: CONFIRMAR ELIMINACIÓN
+══════════════════════════════════════════════════════════════════════ -->
+<div class="sheet-overlay" id="sheet-delete" onclick="sheetOutsideClose(event,'sheet-delete')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="confirm-body">
+      <div class="confirm-icon"><i class="ti ti-user-x" style="color:var(--red)"></i></div>
+      <div class="confirm-title">¿Eliminar usuario?</div>
+      <div class="confirm-sub" id="delete-confirm-msg">Se eliminará el usuario y todas sus sesiones activas. Esta acción no se puede deshacer.</div>
+      <div class="confirm-actions">
+        <button class="btn btn-secondary" style="flex:1" onclick="closeSheet('sheet-delete')">Cancelar</button>
+        <button class="btn btn-danger" style="flex:1" id="delete-btn" onclick="doDelete()">
+          <i class="ti ti-trash"></i> Eliminar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SHEET: API KEYS DEL USUARIO
+══════════════════════════════════════════════════════════════════════ -->
+<div class="sheet-overlay" id="sheet-apikeys" onclick="apiKeysOutsideClose(event)">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <div class="sheet-title"><i class="ti ti-key" style="color:var(--primary)"></i> API Keys — <span id="apikeys-username"></span></div>
+      <button class="sheet-close" onclick="tryCloseApiKeys()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-body">
+      <!-- Lista de keys existentes -->
+      <div id="apikeys-list-area">
+        <div style="font-size:12px;font-weight:900;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Keys activas</div>
+        <div id="apikeys-list"><div class="apikey-empty"><i class="ti ti-key" style="display:block;font-size:32px;margin-bottom:6px"></i>Sin API keys todavía</div></div>
+      </div>
+
+      <div style="height:1px;background:var(--border);margin:18px 0"></div>
+
+      <!-- Crear nueva key -->
+      <div style="font-size:12px;font-weight:900;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Nueva API Key</div>
+      <div class="form-group" style="margin-bottom:10px">
+        <input class="form-input" id="new-apikey-name" type="text" placeholder='Ej: "Integración ERP"' style="font-size:14px">
+        <div class="form-hint">Nombre descriptivo para identificar el uso</div>
+      </div>
+      <button class="btn btn-primary btn-sm" id="create-apikey-btn" onclick="createApiKey()" style="width:auto">
+        <i class="ti ti-plus"></i> Generar API Key
+      </button>
+
+      <!-- Secret box — shown once after creation -->
+      <div class="secret-box" id="secret-box">
+        <div class="secret-box-title"><i class="ti ti-alert-triangle"></i> Guarda el secret ahora — no se volverá a mostrar</div>
+        <div class="secret-label">API Key ID (público)</div>
+        <div class="secret-val" id="secret-key-id" onclick="copySecret('secret-key-id')" title="Clic para copiar"></div>
+        <div class="secret-label">API Secret (privado)</div>
+        <div class="secret-val" id="secret-key-secret" onclick="copySecret('secret-key-secret')" title="Clic para copiar"></div>
+        <div class="secret-note">
+          📌 Usa estas credenciales como headers en cada llamada:<br>
+          <code style="font-size:11px;color:#7dd3fc">X-API-Key</code>: el Key ID · <code style="font-size:11px;color:#7dd3fc">X-API-Secret</code>: el Secret
+        </div>
+        <button class="secret-confirm-btn" onclick="markSecretCopied()">
+          <i class="ti ti-check"></i> Ya copié el secret — listo
+        </button>
+      </div>
+
+      <!-- Warning shown when user tries to close without confirming -->
+      <div class="secret-close-warning" id="secret-close-warning">
+        <div class="secret-close-warning-title"><i class="ti ti-alert-triangle" style="font-size:15px"></i> ¿Guardaste el secret?</div>
+        <div style="font-size:11px;color:#fca5a5;line-height:1.5">Una vez que cierres este panel, el secret <strong style="color:#fff">no se podrá recuperar</strong>. Asegúrate de haberlo copiado.</div>
+        <div class="secret-close-warning-actions">
+          <button style="background:#991b1b;color:#fca5a5" onclick="hideCloseWarning()"><i class="ti ti-arrow-left"></i> Volver y copiar</button>
+          <button style="background:#374151;color:#d1d5db" onclick="forceCloseApiKeys()">Cerrar de todas formas</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const S = { users: [], currentDeleteId: null, lastInviteUrl: '', apikeyUserId: '', apikeyUsername: '', secretConfirmed: true };
+const token    = localStorage.getItem('sf_token') || '';
+const tenantId = localStorage.getItem('sf_tenant_id') || '';
+const myRole   = localStorage.getItem('sf_role') || '';
+
+function authHeaders(extra = {}) {
+  const h = { Authorization: 'Bearer ' + token, ...extra };
+  if (tenantId) h['X-Tenant-Id'] = tenantId;
+  return h;
+}
+
+// ── Auth guard ─────────────────────────────────────────────────────────────
+async function denyAccess(msg, url = '/') {
+  showToast(msg);
+  await new Promise(res => setTimeout(res, 1600));
+  location.href = url;
+}
+
+(async () => {
+  if (!token) { location.href = '/'; return; }
+  try {
+    const r = await fetch('/api/auth/me', { headers: authHeaders() });
+    if (!r.ok) { location.href = '/'; return; }
+    const d = await r.json();
+    if (!['admin','superadmin','master'].includes(d.role)) {
+      await denyAccess('⛔ Sin permiso para acceder a esta sección');
+      return;
+    }
+    if ((d.role === 'superadmin' || d.role === 'master') && !tenantId) { location.href = '/admin'; return; }
+  } catch { location.href = '/'; return; }
+  loadUsers();
+})();
+
+// ── Load users ─────────────────────────────────────────────────────────────
+async function loadUsers() {
+  document.getElementById('loading-area').style.display = 'block';
+  document.getElementById('users-list').style.display = 'none';
+  document.getElementById('empty-state').style.display = 'none';
+
+  try {
+    const r = await fetch('/api/users', { headers: authHeaders() });
+    if (!r.ok) { showToast('Error al cargar usuarios'); return; }
+    S.users = await r.json();
+  } catch { showToast('Sin conexión'); return; }
+
+  document.getElementById('loading-area').style.display = 'none';
+  renderUsers();
+}
+
+function renderUsers() {
+  const list = document.getElementById('users-list');
+  const empty = document.getElementById('empty-state');
+
+  if (!S.users.length) {
+    list.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+
+  list.style.display = '';
+  empty.style.display = 'none';
+
+  const myUser = localStorage.getItem('sf_user') || '';
+
+  list.innerHTML = S.users.map(u => {
+    const isMe = u.username === myUser;
+    const isPending = u.status === 'pending_invite';
+    const initials = (u.display_name || u.username).charAt(0).toUpperCase();
+    const displayName = u.display_name || u.username;
+
+    const roleBadge = u.role === 'admin'
+      ? `<span class="badge badge-admin"><i class="ti ti-shield-check" style="font-size:10px"></i> Admin</span>`
+      : `<span class="badge badge-staff"><i class="ti ti-user" style="font-size:10px"></i> Staff</span>`;
+
+    const statusBadge = isPending
+      ? `<span class="badge badge-pending"><i class="ti ti-mail" style="font-size:10px"></i> Invitación pendiente</span>`
+      : `<span class="badge badge-active"><i class="ti ti-check" style="font-size:10px"></i> Activo</span>`;
+
+    const resendBtn = isPending
+      ? `<button class="icon-btn amber" title="Reenviar invitación" onclick="doResend('${u.id}','${escHtml(u.username)}')"><i class="ti ti-mail-forward"></i></button>`
+      : '';
+
+    const deleteBtn = isMe ? '' :
+      `<button class="icon-btn danger" title="Eliminar usuario" onclick="openDelete('${u.id}','${escHtml(u.username)}')"><i class="ti ti-trash"></i></button>`;
+
+    const meTag = isMe ? ` <span style="font-size:10px;background:var(--primary-light);color:var(--primary);padding:2px 7px;border-radius:20px;font-weight:800">Tú</span>` : '';
+
+    return `
+      <div class="user-card" id="ucard-${u.id}">
+        <div class="user-avatar">${initials}</div>
+        <div class="user-info">
+          <div class="user-name">${escHtml(displayName)}${meTag}</div>
+          <div class="user-username">@${escHtml(u.username)}</div>
+          <div class="user-badges">
+            ${roleBadge}
+            ${statusBadge}
+          </div>
+        </div>
+        <div class="user-actions">
+          ${resendBtn}
+          ${!isPending ? `<button class="icon-btn" title="API Keys" onclick="openApiKeys('${u.id}','${escHtml(u.username)}')"><i class="ti ti-key"></i></button>` : ''}
+          <button class="icon-btn" title="Editar" onclick="openEdit('${u.id}')"><i class="ti ti-pencil"></i></button>
+          ${deleteBtn}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Create user ────────────────────────────────────────────────────────────
+function openCreate() {
+  document.getElementById('new-username').value = '';
+  document.getElementById('new-email').value = '';
+  document.getElementById('new-display-name').value = '';
+  document.getElementById('new-role').value = 'staff';
+  document.getElementById('create-error').style.display = 'none';
+  document.getElementById('invite-result').style.display = 'none';
+  const btn = document.getElementById('create-btn');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="ti ti-send"></i> Crear y enviar invitación';
+  openSheet('sheet-create');
+}
+
+async function doCreate() {
+  const username    = document.getElementById('new-username').value.trim();
+  const email       = document.getElementById('new-email').value.trim();
+  const display_name = document.getElementById('new-display-name').value.trim();
+  const role        = document.getElementById('new-role').value;
+
+  document.getElementById('create-error').style.display = 'none';
+
+  if (!username) { showCreateError('El nombre de usuario es requerido'); return; }
+  if (!email)    { showCreateError('El correo electrónico es requerido'); return; }
+
+  const btn = document.getElementById('create-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Creando...';
+
+  try {
+    const r = await fetch('/api/users', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ username, email, display_name, role }),
+    });
+    const data = await r.json();
+    if (!r.ok) { showCreateError(data.error || 'Error al crear usuario'); btn.disabled = false; btn.innerHTML = '<i class="ti ti-send"></i> Crear y enviar invitación'; return; }
+
+    // Add to list and re-render
+    S.users.push({ ...data, status: 'pending_invite' });
+    renderUsers();
+
+    // Show invite link
+    const inviteUrl = `/invite?token=${data.invite_token}&u=${encodeURIComponent(username)}`;
+    const fullUrl = location.origin + inviteUrl;
+    S.lastInviteUrl = fullUrl;
+    document.getElementById('invite-url-display').textContent = fullUrl;
+
+    const inviteResultEl = document.getElementById('invite-result');
+    inviteResultEl.style.display = 'block';
+
+    if (data.invite_sent) {
+      document.getElementById('invite-note').textContent = '✉️ Email enviado · Válido por 7 días · Clic para copiar';
+      showToast('✅ Usuario creado y correo enviado');
+    } else {
+      document.getElementById('invite-note').textContent = '⚠️ No se pudo enviar el email — comparte el enlace manualmente · Clic para copiar';
+      showToast('⚠️ Usuario creado, pero el email falló');
+    }
+
+    btn.innerHTML = '<i class="ti ti-check"></i> ¡Listo!';
+  } catch { showCreateError('Sin conexión'); btn.disabled = false; btn.innerHTML = '<i class="ti ti-send"></i> Crear y enviar invitación'; }
+}
+
+function showCreateError(msg) {
+  document.getElementById('create-error-msg').textContent = msg;
+  document.getElementById('create-error').style.display = 'flex';
+}
+
+function copyInviteUrl() {
+  navigator.clipboard.writeText(S.lastInviteUrl).then(() => showToast('🔗 Enlace copiado'));
+}
+
+// ── Edit user ──────────────────────────────────────────────────────────────
+function openEdit(id) {
+  const u = S.users.find(x => x.id === id);
+  if (!u) return;
+  document.getElementById('edit-id').value = u.id;
+  document.getElementById('edit-username').value = u.username;
+  document.getElementById('edit-display-name').value = u.display_name || '';
+  document.getElementById('edit-role').value = u.role;
+  document.getElementById('edit-error').style.display = 'none';
+  const btn = document.getElementById('edit-btn');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="ti ti-check"></i> Guardar cambios';
+  openSheet('sheet-edit');
+}
+
+async function doEdit() {
+  const id           = document.getElementById('edit-id').value;
+  const display_name = document.getElementById('edit-display-name').value.trim();
+  const role         = document.getElementById('edit-role').value;
+
+  document.getElementById('edit-error').style.display = 'none';
+
+  const btn = document.getElementById('edit-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Guardando...';
+
+  try {
+    const r = await fetch(`/api/users?id=${id}`, {
+      method: 'PUT',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ display_name, role }),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      document.getElementById('edit-error-msg').textContent = data.error || 'Error al actualizar';
+      document.getElementById('edit-error').style.display = 'flex';
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-check"></i> Guardar cambios';
+      return;
+    }
+    // Update local state
+    const idx = S.users.findIndex(x => x.id === id);
+    if (idx !== -1) S.users[idx] = { ...S.users[idx], ...data };
+    renderUsers();
+    closeSheet('sheet-edit');
+    showToast('✅ Usuario actualizado');
+  } catch {
+    document.getElementById('edit-error-msg').textContent = 'Sin conexión';
+    document.getElementById('edit-error').style.display = 'flex';
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-check"></i> Guardar cambios';
+  }
+}
+
+// ── Resend invite ──────────────────────────────────────────────────────────
+async function doResend(id, username) {
+  showToast('Reenviando invitación...');
+  try {
+    const r = await fetch(`/api/users?id=${id}&action=resend`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    const data = await r.json();
+    if (!r.ok) { showToast('❌ ' + (data.error || 'Error al reenviar')); return; }
+    showToast('✅ Invitación reenviada a ' + username);
+  } catch { showToast('Sin conexión'); }
+}
+
+// ── Delete user ────────────────────────────────────────────────────────────
+function openDelete(id, username) {
+  S.currentDeleteId = id;
+  document.getElementById('delete-confirm-msg').textContent =
+    `Se eliminará @${username} y todas sus sesiones activas. Esta acción no se puede deshacer.`;
+  const btn = document.getElementById('delete-btn');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="ti ti-trash"></i> Eliminar';
+  openSheet('sheet-delete');
+}
+
+async function doDelete() {
+  const id = S.currentDeleteId;
+  if (!id) return;
+  const btn = document.getElementById('delete-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Eliminando...';
+
+  try {
+    const r = await fetch(`/api/users?id=${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    const data = await r.json();
+    if (!r.ok) { showToast('❌ ' + (data.error || 'Error al eliminar')); btn.disabled = false; btn.innerHTML = '<i class="ti ti-trash"></i> Eliminar'; return; }
+    S.users = S.users.filter(u => u.id !== id);
+    renderUsers();
+    closeSheet('sheet-delete');
+    showToast('🗑️ Usuario eliminado');
+  } catch { showToast('Sin conexión'); btn.disabled = false; btn.innerHTML = '<i class="ti ti-trash"></i> Eliminar'; }
+}
+
+// ── Sheet helpers ──────────────────────────────────────────────────────────
+function openSheet(id) {
+  document.getElementById(id).classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeSheet(id) {
+  document.getElementById(id).classList.remove('open');
+  document.body.style.overflow = '';
+}
+function sheetOutsideClose(e, id) {
+  if (e.target === document.getElementById(id)) closeSheet(id);
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── API Keys ───────────────────────────────────────────────────────────────
+function openApiKeys(userId, username) {
+  S.apikeyUserId   = userId;
+  S.apikeyUsername = username;
+  S.secretConfirmed = true; // reset; no secret shown yet
+  document.getElementById('apikeys-username').textContent = '@' + username;
+  document.getElementById('new-apikey-name').value = '';
+  document.getElementById('secret-box').style.display = 'none';
+  document.getElementById('secret-close-warning').style.display = 'none';
+  const btn = document.getElementById('create-apikey-btn');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="ti ti-plus"></i> Generar API Key';
+  loadApiKeys(userId);
+  openSheet('sheet-apikeys');
+}
+
+async function loadApiKeys(userId) {
+  document.getElementById('apikeys-list').innerHTML =
+    '<div class="apikey-empty" style="padding:16px"><i class="ti ti-loader-2" style="display:block;font-size:24px;margin-bottom:6px;animation:spin 1s linear infinite"></i>Cargando...</div>';
+  try {
+    const r = await fetch(`/api/users?action=apikeys&user_id=${userId}`, { headers: authHeaders() });
+    if (!r.ok) { document.getElementById('apikeys-list').innerHTML = '<div class="apikey-empty">Error al cargar</div>'; return; }
+    const keys = await r.json();
+    renderApiKeys(keys);
+  } catch { document.getElementById('apikeys-list').innerHTML = '<div class="apikey-empty">Sin conexión</div>'; }
+}
+
+function renderApiKeys(keys) {
+  const el = document.getElementById('apikeys-list');
+  if (!keys.length) {
+    el.innerHTML = '<div class="apikey-empty"><i class="ti ti-key" style="display:block;font-size:32px;margin-bottom:6px"></i>Sin API keys todavía</div>';
+    return;
+  }
+  el.innerHTML = keys.map(k => `
+    <div class="apikey-row" id="ak-${k.id}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div>
+          <div class="apikey-name">${escHtml(k.name)}</div>
+          <div class="apikey-id">${k.key_id.substring(0,16)}…</div>
+          <div class="apikey-meta">
+            <span style="background:var(--green-light);color:var(--green-dark);padding:2px 7px;border-radius:20px;font-size:10px;font-weight:800">Activa</span>
+            ${k.last_used_at ? `<span>Último uso: ${fmtDate(k.last_used_at)}</span>` : '<span>Nunca usada</span>'}
+            <span>Creada: ${fmtDate(k.created_at)}</span>
+          </div>
+        </div>
+        <button class="icon-btn danger" style="flex-shrink:0" title="Revocar" onclick="revokeApiKey('${k.id}','${escHtml(k.name)}')">
+          <i class="ti ti-trash"></i>
+        </button>
+      </div>
+    </div>`).join('');
+}
+
+async function createApiKey() {
+  const name = document.getElementById('new-apikey-name').value.trim() || 'API Key';
+  const btn  = document.getElementById('create-apikey-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Generando...';
+  document.getElementById('secret-box').style.display = 'none';
+
+  try {
+    const r = await fetch('/api/users?action=apikeys', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ name, user_id: S.apikeyUserId }),
+    });
+    const data = await r.json();
+    if (!r.ok) { showToast('❌ ' + (data.error || 'Error')); btn.disabled = false; btn.innerHTML = '<i class="ti ti-plus"></i> Generar API Key'; return; }
+
+    // Show secret box (only chance)
+    S.secretConfirmed = false;
+    document.getElementById('secret-close-warning').style.display = 'none';
+    document.getElementById('secret-key-id').textContent     = data.key_id;
+    document.getElementById('secret-key-secret').textContent = data.secret;
+    document.getElementById('secret-box').style.display = 'block';
+    document.getElementById('new-apikey-name').value = '';
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-plus"></i> Generar API Key';
+    showToast('✅ API Key creada');
+    loadApiKeys(S.apikeyUserId); // refresh list
+  } catch { showToast('Sin conexión'); btn.disabled = false; btn.innerHTML = '<i class="ti ti-plus"></i> Generar API Key'; }
+}
+
+async function revokeApiKey(keyId, keyName) {
+  if (!confirm(`¿Revocar la API key "${keyName}"? Esta acción no se puede deshacer.`)) return;
+  try {
+    const r = await fetch(`/api/users?action=apikeys&key_id=${keyId}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (!r.ok) { const d = await r.json(); showToast('❌ ' + (d.error || 'Error')); return; }
+    showToast('🗑️ API Key revocada');
+    loadApiKeys(S.apikeyUserId);
+  } catch { showToast('Sin conexión'); }
+}
+
+function copySecret(elId) {
+  const txt = document.getElementById(elId).textContent;
+  navigator.clipboard.writeText(txt).then(() => showToast('📋 Copiado'));
+}
+
+function markSecretCopied() {
+  S.secretConfirmed = true;
+  document.getElementById('secret-box').style.display = 'none';
+  document.getElementById('secret-close-warning').style.display = 'none';
+  showToast('✅ Secret guardado — ya puedes cerrar');
+}
+
+function tryCloseApiKeys() {
+  const box = document.getElementById('secret-box');
+  if (box.style.display !== 'none' && !S.secretConfirmed) {
+    document.getElementById('secret-close-warning').style.display = 'block';
+    document.getElementById('secret-close-warning').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else {
+    closeSheet('sheet-apikeys');
+  }
+}
+
+function apiKeysOutsideClose(e) {
+  if (e.target === document.getElementById('sheet-apikeys')) tryCloseApiKeys();
+}
+
+function hideCloseWarning() {
+  document.getElementById('secret-close-warning').style.display = 'none';
+}
+
+function forceCloseApiKeys() {
+  S.secretConfirmed = false;
+  document.getElementById('secret-close-warning').style.display = 'none';
+  closeSheet('sheet-apikeys');
+}
+
+function fmtDate(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  return d.toLocaleDateString('es-CL', { day:'2-digit', month:'short', year:'numeric' });
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Spin animation
+const style = document.createElement('style');
+style.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+document.head.appendChild(style);
+</script>
+</body>
+</html>

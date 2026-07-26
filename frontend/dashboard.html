@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f5f6fa;--bg2:#fff;--bg3:#f0f1f7;
+  --text:#1a1a2e;--text2:#5a5b7a;--text3:#9a9bb8;--border:#e4e5f0;
+  --primary:#5b4fff;--primary-light:#ede9ff;--primary-dark:#4035cc;
+  --green:#16c98d;--green-light:#e6faf4;--green-dark:#0da070;
+  --red:#ff4d6d;--red-light:#fff0f3;--red-dark:#cc0033;
+  --amber:#f59e0b;--amber-light:#fffbeb;--amber-dark:#d97706;
+  --blue:#3b82f6;--blue-light:#eff6ff;--blue-dark:#2563eb;
+  --r:12px;--r-lg:16px;--r-xl:20px;
+  --sh:0 2px 12px rgba(91,79,255,.08);--sh-md:0 6px 24px rgba(91,79,255,.13);
+}
+body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;max-width:480px;margin:0 auto;min-height:100vh;overflow-x:hidden}
+
+/* TOPBAR */
+.topbar{background:var(--bg2);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:var(--sh)}
+.tb-left{display:flex;align-items:center;gap:10px}
+.logo-icon{width:38px;height:38px;background:var(--primary);border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-icon i{color:#fff;font-size:22px}
+.logo-name{font-weight:900;font-size:17px;color:var(--primary);line-height:1}
+.logo-sub{font-size:10px;color:var(--text3);font-weight:600}
+.tb-right{display:flex;gap:8px;align-items:center}
+.icon-btn{width:36px;height:36px;border-radius:10px;background:var(--bg3);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2);font-size:18px;text-decoration:none}
+
+/* CONTENT */
+.content{padding:16px;padding-bottom:32px;display:flex;flex-direction:column;gap:16px}
+
+/* HERO CARD */
+.hero{border-radius:var(--r-xl);background:linear-gradient(135deg,#4c3fff 0%,#7c5cff 60%,#a87aff 100%);padding:22px 20px 18px;position:relative;overflow:hidden;box-shadow:0 8px 32px rgba(91,79,255,.35)}
+.hero::before{content:'';position:absolute;top:-40px;right:-40px;width:160px;height:160px;background:rgba(255,255,255,.07);border-radius:50%}
+.hero::after{content:'';position:absolute;bottom:-30px;right:20px;width:100px;height:100px;background:rgba(255,255,255,.05);border-radius:50%}
+.hero-greeting{font-size:13px;font-weight:700;color:rgba(255,255,255,.75);margin-bottom:4px;display:flex;align-items:center;gap:5px}
+.hero-date{font-size:12px;color:rgba(255,255,255,.55);font-weight:600;margin-bottom:18px}
+.hero-metrics{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.hero-metric{}
+.hero-metric-val{font-size:22px;font-weight:900;color:#fff;line-height:1;margin-bottom:3px}
+.hero-metric-lbl{font-size:11px;font-weight:700;color:rgba(255,255,255,.65)}
+.hero-metric-sub{font-size:11px;font-weight:700;margin-top:4px;display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px}
+.hero-metric-sub.up{background:rgba(22,201,141,.25);color:#7fffcd}
+.hero-metric-sub.margin{background:rgba(255,255,255,.15);color:rgba(255,255,255,.9)}
+.hero-divider{height:1px;background:rgba(255,255,255,.15);margin-bottom:14px}
+.hero-chips{display:flex;gap:8px;flex-wrap:wrap}
+.hero-chip{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;background:rgba(255,255,255,.15);font-size:12px;font-weight:700;color:rgba(255,255,255,.9)}
+.hero-chip i{font-size:14px}
+.hero-chip.red{background:rgba(255,77,109,.3)}
+.hero-chip.amber{background:rgba(245,158,11,.3)}
+
+/* PERIOD TOGGLE */
+.hero-period-toggle{position:absolute;top:14px;right:14px;display:flex;gap:4px;z-index:2}
+.period-btn{padding:5px 10px;border-radius:20px;border:none;font-family:'Nunito',sans-serif;font-size:11px;font-weight:800;cursor:pointer;transition:all .15s;background:rgba(255,255,255,.18);color:rgba(255,255,255,.75);white-space:nowrap}
+.period-btn.active{background:rgba(255,255,255,.92);color:var(--primary)}
+.period-btn:hover:not(.active){background:rgba(255,255,255,.28)}
+
+/* MINI BARS (sparkline) */
+.sparkline-wrap{margin-top:10px}
+.sparkline{display:flex;align-items:flex-end;gap:3px;height:40px}
+.spark-bar{flex:1;border-radius:3px 3px 0 0;background:rgba(255,255,255,.25);min-height:4px;transition:height .35s ease}
+.spark-bar.today{background:rgba(255,255,255,.9)}
+.sparkline-labels{display:flex;gap:3px;margin-top:4px}
+.spark-lbl{flex:1;text-align:center;font-size:9px;font-weight:700;color:rgba(255,255,255,.45);white-space:nowrap;overflow:hidden}
+.spark-lbl.today{color:rgba(255,255,255,.9);font-weight:900}
+
+/* SECTION LABEL */
+.section-label{font-size:13px;font-weight:800;color:var(--text2);display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.section-label i{font-size:16px}
+
+/* ALERT CARD */
+.alert-card{border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--sh)}
+.alert-card-header{padding:13px 16px;display:flex;align-items:center;justify-content:space-between}
+.alert-card-header.critical{background:linear-gradient(135deg,#ff1a44,#ff4d6d)}
+.alert-card-header.warning{background:linear-gradient(135deg,#d97706,#f59e0b)}
+.alert-card-title{font-size:14px;font-weight:900;color:#fff;display:flex;align-items:center;gap:7px}
+.alert-card-title i{font-size:18px}
+.alert-card-cta{font-size:12px;font-weight:800;color:rgba(255,255,255,.9);background:rgba(255,255,255,.2);padding:5px 10px;border-radius:20px;text-decoration:none;white-space:nowrap}
+.alert-items{background:var(--bg2)}
+.alert-row{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--border)}
+.alert-row:last-child{border-bottom:none}
+.alert-dot-big{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.alert-dot-big.critical{background:var(--red)}
+.alert-dot-big.warning{background:var(--amber)}
+.alert-row-name{flex:1;font-size:13px;font-weight:800}
+.alert-row-brand{font-size:11px;color:var(--text3);font-weight:600;margin-top:1px}
+.alert-bar-wrap{width:72px}
+.alert-bar-track{height:5px;background:var(--bg3);border-radius:20px;overflow:hidden}
+.alert-bar-fill{height:100%;border-radius:20px}
+.alert-bar-fill.critical{background:var(--red)}
+.alert-bar-fill.warning{background:var(--amber)}
+.alert-stock-num{font-size:13px;font-weight:900;min-width:28px;text-align:right}
+.alert-stock-num.critical{color:var(--red)}
+.alert-stock-num.warning{color:var(--amber-dark)}
+.alert-min{font-size:10px;color:var(--text3);font-weight:600;text-align:right}
+
+/* SUPPLIER INSIGHTS */
+.supplier-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.supplier-scroll::-webkit-scrollbar{display:none}
+.supplier-card{flex-shrink:0;width:175px;background:var(--bg2);border-radius:var(--r-lg);padding:14px;box-shadow:var(--sh);border:1.5px solid var(--border)}
+.supplier-card.urgent{border-color:#ffc8d2}
+.supplier-card.soon{border-color:#fde68a}
+.supplier-brand{font-size:12px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.supplier-prod{font-size:14px;font-weight:900;line-height:1.3;margin-bottom:8px}
+.supplier-badge{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:800;margin-bottom:10px}
+.supplier-badge.urgent{background:var(--red-light);color:var(--red)}
+.supplier-badge.soon{background:var(--amber-light);color:var(--amber-dark)}
+.supplier-stock{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.supplier-track{flex:1;height:5px;background:var(--bg3);border-radius:20px;overflow:hidden}
+.supplier-fill{height:100%;border-radius:20px}
+.supplier-fill.urgent{background:var(--red)}
+.supplier-fill.soon{background:var(--amber)}
+.supplier-nums{font-size:11px;color:var(--text3);font-weight:700;white-space:nowrap}
+.supplier-btn{display:block;width:100%;padding:8px;border-radius:9px;border:none;font-family:'Nunito',sans-serif;font-size:12px;font-weight:800;cursor:pointer;text-align:center;text-decoration:none;transition:all .15s}
+.supplier-btn.urgent{background:var(--red-light);color:var(--red)}
+.supplier-btn.soon{background:var(--amber-light);color:var(--amber-dark)}
+.supplier-btn:active{transform:scale(.97)}
+
+/* MODULE CARDS */
+.modules-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.module-card{background:var(--bg2);border-radius:var(--r-lg);padding:16px;text-decoration:none;color:var(--text);box-shadow:var(--sh);border:1.5px solid var(--border);display:flex;flex-direction:column;gap:0;transition:all .2s;position:relative;overflow:hidden}
+.module-card:active{transform:scale(.97)}
+.module-card:hover{border-color:var(--primary);box-shadow:var(--sh-md)}
+.mc-icon{width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+.mc-icon i{font-size:22px}
+.mc-name{font-size:14px;font-weight:900;margin-bottom:4px}
+.mc-desc{font-size:11px;color:var(--text3);font-weight:600;line-height:1.4}
+.mc-badge{position:absolute;top:10px;right:10px;padding:2px 7px;border-radius:20px;font-size:9px;font-weight:900}
+.mc-badge.new{background:var(--primary-light);color:var(--primary)}
+.mc-badge.alert{background:var(--red-light);color:var(--red)}
+.mc-badge.ok{background:var(--green-light);color:var(--green-dark)}
+.mc-stat{margin-top:8px;font-size:12px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:4px;border-top:1px solid var(--border);padding-top:8px}
+.mc-stat i{font-size:13px}
+
+/* RECENT ORDERS */
+.order-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.order-row:last-child{border-bottom:none;padding-bottom:0}
+.order-avatar{width:38px;height:38px;border-radius:11px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:var(--primary);flex-shrink:0}
+.order-info{flex:1;min-width:0}
+.order-name{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.order-items{font-size:11px;color:var(--text3);font-weight:600;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.order-right{text-align:right;flex-shrink:0}
+.order-total{font-size:14px;font-weight:900;color:var(--green-dark)}
+.order-date{font-size:10px;color:var(--text3);font-weight:600;margin-top:1px}
+
+/* CARD */
+.card{background:var(--bg2);border-radius:var(--r-lg);padding:16px;box-shadow:var(--sh)}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.card-title{font-size:15px;font-weight:900;display:flex;align-items:center;gap:7px}
+.card-link{font-size:12px;font-weight:800;color:var(--primary);text-decoration:none}
+
+/* FOOTER */
+.footer{text-align:center;font-size:11px;color:var(--text3);font-weight:700;padding:8px 16px 24px}
+
+/* EMBED MODE (inside iframe in index.html) */
+body.embedded .topbar{display:none}
+body.embedded .content{padding-top:8px}
+body.embedded #modules-section,body.embedded .footer{display:none}
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — Desktop ≥ 768 px
+═══════════════════════════════════════════════ */
+@media(min-width:768px){
+  body{max-width:900px}
+  .content{gap:20px}
+
+  /* Hero: wider metrics */
+  .hero{padding:28px 28px 22px}
+  .hero-metric-val{font-size:28px}
+
+  /* Alerts + suppliers side by side */
+  .desktop-split{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+
+  /* Modules: 3 cols */
+  .modules-grid{grid-template-columns:repeat(3,1fr)}
+
+  /* Recent orders: wider card */
+  .order-row{gap:14px}
+}
+
+@media(min-width:1100px){
+  body{max-width:1100px}
+
+  /* Hero: 4-chip row spreads nicely */
+  .hero-chips{gap:12px}
+
+  /* Modules: 4 cols */
+  .modules-grid{grid-template-columns:repeat(4,1fr)}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="tb-left">
+    <div class="logo-icon"><i class="ti ti-packages"></i></div>
+    <div>
+      <div class="logo-name">StockFlow</div>
+      <div class="logo-sub">OMS · WMS</div>
+    </div>
+  </div>
+  <div class="tb-right">
+    <a href="/" class="icon-btn" title="Ir a la app"><i class="ti ti-layout-dashboard"></i></a>
+    <a href="onboarding.html" class="icon-btn" title="Configuración"><i class="ti ti-settings"></i></a>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- HERO -->
+  <div class="hero" id="hero-card">
+    <div class="hero-period-toggle">
+      <button class="period-btn active" id="btn-days" onclick="setSparkPeriod('days')">Últ. 7 días</button>
+      <button class="period-btn" id="btn-weeks" onclick="setSparkPeriod('weeks')">Últ. 7 semanas</button>
+    </div>
+    <div class="hero-greeting"><i class="ti ti-wave-sine"></i> <span id="greeting">Buenos días</span></div>
+    <div class="hero-date" id="hero-date">—</div>
+    <div class="hero-metrics">
+      <div class="hero-metric">
+        <div class="hero-metric-val" id="hero-ventas">$0</div>
+        <div class="hero-metric-lbl">Ventas del mes</div>
+        <div class="hero-metric-sub up" id="hero-ventas-var" style="display:none"><i class="ti ti-trending-up" style="font-size:11px"></i> —</div>
+      </div>
+      <div class="hero-metric">
+        <div class="hero-metric-val" id="hero-util">$0</div>
+        <div class="hero-metric-lbl">Utilidad bruta</div>
+        <div class="hero-metric-sub margin" id="hero-margin">—% margen</div>
+      </div>
+    </div>
+    <div class="sparkline-wrap">
+      <div class="sparkline" id="sparkline"></div>
+      <div class="sparkline-labels" id="spark-labels"></div>
+    </div>
+    <div class="hero-divider" style="margin-top:12px"></div>
+    <div class="hero-chips">
+      <div class="hero-chip"><i class="ti ti-box"></i> <span id="chip-prods">0</span> productos</div>
+      <div class="hero-chip"><i class="ti ti-stack-2"></i> <span id="chip-kits">0</span> KITs</div>
+      <div class="hero-chip" id="chip-orders"><i class="ti ti-shopping-bag"></i> <span id="chip-orders-n">0</span> órdenes</div>
+      <div class="hero-chip" id="chip-alerts" style="display:none"><i class="ti ti-alert-triangle"></i> <span id="chip-alerts-n">0</span> alertas</div>
+    </div>
+  </div>
+
+  <!-- STOCK ALERTS + SUPPLIER INSIGHTS (side by side on desktop) -->
+  <div class="desktop-split">
+    <div id="alerts-section"></div>
+    <div id="suppliers-section"></div>
+  </div>
+
+  <!-- ÚLTIMAS VENTAS -->
+  <div id="recent-orders-section"></div>
+
+  <!-- MÓDULOS -->
+  <div id="modules-section">
+    <div class="section-label"><i class="ti ti-apps" style="color:var(--primary)"></i>Acceso a módulos</div>
+    <div class="modules-grid" id="modules-grid"></div>
+  </div>
+
+</div>
+
+<div class="footer">StockFlow v1.0 · Neon PostgreSQL + Vercel Functions</div>
+
+<script>
+// Embed mode: loaded inside index.html iframe
+const IS_EMBED = new URLSearchParams(location.search).has('embed');
+if (IS_EMBED) document.body.classList.add('embedded');
+
+const fmt = n => '$' + Math.round(n).toLocaleString('es-CL');
+
+// Navigate to an app section — postMessage to parent when embedded, direct href otherwise
+const PAGE_URLS_DASH = { inventory:'/inventory', ventas:'/orders', locales:'/locales', delivery:'/delivery-hub' };
+function navTo(page) {
+  if (IS_EMBED && window.parent !== window) {
+    window.parent.postMessage({ type: 'sf_navigate', page }, '*');
+  } else {
+    location.href = PAGE_URLS_DASH[page] || '/' + page;
+  }
+}
+function newVentaFromDash() {
+  if (IS_EMBED && window.parent !== window) {
+    window.parent.postMessage({ type: 'sf_create_order', payload: {} }, '*');
+  } else {
+    location.href = '/orders';
+  }
+}
+
+// Data is loaded from the API — see init() at bottom of script
+let PRODUCTS = [], VENTAS = [], KITS_LIST = [];
+let totalVentas = 0, utilidad = 0, margen = 0, varPct = 0;
+let critical = [], warning = [], alertas = [];
+
+// ── GREETING + DATE (no API dependency) ────────
+(function(){
+  const now = new Date();
+  const h = now.getHours();
+  const greet = h<12?'Buenos días 👋':h<19?'Buenas tardes 👋':'Buenas noches 👋';
+  document.getElementById('greeting').textContent = greet;
+  document.getElementById('hero-date').textContent = now.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+})();
+
+// renderHero, renderAlerts, renderOrders, renderModules
+// called by init() once API data arrives
+function renderHero() {
+  document.getElementById('hero-ventas').textContent    = fmt(totalVentas);
+  document.getElementById('hero-util').textContent      = fmt(utilidad);
+  document.getElementById('hero-margin').textContent    = margen + '% margen';
+  document.getElementById('chip-prods').textContent     = PRODUCTS.length;
+  document.getElementById('chip-kits').textContent      = KITS_LIST.length;
+  document.getElementById('chip-orders-n').textContent  = VENTAS.length;
+  const chipAl = document.getElementById('chip-alerts');
+  if (alertas.length) {
+    chipAl.style.display = '';
+    chipAl.className = 'hero-chip ' + (critical.length ? 'red' : 'amber');
+    document.getElementById('chip-alerts-n').textContent = alertas.length;
+  } else { chipAl.style.display = 'none'; }
+  if (varPct !== 0) {
+    const varEl = document.getElementById('hero-ventas-var');
+    varEl.style.display = '';
+    varEl.innerHTML = `<i class="ti ti-trending-${varPct>0?'up':'down'}" style="font-size:11px"></i> ${varPct>0?'+':''}${varPct}% vs mes ant.`;
+    varEl.className = 'hero-metric-sub ' + (varPct > 0 ? 'up' : 'down');
+  }
+}
+
+// ── SPARKLINE + PERIOD TOGGLE ──────────────────
+const DOW_SHORT = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+const SPARK = {
+  days: {
+    values: [45000, 62000, 35000, 218000, 79000, 127500, 19300],
+    getLabels() {
+      const today = new Date();
+      return Array.from({length:7}, (_,i) => {
+        const d = new Date(today); d.setDate(today.getDate() - (6 - i));
+        return i === 6 ? 'Hoy' : DOW_SHORT[d.getDay()];
+      });
+    }
+  },
+  weeks: {
+    values: [320000, 485000, 562000, 498000, 720000, 641000, 586800],
+    getLabels() { return ['S-6','S-5','S-4','S-3','S-2','S-1','Esta']; }
+  }
+};
+function setSparkPeriod(period) {
+  const d = SPARK[period];
+  const max = Math.max(...d.values);
+  const labels = d.getLabels();
+  document.getElementById('sparkline').innerHTML = d.values.map((v,i) => {
+    const pct = Math.max(Math.round(v / max * 100), 5);
+    return `<div class="spark-bar${i===6?' today':''}" style="height:${pct}%" title="${labels[i]}: ${fmt(v)}"></div>`;
+  }).join('');
+  document.getElementById('spark-labels').innerHTML = labels.map((l,i) =>
+    `<span class="spark-lbl${i===6?' today':''}">${l}</span>`
+  ).join('');
+  document.getElementById('btn-days').classList.toggle('active', period === 'days');
+  document.getElementById('btn-weeks').classList.toggle('active', period === 'weeks');
+}
+setSparkPeriod('days');
+
+function renderAlerts() {
+  if (!alertas.length) { document.getElementById('alerts-section').innerHTML = ''; return; }
+  const hasCrit = critical.length > 0;
+  const rows = alertas.slice(0,4).map(p => {
+    const lvl = p.stock===0?'critical':'warning';
+    const pct = Math.round(p.stock/Math.max(p.threshold*2,1)*100);
+    return `<div class="alert-row">
+      <div class="alert-dot-big ${lvl}"></div>
+      <div style="flex:1;min-width:0"><div class="alert-row-name">${p.name}</div><div class="alert-row-brand">${p.brand}</div></div>
+      <div style="text-align:right">
+        <div class="alert-bar-wrap" style="margin-bottom:3px"><div class="alert-bar-track"><div class="alert-bar-fill ${lvl}" style="width:${pct}%"></div></div></div>
+        <div class="alert-stock-num ${lvl}">${p.stock}</div><div class="alert-min">mín ${p.threshold}</div>
+      </div></div>`;
+  }).join('');
+  document.getElementById('alerts-section').innerHTML = `
+    <div class="alert-card">
+      <div class="alert-card-header ${hasCrit?'critical':'warning'}">
+        <div class="alert-card-title"><i class="ti ti-${hasCrit?'circle-x':'alert-triangle'}"></i>
+          ${hasCrit?critical.length+' sin stock · ':''}${warning.length} bajo mínimo</div>
+        <a href="javascript:void(0)" onclick="navTo('inventory')" class="alert-card-cta">Ver inventario →</a>
+      </div>
+      <div class="alert-items">${rows}</div>
+    </div>`;
+}
+
+function renderSuppliers() {
+  const byBrand = {};
+  alertas.forEach(p => { if (!byBrand[p.brand]) byBrand[p.brand]=[]; byBrand[p.brand].push(p); });
+  const entries = Object.entries(byBrand);
+  if (!entries.length) { document.getElementById('suppliers-section').innerHTML = ''; return; }
+  const cards = entries.map(([brand, prods]) => {
+    const isUrgent = prods.some(p=>p.stock===0);
+    const cls = isUrgent?'urgent':'soon', label = isUrgent?'🔴 URGENTE':'🟡 Pronto';
+    const prod = prods[0], pct = Math.round(prod.stock/Math.max(prod.threshold*2,1)*100);
+    const action = isUrgent?'Cotizar urgente':'Reorden sugerida';
+    return `<div class="supplier-card ${cls}">
+      <div class="supplier-brand">${brand}</div>
+      <div class="supplier-prod">${prods.length>1?prods.map(p=>p.name).join(', '):prod.name}</div>
+      <div class="supplier-badge ${cls}">${label}</div>
+      <div class="supplier-stock"><div class="supplier-track"><div class="supplier-fill ${cls}" style="width:${pct}%"></div></div><div class="supplier-nums">${prod.stock}/${prod.threshold}</div></div>
+      <a href="javascript:void(0)" onclick="navTo('inventory')" class="supplier-btn ${cls}">${action}</a>
+    </div>`;
+  }).join('');
+  document.getElementById('suppliers-section').innerHTML = `
+    <div><div class="section-label"><i class="ti ti-building-warehouse" style="color:var(--amber-dark)"></i>Insights de proveedores</div>
+    <div class="supplier-scroll">${cards}</div></div>`;
+}
+
+function renderOrders() {
+  if (!VENTAS.length) { document.getElementById('recent-orders-section').innerHTML = ''; return; }
+  const rows = VENTAS.slice(0,4).map(v => {
+    const initials = (v.cliente||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const itemsStr = Array.isArray(v.items) ? v.items.map(i=>`${i.name||i.sku} ×${i.qty}`).join(' · ') : (v.items||'');
+    return `<div class="order-row">
+      <div class="order-avatar">${initials}</div>
+      <div class="order-info"><div class="order-name">${v.cliente||'Cliente'}</div><div class="order-items">${itemsStr}</div></div>
+      <div class="order-right"><div class="order-total">${fmt(v.total||0)}</div><div class="order-date">${v.fecha||''}</div></div>
+    </div>`;
+  }).join('');
+  document.getElementById('recent-orders-section').innerHTML = `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><i class="ti ti-shopping-bag" style="color:var(--green-dark)"></i>Últimas ventas</div><div style="display:flex;align-items:center;gap:10px"><button onclick="newVentaFromDash()" style="background:var(--red,#ef4444);color:#fff;font-size:12px;font-weight:800;padding:6px 13px;border-radius:10px;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-shopping-bag" style="font-size:13px"></i>Nueva venta</button><a href="javascript:void(0)" onclick="navTo('ventas')" class="card-link">Ver todas →</a></div></div>
+      ${rows}
+    </div>`;
+}
+
+function renderModules() {
+  const modules = [
+    { href:'onboarding.html', icon:'ti-rocket', iconBg:'#ede9ff', iconColor:'#5b4fff', name:'Onboarding', desc:'Configuración inicial del negocio', badge:{text:'Empezar aquí',cls:'new'}, stat:null },
+    { page:'inventory', icon:'ti-box', iconBg:'#e6faf4', iconColor:'#0da070', name:'Inventario', desc:'Productos, KITs, stock y movimientos',
+      badge: alertas.length ? {text:alertas.length+' alertas',cls:'alert'} : {text:PRODUCTS.length+' ítems',cls:'ok'},
+      stat:`<i class="ti ti-packages"></i>${PRODUCTS.length} productos · ${KITS_LIST.length} KITs` },
+    { page:'ventas', icon:'ti-shopping-bag', iconBg:'#ede9ff', iconColor:'#5b4fff', name:'Ventas', desc:'Órdenes, delivery y seguimiento',
+      badge: VENTAS.length ? {text:VENTAS.length+' órdenes',cls:'ok'} : null,
+      stat:`<i class="ti ti-coin"></i>${fmt(totalVentas)} total` },
+    { page:'locales', icon:'ti-building-store', iconBg:'#f0fdfa', iconColor:'#0d9488', name:'Locales', desc:'Tiendas, almacenes y formas de envío', badge:null, stat:`<i class="ti ti-map-pin"></i>Locales configurados` },
+    { page:'delivery', icon:'ti-truck-delivery', iconBg:'#fffbeb', iconColor:'#d97706', name:'Delivery', desc:'Envíos, couriers y tracking', badge:null, stat:`<i class="ti ti-route"></i>Rutas y repartidores` },
+    { href:'routes.html', icon:'ti-route', iconBg:'#eff6ff', iconColor:'#2563eb', name:'Rutas', desc:'Armar rutas, mapa y optimizador', badge:null, stat:`<i class="ti ti-map"></i>Drag &amp; drop` },
+    { href:'driver.html', icon:'ti-steering-wheel', iconBg:'#fff0f3', iconColor:'#ff4d6d', name:'Repartidor', desc:'Ejecutar entregas, GPS y fotos', badge:null, stat:`<i class="ti ti-device-mobile"></i>App móvil` },
+    { href:'/docs', icon:'ti-api', iconBg:'#f0fdf4', iconColor:'#16a34a', name:'API & Docs', desc:'Integra tu sistema vía REST API', badge:{text:'API v1',cls:'new'}, stat:`<i class="ti ti-key"></i>OMS · WMS · SHM · IAM` },
+  ];
+  document.getElementById('modules-grid').innerHTML = modules.map(m => `
+    <a href="${m.page ? 'javascript:void(0)' : m.href}" ${m.page ? `onclick="navTo('${m.page}')"` : ''} class="module-card">
+      ${m.badge?`<div class="mc-badge ${m.badge.cls}">${m.badge.text}</div>`:''}
+      <div class="mc-icon" style="background:${m.iconBg}"><i class="ti ${m.icon}" style="color:${m.iconColor}"></i></div>
+      <div class="mc-name">${m.name}</div><div class="mc-desc">${m.desc}</div>
+      ${m.stat?`<div class="mc-stat">${m.stat}</div>`:''}
+    </a>`).join('');
+}
+
+// ── AUTH GUARD ────────────────────────────────
+(function(){
+  const token = (window.top !== window.self ? window.top : window).localStorage ? localStorage.getItem('sf_token') : null;
+  if (!token) {
+    const target = window.top !== window.self ? window.top : window;
+    target.location.replace('/login');
+  }
+})();
+
+// ── ASYNC INIT: load from API, then render all ─
+(async function init() {
+  const token    = localStorage.getItem('sf_token');
+  const tenantId = localStorage.getItem('sf_tenant_id');
+  const authHeaders = {};
+  if (token)    authHeaders['Authorization'] = 'Bearer ' + token;
+  if (tenantId) authHeaders['X-Tenant-Id']   = tenantId;
+  try {
+    const [products, kits, orders] = await Promise.all([
+      fetch('/api/products', { headers: authHeaders }).then(r => r.ok ? r.json() : []),
+      fetch('/api/kits', { headers: authHeaders }).then(r => r.ok ? r.json() : []),
+      fetch('/api/orders', { headers: authHeaders }).then(r => r.ok ? r.json() : []),
+    ]);
+    PRODUCTS  = Array.isArray(products) ? products : [];
+    KITS_LIST = Array.isArray(kits)     ? kits     : [];
+    VENTAS    = Array.isArray(orders)   ? orders   : [];
+  } catch(e) {
+    console.warn('[Dashboard] API unavailable:', e.message);
+  }
+
+  // Compute derived values
+  totalVentas = VENTAS.reduce((s,v) => s + (v.total||0), 0);
+  const totalCosto = VENTAS.reduce((s,v) => {
+    if (!Array.isArray(v.items)) return s;
+    return s + v.items.reduce((is, item) => {
+      if (item.type === 'kit') {
+        const kit = KITS_LIST.find(k => k.sku === item.sku);
+        if (!kit || !Array.isArray(kit.items)) return is;
+        return is + kit.items.reduce((ks, comp) => {
+          const p = PRODUCTS.find(x => x.sku === comp.sku);
+          return ks + (p ? p.cost * comp.qty : 0);
+        }, 0) * item.qty;
+      }
+      const p = PRODUCTS.find(x => x.sku === item.sku);
+      return is + (p ? p.cost * item.qty : 0);
+    }, 0);
+  }, 0);
+  utilidad   = totalVentas - totalCosto;
+  margen     = totalVentas > 0 ? Math.round(utilidad / totalVentas * 100) : 0;
+  varPct     = 498000 > 0 ? Math.round((totalVentas - 498000) / 498000 * 100) : 0;
+  critical   = PRODUCTS.filter(p => p.stock === 0);
+  warning    = PRODUCTS.filter(p => p.stock > 0 && p.stock <= p.threshold);
+  alertas    = [...critical, ...warning];
+
+  // Render all sections
+  renderHero();
+  renderAlerts();
+  renderSuppliers();
+  renderOrders();
+  renderModules();
+})();
+</script>
+</body>
+</html>

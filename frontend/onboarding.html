@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow — Bienvenido</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f5f6fa;--bg2:#fff;--bg3:#f0f1f7;
+  --text:#1a1a2e;--text2:#5a5b7a;--text3:#9a9bb8;--border:#e4e5f0;
+  --primary:#5b4fff;--primary-light:#ede9ff;--primary-dark:#4035cc;
+  --green:#16c98d;--green-light:#e6faf4;--green-dark:#0da070;
+  --red:#ff4d6d;--red-light:#fff0f3;
+  --amber:#f59e0b;--amber-light:#fffbeb;--amber-dark:#d97706;
+  --r:12px;--r-lg:16px;--r-xl:20px;
+  --sh:0 2px 16px rgba(91,79,255,.10);--sh-lg:0 8px 40px rgba(91,79,255,.16);
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;overflow-x:hidden}
+
+/* ─── PROGRESS BAR ─── */
+.progress-track{position:fixed;top:0;left:0;right:0;height:4px;background:var(--border);z-index:200}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--primary),#8b5cf6);border-radius:0 4px 4px 0;transition:width .5s cubic-bezier(.4,0,.2,1)}
+
+/* ─── STEP WRAPPER ─── */
+.step{display:none;min-height:100vh;flex-direction:column;align-items:center;justify-content:flex-start;padding:0 0 40px;animation:stepIn .35s ease both}
+.step.active{display:flex}
+@keyframes stepIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@keyframes stepOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-12px)}}
+
+/* ─── HERO (welcome screen) ─── */
+.hero{width:100%;background:linear-gradient(160deg,#1a1a2e 0%,#2e2060 60%,#5b4fff 100%);padding:60px 24px 48px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.hero-logo{width:80px;height:80px;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.2);border-radius:24px;display:flex;align-items:center;justify-content:center;margin-bottom:24px;backdrop-filter:blur(8px)}
+.hero-logo i{font-size:42px;color:#fff}
+.hero-title{font-size:32px;font-weight:900;color:#fff;line-height:1.2;margin-bottom:10px}
+.hero-sub{font-size:16px;color:rgba(255,255,255,.7);font-weight:600;max-width:320px;line-height:1.6}
+.hero-chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:24px}
+.chip{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:700;color:rgba(255,255,255,.85);display:flex;align-items:center;gap:5px}
+.chip i{font-size:14px}
+
+/* ─── CONTENT AREA ─── */
+.step-body{width:100%;max-width:480px;padding:28px 20px 0;display:flex;flex-direction:column;gap:0}
+
+/* ─── STEP LABEL ─── */
+.step-label{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.step-num{width:26px;height:26px;border-radius:50%;background:var(--primary);color:#fff;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-tag{font-size:12px;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:.5px}
+.step-title{font-size:22px;font-weight:900;margin-bottom:6px;line-height:1.2}
+.step-desc{font-size:14px;color:var(--text2);font-weight:600;margin-bottom:22px;line-height:1.6}
+
+/* ─── QUANTITY PICKER ─── */
+.qty-picker{display:flex;align-items:center;justify-content:center;gap:20px;padding:28px 0;margin-bottom:8px}
+.qty-btn{width:52px;height:52px;border-radius:50%;border:2.5px solid var(--primary);background:var(--primary-light);color:var(--primary);font-size:28px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;line-height:1}
+.qty-btn:active{background:var(--primary);color:#fff;transform:scale(.93)}
+.qty-btn:disabled{opacity:.3;cursor:not-allowed}
+.qty-num{font-size:56px;font-weight:900;color:var(--primary);min-width:72px;text-align:center;line-height:1}
+.qty-label{font-size:13px;font-weight:700;color:var(--text3);text-align:center;margin-top:4px}
+.qty-hint{background:var(--primary-light);border-radius:var(--r);padding:12px 16px;font-size:13px;font-weight:700;color:var(--primary);text-align:center;display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:20px}
+
+/* ─── LOCATION TABS ─── */
+.loc-tabs{display:flex;gap:6px;margin-bottom:20px;overflow-x:auto;padding-bottom:2px}
+.loc-tab{padding:7px 16px;border-radius:20px;border:2px solid var(--border);font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;background:var(--bg3);color:var(--text2);transition:all .15s;flex-shrink:0}
+.loc-tab.active{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
+.loc-tab.done{border-color:var(--green);background:var(--green-light);color:var(--green-dark)}
+.loc-tab.done::after{content:' ✓'}
+
+/* ─── FORM ─── */
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:12px;font-weight:800;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;display:flex;align-items:center;gap:4px}
+.req{color:var(--red);font-size:14px}
+.form-input{width:100%;background:var(--bg3);border:2px solid var(--border);border-radius:var(--r);padding:13px 14px;color:var(--text);font-size:15px;font-family:'Nunito',sans-serif;font-weight:600;outline:none;transition:border-color .15s,background .15s;appearance:none}
+.form-input:focus{border-color:var(--primary);background:#fff}
+.form-input::placeholder{color:var(--text3)}
+.form-input.error{border-color:var(--red);background:var(--red-light)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.error-msg{font-size:11px;font-weight:700;color:var(--red);margin-top:4px;display:flex;align-items:center;gap:3px}
+
+/* ─── WAREHOUSE CHIPS ─── */
+.wh-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.wh-chip{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg3);border:1.5px solid var(--border);border-radius:var(--r-lg)}
+.wh-chip.primary-wh{border-color:var(--primary);background:var(--primary-light)}
+.wh-chip-icon{width:36px;height:36px;border-radius:10px;background:var(--bg2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.wh-chip-icon i{font-size:18px;color:var(--text2)}
+.wh-chip.primary-wh .wh-chip-icon{background:var(--primary)}
+.wh-chip.primary-wh .wh-chip-icon i{color:#fff}
+.wh-chip-info{flex:1;min-width:0}
+.wh-chip-name{font-size:14px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wh-chip-sub{font-size:11px;font-weight:600;color:var(--text3);margin-top:1px}
+.wh-del{width:28px;height:28px;background:var(--red-light);border:none;border-radius:8px;cursor:pointer;color:var(--red);font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* ─── ADD INLINE ─── */
+.add-inline{display:flex;gap:8px;align-items:center}
+.add-inline .form-input{flex:1}
+.add-btn{height:46px;padding:0 16px;border-radius:var(--r);border:none;background:var(--primary);color:#fff;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:5px;flex-shrink:0;white-space:nowrap;transition:all .15s}
+.add-btn:active{background:var(--primary-dark);transform:scale(.97)}
+.add-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ─── DELIVERY METHOD CARD ─── */
+.dm-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.dm-chip{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg3);border:1.5px solid var(--border);border-radius:var(--r-lg)}
+.dm-chip-left{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dm-chip-left.home{background:#ede9ff;color:var(--primary)}
+.dm-chip-left.pickup{background:var(--green-light);color:var(--green-dark)}
+.dm-chip-left.point{background:var(--blue-light,#eff6ff);color:#2563eb}
+.dm-chip-left i{font-size:20px}
+.dm-chip-info{flex:1;min-width:0}
+.dm-chip-name{font-size:14px;font-weight:800}
+.dm-chip-meta{font-size:11px;font-weight:600;color:var(--text3);margin-top:2px}
+
+/* ─── TYPE SELECTOR ─── */
+.type-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px}
+.type-opt{padding:14px 8px;border-radius:var(--r-lg);border:2px solid var(--border);cursor:pointer;text-align:center;background:var(--bg3);transition:all .15s}
+.type-opt.selected{border-color:var(--primary);background:var(--primary-light)}
+.type-opt i{font-size:26px;color:var(--text3);display:block;margin-bottom:6px}
+.type-opt.selected i{color:var(--primary)}
+.type-opt-label{font-size:11px;font-weight:800;color:var(--text2)}
+.type-opt.selected .type-opt-label{color:var(--primary)}
+
+/* ─── SLOT BUILDER ─── */
+.slot-section{margin-top:16px}
+.slot-day-label{font-size:12px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.dow-row{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap}
+.dow-pill{width:40px;height:40px;border-radius:50%;border:2px solid var(--border);background:var(--bg3);font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);transition:all .15s;flex-shrink:0}
+.dow-pill.selected{background:var(--primary);border-color:var(--primary);color:#fff}
+.slot-time-row{display:flex;gap:8px;align-items:flex-end}
+.slot-time-row .form-input{flex:1}
+.slot-add-btn{height:46px;padding:0 12px;border-radius:var(--r);border:none;background:var(--primary);color:#fff;font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:4px;flex-shrink:0;transition:all .15s}
+.slot-add-btn:active{transform:scale(.96)}
+.slots-preview{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+.slot-pill{display:flex;align-items:center;gap:6px;padding:7px 12px;background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r);font-size:12px;font-weight:700}
+.slot-pill-dow{color:var(--primary);min-width:28px}
+.slot-pill-time{flex:1;color:var(--text2)}
+.slot-pill-del{width:24px;height:24px;background:var(--red-light);border:none;border-radius:6px;cursor:pointer;color:var(--red);font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* ─── SUMMARY ─── */
+.summary-card{background:var(--bg2);border-radius:var(--r-xl);box-shadow:var(--sh);overflow:hidden;margin-bottom:16px}
+.summary-header{background:linear-gradient(120deg,var(--primary) 0%,#7c3aed 100%);padding:20px;color:#fff}
+.summary-header-title{font-size:16px;font-weight:900;margin-bottom:2px}
+.summary-header-sub{font-size:12px;font-weight:600;opacity:.8}
+.summary-body{padding:16px}
+.summary-section{margin-bottom:14px}
+.summary-section:last-child{margin-bottom:0}
+.summary-section-title{font-size:11px;font-weight:900;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;align-items:center;gap:5px}
+.summary-row{display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
+.summary-row:last-child{border-bottom:none}
+.summary-row-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.summary-row-icon.loc{background:var(--primary-light)}
+.summary-row-icon.loc i{color:var(--primary);font-size:16px}
+.summary-row-icon.wh{background:var(--teal-light,#f0fdfa)}
+.summary-row-icon.wh i{color:#0d9488;font-size:16px}
+.summary-row-icon.dm{background:var(--amber-light)}
+.summary-row-icon.dm i{color:var(--amber-dark);font-size:16px}
+.summary-row-body{flex:1}
+.summary-row-name{font-size:13px;font-weight:800}
+.summary-row-sub{font-size:11px;color:var(--text3);font-weight:600;margin-top:1px}
+
+/* ─── BOTTOM NAV ─── */
+.step-nav{position:fixed;bottom:0;left:0;right:0;background:var(--bg2);border-top:1px solid var(--border);padding:14px 20px 24px;display:flex;gap:10px;max-width:480px;margin:0 auto;box-shadow:0 -4px 20px rgba(0,0,0,.06)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:14px 20px;border-radius:var(--r-lg);border:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:15px;cursor:pointer;transition:all .15s;width:100%}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--primary);color:#fff;box-shadow:0 4px 16px rgba(91,79,255,.3)}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-outline{background:var(--bg3);color:var(--text);border:1.5px solid var(--border)}
+.btn-green{background:var(--green);color:#fff;box-shadow:0 4px 16px rgba(16,201,141,.3)}
+
+.divider{height:1px;background:var(--border);margin:16px 0}
+.info-box{border-radius:var(--r);padding:11px 14px;font-size:13px;font-weight:700;margin-bottom:14px;display:flex;align-items:flex-start;gap:8px;line-height:1.5}
+.info-box i{font-size:18px;flex-shrink:0;margin-top:1px}
+.info-box.primary{background:var(--primary-light);color:var(--primary)}
+.info-box.amber{background:var(--amber-light);color:var(--amber-dark)}
+.info-box.green{background:var(--green-light);color:var(--green-dark)}
+
+#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;padding:10px 20px;border-radius:24px;font-size:14px;font-weight:700;opacity:0;transition:all .3s;z-index:999;white-space:nowrap;pointer-events:none}
+
+/* ─── COMPLETION ─── */
+.completion-hero{width:100%;background:linear-gradient(160deg,#0d9488,#059669);padding:56px 24px 48px;text-align:center}
+.completion-icon{font-size:72px;display:block;margin-bottom:16px;animation:bounceIn .5s .1s both}
+@keyframes bounceIn{0%{transform:scale(0)}60%{transform:scale(1.18)}100%{transform:scale(1)}}
+.completion-title{font-size:28px;font-weight:900;color:#fff;margin-bottom:8px}
+.completion-sub{font-size:15px;color:rgba(255,255,255,.8);font-weight:600;line-height:1.6}
+</style>
+</head>
+<body>
+
+<div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+
+<!-- ════════════════════════════════════
+     STEP 0 — WELCOME
+════════════════════════════════════ -->
+<div class="step active" id="step-0">
+  <div class="hero">
+    <div class="hero-logo"><i class="ti ti-packages"></i></div>
+    <div class="hero-title">Bienvenido a<br>StockFlow</div>
+    <div class="hero-sub">Te guiamos en la configuración inicial para que empieces a operar hoy.</div>
+    <div class="hero-chips">
+      <div class="chip"><i class="ti ti-clock"></i> 5 minutos</div>
+      <div class="chip"><i class="ti ti-device-mobile"></i> Mobile-first</div>
+      <div class="chip"><i class="ti ti-shield-check"></i> Sin tarjeta</div>
+    </div>
+  </div>
+
+  <div class="step-body">
+    <div class="info-box primary" style="margin-top:4px">
+      <i class="ti ti-info-circle"></i>
+      <span>Vamos a configurar tu(s) local(es), almacenes y formas de entrega. Solo necesitas lo mínimo para empezar — todo puede ampliarse después.</span>
+    </div>
+
+    <div class="form-group">
+      <div class="form-label">Tu nombre <span class="req">*</span></div>
+      <input class="form-input" id="user-name" placeholder="Ej: María González">
+    </div>
+    <div class="form-group">
+      <div class="form-label">Nombre de tu negocio <span class="req">*</span></div>
+      <input class="form-input" id="biz-name" placeholder="Ej: Mi Tienda SpA">
+    </div>
+    <div class="form-group">
+      <div class="form-label">Correo</div>
+      <input class="form-input" type="email" id="biz-email" placeholder="admin@mitienda.cl">
+    </div>
+  </div>
+
+  <div class="step-nav">
+    <button class="btn btn-primary" onclick="goStep(1)">
+      Comenzar configuración <i class="ti ti-arrow-right"></i>
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     STEP 1 — ¿CUÁNTOS LOCALES?
+════════════════════════════════════ -->
+<div class="step" id="step-1">
+  <div class="step-body" style="padding-top:52px">
+    <div class="step-label"><div class="step-num">1</div><div class="step-tag">Locales</div></div>
+    <div class="step-title">¿Cuántos locales o puntos de venta tienes?</div>
+    <div class="step-desc">Un local es cada dirección física desde donde despachas o atiendes clientes. Si eres un emprendimiento pequeño, probablemente tengas 1.</div>
+
+    <div class="qty-picker">
+      <button class="qty-btn" id="qty-minus" onclick="changeQty(-1)" disabled>−</button>
+      <div>
+        <div class="qty-num" id="qty-display">1</div>
+        <div class="qty-label">local(es)</div>
+      </div>
+      <button class="qty-btn" id="qty-plus" onclick="changeQty(1)">+</button>
+    </div>
+    <div class="qty-hint" id="qty-hint">
+      <i class="ti ti-info-circle"></i>
+      <span id="qty-hint-text">Perfecto para empezar. Puedes agregar más locales después.</span>
+    </div>
+  </div>
+
+  <div class="step-nav">
+    <button class="btn btn-outline" onclick="goStep(0)" style="width:auto;padding:14px 20px"><i class="ti ti-arrow-left"></i></button>
+    <button class="btn btn-primary" onclick="initLocals()">
+      Configurar locales <i class="ti ti-arrow-right"></i>
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     STEP 2 — DATOS DE CADA LOCAL
+════════════════════════════════════ -->
+<div class="step" id="step-2">
+  <div class="step-body" style="padding-top:52px">
+    <div class="step-label"><div class="step-num">2</div><div class="step-tag">Datos del local</div></div>
+    <div class="step-title" id="s2-title">Cuéntanos sobre tu local</div>
+    <div class="step-desc">Esta dirección será el punto de partida de las rutas de despacho.</div>
+
+    <div class="loc-tabs" id="loc-tabs"></div>
+    <div id="loc-form-area"></div>
+  </div>
+
+  <div class="step-nav">
+    <button class="btn btn-outline" onclick="goStep(1)" style="width:auto;padding:14px 20px"><i class="ti ti-arrow-left"></i></button>
+    <button class="btn btn-primary" id="btn-locals-next" onclick="validateAndNextLocals()">
+      Continuar <i class="ti ti-arrow-right"></i>
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     STEP 3 — ALMACENES
+════════════════════════════════════ -->
+<div class="step" id="step-3">
+  <div class="step-body" style="padding-top:52px">
+    <div class="step-label"><div class="step-num">3</div><div class="step-tag">Almacenes</div></div>
+    <div class="step-title">Crea los almacenes de cada local</div>
+    <div class="step-desc">Un almacén es donde guardas el inventario. Cada local necesita al menos uno. Puedes tener bodega principal, refrigerados, accesorios, etc.</div>
+
+    <div class="loc-tabs" id="wh-tabs"></div>
+    <div id="wh-area"></div>
+  </div>
+
+  <div class="step-nav">
+    <button class="btn btn-outline" onclick="goStep(2)" style="width:auto;padding:14px 20px"><i class="ti ti-arrow-left"></i></button>
+    <button class="btn btn-primary" id="btn-wh-next" onclick="validateAndNextWarehouses()">
+      Continuar <i class="ti ti-arrow-right"></i>
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     STEP 4 — FORMAS DE ENTREGA
+════════════════════════════════════ -->
+<div class="step" id="step-4">
+  <div class="step-body" style="padding-top:52px">
+    <div class="step-label"><div class="step-num">4</div><div class="step-tag">Formas de entrega</div></div>
+    <div class="step-title">¿Cómo entregas a tus clientes?</div>
+    <div class="step-desc">Configura al menos una forma de entrega vinculada a un local. Puedes agregar más después desde Ajustes.</div>
+
+    <div class="dm-list" id="dm-list"></div>
+
+    <div class="info-box amber" id="dm-min-msg" style="display:none">
+      <i class="ti ti-alert-triangle"></i>
+      <span>Debes tener al menos una forma de entrega para continuar.</span>
+    </div>
+
+    <!-- AGREGAR NUEVA -->
+    <div style="background:var(--bg2);border-radius:var(--r-xl);border:1.5px dashed var(--border);padding:18px;margin-top:4px">
+      <div style="font-size:14px;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:7px"><i class="ti ti-plus" style="color:var(--primary)"></i> Agregar forma de entrega</div>
+
+      <div class="form-group">
+        <div class="form-label">Nombre <span class="req">*</span></div>
+        <input class="form-input" id="dm-name" placeholder="Ej: Despacho a domicilio">
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">Tipo</div>
+        <div class="type-grid">
+          <div class="type-opt selected" onclick="selectDmType(this,'home_delivery')">
+            <i class="ti ti-home"></i>
+            <div class="type-opt-label">A domicilio</div>
+          </div>
+          <div class="type-opt" onclick="selectDmType(this,'store_pickup')">
+            <i class="ti ti-building-store"></i>
+            <div class="type-opt-label">Retiro tienda</div>
+          </div>
+          <div class="type-opt" onclick="selectDmType(this,'pickup_point')">
+            <i class="ti ti-package"></i>
+            <div class="type-opt-label">Punto retiro</div>
+          </div>
+        </div>
+        <input type="hidden" id="dm-type" value="home_delivery">
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">Vinculada al local <span class="req">*</span></div>
+        <select class="form-input" id="dm-local-sel"></select>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <div class="form-label">Costo base ($)</div>
+          <input class="form-input" type="number" id="dm-cost" value="0" placeholder="0">
+        </div>
+        <div class="form-group">
+          <div class="form-label">Envío gratis sobre</div>
+          <input class="form-input" type="number" id="dm-free" placeholder="Sin límite">
+        </div>
+      </div>
+
+      <!-- SLOTS -->
+      <div class="slot-section">
+        <div class="slot-day-label"><i class="ti ti-clock" style="font-size:14px;color:var(--amber-dark)"></i> Slots de entrega por día de semana</div>
+        <div class="info-box amber" style="margin-bottom:10px">
+          <i class="ti ti-info-circle"></i>
+          <span>Agrega al menos un slot. Selecciona el o los días y el rango horario.</span>
+        </div>
+        <div class="dow-row" id="dm-dow-row">
+          <div class="dow-pill" onclick="toggleDow(this,0)">Do</div>
+          <div class="dow-pill" onclick="toggleDow(this,1)">Lu</div>
+          <div class="dow-pill" onclick="toggleDow(this,2)">Ma</div>
+          <div class="dow-pill" onclick="toggleDow(this,3)">Mi</div>
+          <div class="dow-pill" onclick="toggleDow(this,4)">Ju</div>
+          <div class="dow-pill" onclick="toggleDow(this,5)">Vi</div>
+          <div class="dow-pill" onclick="toggleDow(this,6)">Sá</div>
+        </div>
+        <div class="slot-time-row">
+          <div>
+            <div class="form-label">Desde</div>
+            <input class="form-input" type="time" id="dm-slot-from" value="09:00">
+          </div>
+          <div>
+            <div class="form-label">Hasta</div>
+            <input class="form-input" type="time" id="dm-slot-to" value:"13:00" value="13:00">
+          </div>
+          <button class="slot-add-btn" onclick="addDmSlot()"><i class="ti ti-plus"></i> Agregar</button>
+        </div>
+        <div class="slots-preview" id="dm-slots-preview"></div>
+      </div>
+
+      <button class="btn btn-primary mt-3" style="margin-top:16px" onclick="saveDm()">
+        <i class="ti ti-check"></i> Guardar forma de entrega
+      </button>
+    </div>
+  </div>
+
+  <div class="step-nav">
+    <button class="btn btn-outline" onclick="goStep(3)" style="width:auto;padding:14px 20px"><i class="ti ti-arrow-left"></i></button>
+    <button class="btn btn-primary" id="btn-dm-next" onclick="validateAndNextDM()" disabled>
+      Ver resumen <i class="ti ti-arrow-right"></i>
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     STEP 5 — RESUMEN
+════════════════════════════════════ -->
+<div class="step" id="step-5">
+  <div class="step-body" style="padding-top:52px">
+    <div class="step-label"><div class="step-num">5</div><div class="step-tag">Resumen</div></div>
+    <div class="step-title">Todo listo para empezar</div>
+    <div class="step-desc">Revisa la configuración inicial. Podrás modificar todo esto desde Ajustes.</div>
+    <div id="summary-area"></div>
+  </div>
+
+  <div class="step-nav">
+    <button class="btn btn-outline" onclick="goStep(4)" style="width:auto;padding:14px 20px"><i class="ti ti-arrow-left"></i></button>
+    <button class="btn btn-green" onclick="finishOnboarding()">
+      <i class="ti ti-rocket"></i> ¡Empezar a operar!
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     STEP 6 — COMPLETADO
+════════════════════════════════════ -->
+<div class="step" id="step-6">
+  <div class="completion-hero">
+    <span class="completion-icon">🚀</span>
+    <div class="completion-title" id="completion-title">¡Listo, María!</div>
+    <div class="completion-sub">Tu negocio está configurado.<br>Ya puedes crear órdenes, gestionar inventario y despachar.</div>
+  </div>
+
+  <div class="step-body" style="padding-top:24px">
+    <div id="quick-actions"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── AUTH GUARD ──────────────────────────────────
+(function(){
+  const token = localStorage.getItem('sf_token');
+  if (!token) { location.replace('/login'); }
+})();
+
+const DOW_NAMES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+const TOTAL_STEPS = 6;
+
+// ── STATE ──────────────────────────────────────
+const OB = {
+  user:     { name:'', bizName:'', email:'' },
+  numLocals: 1,
+  locals:   [],   // [{name,street,city,region,phone,email,warehouses:[]}]
+  methods:  [],   // [{name,type,localIdx,cost,free,slots:[{dow,from,to}]}]
+  currentLocalIdx: 0,
+  currentWHIdx:    0,
+  dmSelectedDows:  new Set(),
+  dmTempSlots:     [],
+};
+
+// ── PROGRESS ──────────────────────────────────
+function setProgress(pct) {
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+
+// ── NAVIGATION ────────────────────────────────
+function goStep(n) {
+  const current = document.querySelector('.step.active');
+  current?.classList.remove('active');
+  const next = document.getElementById('step-'+n);
+  next.classList.add('active');
+  next.scrollTop = 0;
+  window.scrollTo(0,0);
+  setProgress(Math.round(n / TOTAL_STEPS * 100));
+}
+
+// ── STEP 0 helpers ────────────────────────────
+// Override goStep(1) to capture user data
+const _goStep = goStep;
+function goStep(n) {
+  if (n === 1) {
+    const name = document.getElementById('user-name').value.trim();
+    const biz  = document.getElementById('biz-name').value.trim();
+    if (n===1 && (!name || !biz)) { shake('user-name'); toast('⚠️ Tu nombre y el nombre del negocio son obligatorios'); return; }
+    OB.user.name    = name;
+    OB.user.bizName = biz;
+    OB.user.email   = document.getElementById('biz-email').value.trim();
+  }
+  _goStep(n);
+}
+
+// ── STEP 1: QTY ────────────────────────────────
+function changeQty(delta) {
+  OB.numLocals = Math.max(1, Math.min(10, OB.numLocals + delta));
+  document.getElementById('qty-display').textContent = OB.numLocals;
+  document.getElementById('qty-minus').disabled = OB.numLocals <= 1;
+  document.getElementById('qty-plus').disabled  = OB.numLocals >= 10;
+  const hints = [
+    '', // 0 (unused)
+    'Perfecto para empezar. Puedes agregar más locales después.',
+    '2 locales: por ejemplo casa central y una sucursal.',
+    'Multi-local. Cada uno con su propio inventario y despacho.',
+    '4 locales o más — una operación sólida.',
+  ];
+  document.getElementById('qty-hint-text').textContent = hints[Math.min(OB.numLocals, 4)];
+}
+
+function initLocals() {
+  // Inicializar array de locales
+  OB.locals = Array.from({length: OB.numLocals}, (_, i) => ({
+    name:'', street:'', city:'', region:'', phone:'', email:'', warehouses:[]
+  }));
+  OB.currentLocalIdx = 0;
+  renderLocTabs();
+  renderLocForm(0);
+  document.getElementById('s2-title').textContent = OB.numLocals === 1
+    ? 'Cuéntanos sobre tu local'
+    : `Configura tus ${OB.numLocals} locales`;
+  goStep(2);
+}
+
+// ── STEP 2: LOCAL DATA ─────────────────────────
+function renderLocTabs() {
+  const tabs = document.getElementById('loc-tabs');
+  if (OB.numLocals === 1) { tabs.style.display = 'none'; return; }
+  tabs.style.display = 'flex';
+  tabs.innerHTML = OB.locals.map((loc, i) => {
+    const done = loc.name && loc.street && loc.city;
+    return `<div class="loc-tab ${i===OB.currentLocalIdx?'active':''} ${done?'done':''}" onclick="switchLocTab(${i})">${loc.name||'Local '+(i+1)}</div>`;
+  }).join('');
+}
+
+function switchLocTab(i) {
+  saveCurrentLocForm();
+  OB.currentLocalIdx = i;
+  renderLocTabs();
+  renderLocForm(i);
+}
+
+function renderLocForm(i) {
+  const loc = OB.locals[i];
+  document.getElementById('loc-form-area').innerHTML = `
+    <div class="form-group">
+      <div class="form-label">Nombre del local <span class="req">*</span></div>
+      <input class="form-input" id="lf-name" placeholder="Ej: Tienda Centro" value="${esc(loc.name)}">
+    </div>
+    <div class="form-group">
+      <div class="form-label">Dirección <span class="req">*</span></div>
+      <input class="form-input" id="lf-street" placeholder="Av. Providencia 1234" value="${esc(loc.street)}">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <div class="form-label">Ciudad <span class="req">*</span></div>
+        <input class="form-input" id="lf-city" placeholder="Santiago" value="${esc(loc.city)}">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Región</div>
+        <input class="form-input" id="lf-region" placeholder="RM" value="${esc(loc.region)}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <div class="form-label">Teléfono</div>
+        <input class="form-input" id="lf-phone" placeholder="+56 2 ..." value="${esc(loc.phone)}">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Email</div>
+        <input class="form-input" type="email" id="lf-email" placeholder="local@..." value="${esc(loc.email)}">
+      </div>
+    </div>`;
+}
+
+function saveCurrentLocForm() {
+  const i = OB.currentLocalIdx;
+  const get = id => document.getElementById(id)?.value?.trim() || '';
+  OB.locals[i].name   = get('lf-name');
+  OB.locals[i].street = get('lf-street');
+  OB.locals[i].city   = get('lf-city');
+  OB.locals[i].region = get('lf-region');
+  OB.locals[i].phone  = get('lf-phone');
+  OB.locals[i].email  = get('lf-email');
+}
+
+function validateAndNextLocals() {
+  saveCurrentLocForm();
+  const invalid = OB.locals.findIndex(l => !l.name || !l.street || !l.city);
+  if (invalid >= 0) {
+    OB.currentLocalIdx = invalid;
+    renderLocTabs(); renderLocForm(invalid);
+    shake('lf-name');
+    toast(`⚠️ Completa los datos del local ${invalid+1}`);
+    return;
+  }
+  // Init warehouses
+  OB.locals.forEach(l => { if(!l.warehouses) l.warehouses = []; });
+  OB.currentWHIdx = 0;
+  renderWHTabs();
+  renderWHArea(0);
+  goStep(3);
+}
+
+// ── STEP 3: WAREHOUSES ────────────────────────
+function renderWHTabs() {
+  const tabs = document.getElementById('wh-tabs');
+  if (OB.numLocals === 1) { tabs.style.display='none'; return; }
+  tabs.style.display = 'flex';
+  tabs.innerHTML = OB.locals.map((loc, i) => {
+    const done = loc.warehouses.length > 0;
+    return `<div class="loc-tab ${i===OB.currentWHIdx?'active':''} ${done?'done':''}" onclick="switchWHTab(${i})">${loc.name||'Local '+(i+1)}</div>`;
+  }).join('');
+}
+
+function switchWHTab(i) {
+  OB.currentWHIdx = i;
+  renderWHTabs(); renderWHArea(i);
+}
+
+function renderWHArea(i) {
+  const loc = OB.locals[i];
+  let html = `
+    <div class="info-box primary">
+      <i class="ti ti-building-warehouse"></i>
+      <span><strong>${loc.name}</strong> — Agrega al menos un almacén. La bodega principal se crea automáticamente si no agregas ninguna.</span>
+    </div>`;
+
+  if (loc.warehouses.length) {
+    html += `<div class="wh-list">`;
+    loc.warehouses.forEach((w, wi) => {
+      html += `<div class="wh-chip ${wi===0?'primary-wh':''}">
+        <div class="wh-chip-icon"><i class="ti ti-box"></i></div>
+        <div class="wh-chip-info">
+          <div class="wh-chip-name">${esc(w.name)}</div>
+          <div class="wh-chip-sub">${esc(w.desc)||'Sin descripción'}${wi===0?' · Principal':''}</div>
+        </div>
+        ${wi>0?`<button class="wh-del" onclick="deleteWH(${i},${wi})"><i class="ti ti-trash" style="font-size:13px"></i></button>`:''}
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  html += `<div class="add-inline">
+    <input class="form-input" id="wh-name-${i}" placeholder="Ej: Bodega Principal">
+    <button class="add-btn" onclick="addWH(${i})"><i class="ti ti-plus"></i> Agregar</button>
+  </div>
+  <div style="font-size:11px;font-weight:600;color:var(--text3);margin-top:6px">Ej: Bodega principal, Refrigerados, Accesorios...</div>`;
+
+  document.getElementById('wh-area').innerHTML = html;
+}
+
+function addWH(localIdx) {
+  const inp = document.getElementById(`wh-name-${localIdx}`);
+  const name = inp.value.trim();
+  if (!name) { shake(`wh-name-${localIdx}`); return; }
+  OB.locals[localIdx].warehouses.push({ name, desc:'' });
+  renderWHTabs(); renderWHArea(localIdx);
+  toast(`✅ Almacén "${name}" agregado`);
+}
+
+function deleteWH(localIdx, whIdx) {
+  OB.locals[localIdx].warehouses.splice(whIdx, 1);
+  renderWHTabs(); renderWHArea(localIdx);
+}
+
+function validateAndNextWarehouses() {
+  // Auto-crear "Bodega Principal" en locales sin almacenes
+  OB.locals.forEach(l => {
+    if (!l.warehouses.length) l.warehouses.push({ name:'Bodega Principal', desc:'Creada automáticamente' });
+  });
+  // Populate local selector in DM form
+  const sel = document.getElementById('dm-local-sel');
+  sel.innerHTML = OB.locals.map((l,i) => `<option value="${i}">${l.name}</option>`).join('');
+  renderDmList();
+  updateDmNextBtn();
+  goStep(4);
+}
+
+// ── STEP 4: DELIVERY METHODS ──────────────────
+let dmSelectedDows = new Set();
+let dmTempSlots   = [];
+
+function selectDmType(el, type) {
+  document.getElementById('dm-type').value = type;
+  document.querySelectorAll('.type-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function toggleDow(el, dow) {
+  if (dmSelectedDows.has(dow)) { dmSelectedDows.delete(dow); el.classList.remove('selected'); }
+  else { dmSelectedDows.add(dow); el.classList.add('selected'); }
+}
+function addDmSlot() {
+  if (!dmSelectedDows.size) { toast('⚠️ Selecciona al menos un día'); return; }
+  const from = document.getElementById('dm-slot-from').value;
+  const to   = document.getElementById('dm-slot-to').value;
+  if (!from || !to) { toast('⚠️ Completa los horarios'); return; }
+  if (from >= to) { toast('⚠️ La hora de inicio debe ser antes de la de fin'); return; }
+  dmSelectedDows.forEach(dow => {
+    dmTempSlots.push({ dow, from, to });
+  });
+  renderDmSlotsPreview();
+  toast(`✅ Slot agregado para ${dmSelectedDows.size} día${dmSelectedDows.size>1?'s':''}`);
+}
+function renderDmSlotsPreview() {
+  document.getElementById('dm-slots-preview').innerHTML = dmTempSlots.map((s,i) => `
+    <div class="slot-pill">
+      <span class="slot-pill-dow">${DOW_NAMES[s.dow]}</span>
+      <span class="slot-pill-time">${s.from} – ${s.to}</span>
+      <button class="slot-pill-del" onclick="rmSlot(${i})"><i class="ti ti-x" style="font-size:12px"></i></button>
+    </div>`).join('');
+}
+function rmSlot(i) { dmTempSlots.splice(i,1); renderDmSlotsPreview(); }
+
+function saveDm() {
+  const name = document.getElementById('dm-name').value.trim();
+  if (!name) { shake('dm-name'); toast('⚠️ El nombre es obligatorio'); return; }
+  if (!dmTempSlots.length) { toast('⚠️ Agrega al menos un slot horario'); return; }
+  const localIdx = parseInt(document.getElementById('dm-local-sel').value);
+  const type = document.getElementById('dm-type').value;
+  const cost = parseFloat(document.getElementById('dm-cost').value)||0;
+  const free = parseFloat(document.getElementById('dm-free').value)||null;
+  OB.methods.push({ name, type, localIdx, cost, free, slots:[...dmTempSlots] });
+  // Reset form
+  document.getElementById('dm-name').value = '';
+  document.getElementById('dm-cost').value = '0';
+  document.getElementById('dm-free').value = '';
+  dmTempSlots = [];
+  dmSelectedDows.clear();
+  document.querySelectorAll('.dow-pill').forEach(p => p.classList.remove('selected'));
+  document.getElementById('dm-slots-preview').innerHTML = '';
+  document.getElementById('dm-min-msg').style.display = 'none';
+  renderDmList();
+  updateDmNextBtn();
+  toast(`✅ "${name}" guardado`);
+}
+
+function renderDmList() {
+  const typeLabels = { home_delivery:'Despacho a domicilio', store_pickup:'Retiro en tienda', pickup_point:'Punto de retiro' };
+  const typeIcons  = { home_delivery:'ti-home', store_pickup:'ti-building-store', pickup_point:'ti-package' };
+  const typeCls    = { home_delivery:'home', store_pickup:'pickup', pickup_point:'point' };
+  const el = document.getElementById('dm-list');
+  el.innerHTML = OB.methods.map((m,i) => `
+    <div class="dm-chip">
+      <div class="dm-chip-left ${typeCls[m.type]||'home'}"><i class="ti ${typeIcons[m.type]||'ti-truck'}"></i></div>
+      <div class="dm-chip-info">
+        <div class="dm-chip-name">${esc(m.name)}</div>
+        <div class="dm-chip-meta">${typeLabels[m.type]} · ${OB.locals[m.localIdx]?.name||'?'} · ${m.slots.length} slot${m.slots.length!==1?'s':''}${m.cost>0?' · $'+m.cost.toLocaleString('es-CL'):'· Gratis'}</div>
+      </div>
+      <button class="wh-del" onclick="deleteDm(${i})"><i class="ti ti-trash" style="font-size:13px"></i></button>
+    </div>`).join('');
+}
+function deleteDm(i) { OB.methods.splice(i,1); renderDmList(); updateDmNextBtn(); }
+function updateDmNextBtn() {
+  document.getElementById('btn-dm-next').disabled = OB.methods.length === 0;
+}
+
+function validateAndNextDM() {
+  if (!OB.methods.length) {
+    document.getElementById('dm-min-msg').style.display = 'flex';
+    toast('⚠️ Necesitas al menos una forma de entrega');
+    return;
+  }
+  renderSummary();
+  goStep(5);
+}
+
+// ── STEP 5: SUMMARY ───────────────────────────
+function renderSummary() {
+  const typeLabels = { home_delivery:'Despacho a domicilio', store_pickup:'Retiro en tienda', pickup_point:'Punto de retiro' };
+  const fmt = n => '$'+Math.round(n).toLocaleString('es-CL');
+
+  let html = `<div class="summary-card">
+    <div class="summary-header">
+      <div class="summary-header-title">${esc(OB.user.bizName)}</div>
+      <div class="summary-header-sub">${esc(OB.user.name)} · ${esc(OB.user.email)||'Sin email'}</div>
+    </div>
+    <div class="summary-body">`;
+
+  // Locales y sus almacenes
+  OB.locals.forEach((loc, li) => {
+    html += `<div class="summary-section">
+      <div class="summary-section-title"><i class="ti ti-building-store" style="font-size:13px"></i>${esc(loc.name)}</div>
+      <div class="summary-row">
+        <div class="summary-row-icon loc"><i class="ti ti-map-pin"></i></div>
+        <div class="summary-row-body">
+          <div class="summary-row-name">${esc(loc.street)}</div>
+          <div class="summary-row-sub">${esc(loc.city)}${loc.region?', '+esc(loc.region):''}</div>
+        </div>
+      </div>`;
+    loc.warehouses.forEach(w => {
+      html += `<div class="summary-row">
+        <div class="summary-row-icon wh"><i class="ti ti-box"></i></div>
+        <div class="summary-row-body">
+          <div class="summary-row-name">${esc(w.name)}</div>
+          <div class="summary-row-sub">Almacén · ${esc(loc.name)}</div>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+
+  // Formas de entrega
+  html += `<div class="summary-section"><div class="summary-section-title"><i class="ti ti-truck-delivery" style="font-size:13px"></i>Formas de entrega</div>`;
+  OB.methods.forEach(m => {
+    html += `<div class="summary-row">
+      <div class="summary-row-icon dm"><i class="ti ti-clock"></i></div>
+      <div class="summary-row-body">
+        <div class="summary-row-name">${esc(m.name)}</div>
+        <div class="summary-row-sub">${typeLabels[m.type]} · ${OB.locals[m.localIdx]?.name||'?'} · ${m.slots.length} slot${m.slots.length!==1?'s':''}${m.cost>0?' · '+fmt(m.cost):' · Gratis'}</div>
+      </div>
+    </div>`;
+  });
+  html += `</div></div></div>`;
+
+  document.getElementById('summary-area').innerHTML = html;
+}
+
+// ── STEP 6: FINISH ────────────────────────────
+function finishOnboarding() {
+  document.getElementById('completion-title').textContent = `¡Listo, ${OB.user.name.split(' ')[0]}!`;
+  document.getElementById('quick-actions').innerHTML = `
+    <div class="info-box green">
+      <i class="ti ti-check-circle"></i>
+      <div>
+        <strong>${OB.locals.length} local${OB.locals.length>1?'es':''} configurado${OB.locals.length>1?'s':''}</strong> con
+        ${OB.locals.reduce((s,l)=>s+l.warehouses.length,0)} almacén${OB.locals.reduce((s,l)=>s+l.warehouses.length,0)>1?'es':''} y
+        ${OB.methods.length} forma${OB.methods.length>1?'s':''} de entrega.
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+      <button class="btn btn-primary" onclick="toast('🛒 Abriendo creación de orden...')"><i class="ti ti-shopping-bag"></i> Crear primera orden</button>
+      <button class="btn btn-outline" onclick="toast('📦 Abriendo inventario...')"><i class="ti ti-box"></i> Agregar productos al inventario</button>
+      <button class="btn btn-outline" onclick="toast('⚙️ Abriendo ajustes...')"><i class="ti ti-settings"></i> Explorar ajustes</button>
+    </div>
+    <p style="text-align:center;font-size:12px;color:var(--text3);font-weight:600;margin-top:20px">Puedes completar la configuración en cualquier momento desde <strong>Ajustes → Locales</strong></p>`;
+  goStep(6);
+}
+
+// ── UTILS ──────────────────────────────────────
+function esc(s) { return (s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function shake(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('error');
+  el.animate([{transform:'translateX(-4px)'},{transform:'translateX(4px)'},{transform:'translateX(-4px)'},{transform:'translateX(0)'}],{duration:300});
+  setTimeout(() => el.classList.remove('error'), 1500);
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.opacity='1'; t.style.transform='translateX(-50%) translateY(0)';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(20px)'; }, 2800);
+}
+</script>
+</body>
+</html>

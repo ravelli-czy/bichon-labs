@@ -1,0 +1,32 @@
+{
+  "outputDirectory": "frontend",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "functions": {
+    "api/**/*.js": {
+      "memory": 256,
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/api/v1/:slug/OMS/orders",           "destination": "/api/orders" },
+    { "source": "/api/v1/:slug/OMS/orders/:id",        "destination": "/api/orders/:id" },
+    { "source": "/api/v1/:slug/WMS/products",          "destination": "/api/products" },
+    { "source": "/api/v1/:slug/WMS/products/:sku",     "destination": "/api/products/:sku" },
+    { "source": "/api/v1/:slug/WMS/kits",              "destination": "/api/kits" },
+    { "source": "/api/v1/:slug/WMS/kits/:sku",         "destination": "/api/kits/:sku" },
+    { "source": "/api/v1/:slug/SHM/shipments",         "destination": "/api/shipments" },
+    { "source": "/api/v1/:slug/SHM/shipments/:id",     "destination": "/api/shipments/:id" },
+    { "source": "/api/v1/:slug/IAM/users",             "destination": "/api/users" },
+    { "source": "/api/v1/:slug/IAM/logs",              "destination": "/api/logs" },
+
+    { "source": "/orders",        "destination": "/" },
+    { "source": "/orders/:id",    "destination": "/" },
+    { "source": "/ventas",        "destination": "/" },
+    { "source": "/inventory",     "destination": "/" },
+    { "source": "/locales",       "destination": "/" },
+    { "source": "/delivery-hub",  "destination": "/" },
+    { "source": "/shipments",     "destination": "/delivery" },
+    { "source": "/shipments/:id", "destination": "/delivery" }
+  ]
+}

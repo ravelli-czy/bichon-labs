@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow — Rutas de Despacho</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0a0a0f;--ink2:#3a3a4a;--ink3:#8888a0;
+  --paper:#ffffff;--paper2:#f6f6f9;--paper3:#ededf3;
+  --line:#e0e0ea;
+  --accent:#2563eb;--accent-light:#eff6ff;--accent-glow:rgba(37,99,235,.15);
+  --green:#059669;--green-l:#ecfdf5;
+  --amber:#d97706;--amber-l:#fffbeb;
+  --red:#dc2626;--red-l:#fef2f2;
+  --purple:#7c3aed;--purple-l:#f5f3ff;
+  --r:10px;--r-lg:14px;--r-xl:18px;
+  --sh:0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.08);
+  --sh-lg:0 4px 24px rgba(0,0,0,.12);
+}
+body{font-family:'DM Sans',sans-serif;background:var(--paper2);color:var(--ink);height:100vh;display:grid;grid-template-rows:56px 1fr;overflow:hidden}
+
+/* HEADER */
+header{background:var(--paper);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 20px;gap:16px;box-shadow:0 1px 0 var(--line)}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;color:var(--ink)}
+.logo-dot{width:32px;height:32px;background:var(--accent);border-radius:9px;display:flex;align-items:center;justify-content:center}
+.logo-dot i{color:#fff;font-size:18px}
+.header-sep{width:1px;height:24px;background:var(--line)}
+.route-selector{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--paper2);border:1px solid var(--line);border-radius:var(--r);font-size:14px;font-weight:500;cursor:pointer;gap:8px}
+.route-selector select{border:none;background:none;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;color:var(--ink);outline:none;cursor:pointer}
+.header-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--r);border:1px solid var(--line);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;background:var(--paper);color:var(--ink)}
+.btn:hover{background:var(--paper2)}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-primary:hover{background:#1d4ed8;border-color:#1d4ed8}
+.btn-optimizer{background:var(--purple);color:#fff;border-color:var(--purple);position:relative}
+.btn-optimizer:hover{background:#6d28d9}
+.btn-optimizer.disabled{background:var(--paper3);color:var(--ink3);border-color:var(--line);cursor:not-allowed;pointer-events:none}
+.btn-optimizer .opt-key-req{position:absolute;top:-6px;right:-6px;background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;white-space:nowrap}
+.btn-danger{background:var(--red-l);color:var(--red);border-color:#fecaca}
+.btn-green{background:var(--green-l);color:var(--green);border-color:#a7f3d0}
+.stat-pill{display:flex;align-items:center;gap:5px;padding:6px 12px;background:var(--paper2);border:1px solid var(--line);border-radius:var(--r);font-size:13px;font-weight:600;color:var(--ink2)}
+.stat-pill i{font-size:15px}
+
+/* LAYOUT */
+.workspace{display:grid;grid-template-columns:380px 1fr;height:100%;overflow:hidden}
+
+/* PANEL IZQUIERDO */
+.panel{background:var(--paper);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.panel-header{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-title{font-size:15px;font-weight:700}
+.panel-sub{font-size:12px;color:var(--ink3);margin-top:1px}
+.panel-body{flex:1;overflow-y:auto;padding:12px}
+
+/* STOP CARD — draggable */
+.stop-card{background:var(--paper);border:1.5px solid var(--line);border-radius:var(--r-lg);padding:12px 14px;margin-bottom:8px;cursor:grab;transition:all .2s;position:relative;user-select:none}
+.stop-card:active{cursor:grabbing}
+.stop-card.dragging{opacity:.4;border-style:dashed;transform:scale(.98)}
+.stop-card.drag-over{border-color:var(--accent);background:var(--accent-light);transform:translateY(-2px);box-shadow:0 4px 16px var(--accent-glow)}
+.stop-card.selected{border-color:var(--accent);background:var(--accent-light)}
+.stop-card.status-delivered{border-color:var(--green);background:var(--green-l)}
+.stop-card.status-not_delivered{border-color:var(--red);background:var(--red-l)}
+.stop-card.status-on_the_way{border-color:var(--amber);background:var(--amber-l)}
+.stop-card.status-origin{border-color:var(--purple);background:var(--purple-l);cursor:default}
+.stop-card.status-origin .stop-drag-handle{visibility:hidden}
+.stop-num.s-origin{color:var(--purple);border-color:var(--purple);background:#fff}
+.marker-bubble.s-origin{background:var(--purple)}
+
+.stop-header{display:flex;align-items:flex-start;gap:10px}
+.stop-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;font-family:'DM Mono',monospace;border:2px solid currentColor}
+.stop-num.s-ready{color:var(--accent);border-color:var(--accent);background:#fff}
+.stop-num.s-on_the_way{color:var(--amber);border-color:var(--amber);background:#fff}
+.stop-num.s-delivered{color:var(--green);border-color:var(--green);background:#fff}
+.stop-num.s-not_delivered{color:var(--red);border-color:var(--red);background:#fff}
+.stop-info{flex:1;min-width:0}
+.stop-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stop-addr{font-size:12px;color:var(--ink3);margin-top:2px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stop-meta{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.stop-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.sb-ready{background:#eff6ff;color:var(--accent)}
+.sb-on_the_way{background:var(--amber-l);color:var(--amber)}
+.sb-delivered{background:var(--green-l);color:var(--green)}
+.sb-not_delivered{background:var(--red-l);color:var(--red)}
+.stop-drag-handle{padding:4px;color:var(--ink3);cursor:grab;display:flex;align-items:center}
+.stop-drag-handle:active{cursor:grabbing}
+
+.stop-card-actions{display:flex;gap:6px;margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.act-btn{flex:1;padding:6px;border-radius:8px;border:1px solid var(--line);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:all .15s;background:var(--paper)}
+.act-btn:hover{background:var(--paper2)}
+.act-btn.go{background:var(--accent-light);color:var(--accent);border-color:#bfdbfe}
+.act-btn.ok{background:var(--green-l);color:var(--green);border-color:#a7f3d0}
+.act-btn.fail{background:var(--red-l);color:var(--red);border-color:#fecaca}
+
+/* RESUMEN RUTA */
+.route-summary{padding:12px;background:var(--paper2);border-top:1px solid var(--line);flex-shrink:0}
+.route-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.route-stat{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:10px;text-align:center}
+.rs-num{font-size:20px;font-weight:700;font-family:'DM Mono',monospace}
+.rs-label{font-size:10px;color:var(--ink3);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+
+/* MAPA */
+.map-container{position:relative;background:#e8eaed;overflow:hidden}
+#map-canvas{width:100%;height:100%}
+
+/* SVG MAP */
+.map-svg{width:100%;height:100%}
+
+/* MARKER */
+.map-marker{position:absolute;transform:translate(-50%,-100%);cursor:pointer;transition:transform .2s}
+.map-marker:hover{transform:translate(-50%,-100%) scale(1.15)}
+.map-marker.selected{transform:translate(-50%,-100%) scale(1.2);z-index:10}
+.marker-pin{width:36px;height:44px;position:relative;display:flex;flex-direction:column;align-items:center}
+.marker-bubble{width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(0,0,0,.25);border:2px solid rgba(255,255,255,.8)}
+.marker-bubble.s-ready{background:var(--accent)}
+.marker-bubble.s-on_the_way{background:var(--amber)}
+.marker-bubble.s-delivered{background:var(--green)}
+.marker-bubble.s-not_delivered{background:var(--red)}
+.marker-num{transform:rotate(45deg);font-size:12px;font-weight:700;color:#fff;font-family:'DM Mono',monospace}
+.marker-tail{width:2px;height:8px;background:rgba(0,0,0,.3)}
+
+/* POPUP MAPA */
+.map-popup{position:absolute;background:var(--paper);border-radius:var(--r-lg);box-shadow:var(--sh-lg);padding:14px;min-width:220px;z-index:20;border:1px solid var(--line);transform:translate(-50%,-120%);animation:popIn .15s ease}
+@keyframes popIn{from{opacity:0;transform:translate(-50%,-110%) scale(.95)}to{opacity:1;transform:translate(-50%,-120%) scale(1)}}
+.map-popup::after{content:'';position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border:8px solid transparent;border-top-color:var(--line);border-bottom:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,.1))}
+.popup-name{font-size:14px;font-weight:700;margin-bottom:4px}
+.popup-addr{font-size:12px;color:var(--ink3);margin-bottom:8px;line-height:1.4}
+.popup-actions{display:flex;gap:6px}
+
+/* ROUTE LINE */
+.route-path{pointer-events:none}
+
+/* TOOLTIP */
+.key-tooltip{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--paper);border-radius:var(--r-xl);box-shadow:var(--sh-lg);padding:28px;max-width:380px;width:90%;z-index:1000;border:1px solid var(--line)}
+.tooltip-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999;backdrop-filter:blur(3px)}
+.tooltip-overlay.hidden,.key-tooltip.hidden{display:none}
+.tooltip-title{font-size:18px;font-weight:700;margin-bottom:8px}
+.tooltip-sub{font-size:13px;color:var(--ink3);margin-bottom:20px;line-height:1.6}
+
+/* OPTIMIZER PROGRESS */
+.opt-progress{position:absolute;top:16px;left:50%;transform:translateX(-50%);background:var(--paper);border-radius:var(--r-xl);box-shadow:var(--sh-lg);padding:14px 20px;display:flex;align-items:center;gap:12px;font-size:13px;font-weight:600;z-index:30;border:1px solid var(--line)}
+.opt-progress.hidden{display:none}
+.opt-spinner{width:20px;height:20px;border:2px solid var(--line);border-top-color:var(--purple);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* GEO WARNING BANNER */
+.geo-warning{background:var(--amber-l);border-bottom:1.5px solid #fde68a;padding:10px 16px;display:flex;align-items:flex-start;gap:10px;font-size:12px;font-weight:600;color:var(--amber);flex-shrink:0}
+.geo-warning.hidden{display:none}
+.geo-warning i{font-size:16px;flex-shrink:0;margin-top:1px}
+.geo-warning a{color:var(--accent);text-decoration:underline;white-space:nowrap;margin-left:auto;padding-left:8px}
+
+/* NEW ROUTE BTN */
+.new-route-bar{padding:10px 12px;border-top:1px solid var(--line);flex-shrink:0}
+
+/* EMPTY */
+.empty-stops{text-align:center;padding:40px 20px;color:var(--ink3)}
+.empty-stops i{font-size:48px;display:block;margin-bottom:12px;opacity:.3}
+.empty-stops p{font-size:13px;font-weight:500}
+
+/* SCROLLBAR */
+.panel-body::-webkit-scrollbar{width:4px}.panel-body::-webkit-scrollbar-track{background:transparent}.panel-body::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+
+/* COMANDA MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--paper);border-radius:var(--r-xl);box-shadow:var(--sh-lg);padding:28px;max-width:420px;width:90%;max-height:85vh;overflow-y:auto}
+.modal-title{font-size:18px;font-weight:700;margin-bottom:4px}
+.modal-sub{font-size:13px;color:var(--ink3);margin-bottom:20px}
+.comanda-line{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.comanda-line:last-child{border-bottom:none}
+.comanda-qty{font-family:'DM Mono',monospace;font-weight:700;color:var(--accent);min-width:28px}
+.comanda-item{flex:1;font-weight:500}
+.comanda-note{background:var(--amber-l);border:1px solid #fde68a;border-radius:var(--r);padding:10px 14px;font-size:13px;font-weight:500;color:var(--amber);margin-top:12px;display:flex;gap:8px;align-items:flex-start}
+
+/* SETTINGS PANEL */
+.settings-panel{position:absolute;top:16px;right:16px;background:var(--paper);border-radius:var(--r-lg);box-shadow:var(--sh-lg);padding:16px;width:240px;z-index:25;border:1px solid var(--line)}
+.settings-panel.hidden{display:none}
+.sp-title{font-size:13px;font-weight:700;margin-bottom:12px}
+.sp-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:13px}
+.sp-label{font-weight:500;color:var(--ink2)}
+input[type=text].sp-input{background:var(--paper2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;font-family:'DM Mono',monospace;width:100%;outline:none;margin-top:6px}
+input[type=text].sp-input:focus{border-color:var(--accent)}
+.rd-wrap{position:relative}
+.route-dropdown{position:absolute;top:calc(100% + 6px);left:0;min-width:270px;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh-lg);z-index:200;overflow:hidden}
+.route-dropdown.hidden{display:none}
+.rd-group{padding:4px 0}
+.rd-group+.rd-group{border-top:1px solid var(--line)}
+.rd-group-label{font-size:10px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;padding:8px 14px 3px}
+.rd-item{display:flex;align-items:center;gap:8px;padding:7px 14px;cursor:pointer;transition:background .1s}
+.rd-item:hover{background:var(--paper2)}
+.rd-item.active{background:var(--accent-light)}
+.rd-item-name{flex:1;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rd-item.active .rd-item-name{color:var(--accent)}
+.rd-delete{padding:4px 6px;border-radius:6px;border:none;background:none;cursor:pointer;color:var(--ink3);display:flex;align-items:center;font-size:15px;transition:all .12s;flex-shrink:0}
+.rd-delete:hover{background:var(--red-l);color:var(--red)}
+.nr-input{width:100%;border:1.5px solid var(--line);border-radius:var(--r);padding:9px 12px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color .15s}
+.nr-input:focus{border-color:var(--accent)}
+.nr-ship-row{display:flex;align-items:flex-start;gap:10px;padding:8px;border-radius:var(--r);cursor:pointer;transition:background .1s}
+.nr-ship-row:hover{background:var(--paper2)}
+.nr-ship-row input[type=checkbox]{margin-top:2px;accent-color:var(--accent);width:15px;height:15px;flex-shrink:0}
+.nr-ship-row .nr-ship-name{font-size:13px;font-weight:600}
+.nr-ship-row .nr-ship-sub{font-size:11px;color:var(--ink3);margin-top:1px}
+.route-tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;background:var(--purple-l);color:var(--purple);margin-left:6px}
+</style>
+</head>
+<body>
+
+<header>
+  <a href="/" style="display:flex;align-items:center;gap:5px;background:var(--paper3);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;color:var(--ink2);text-decoration:none;flex-shrink:0" onclick="history.length>1?(event.preventDefault(),history.back()):null">
+    <i class="ti ti-arrow-left" style="font-size:14px"></i> Volver
+  </a>
+  <div class="logo">
+    <div class="logo-dot"><i class="ti ti-route"></i></div>
+    StockFlow <span style="color:var(--ink3);font-weight:400">/ Rutas</span>
+  </div>
+  <div class="header-sep"></div>
+  <div class="route-selector rd-wrap" onclick="event.stopPropagation()">
+    <i class="ti ti-map-route" style="font-size:16px;color:var(--accent)"></i>
+    <button id="route-select-btn" onclick="toggleRouteDropdown()" style="border:none;background:none;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:6px;padding:0">
+      <span id="route-select-label">Cargando...</span>
+      <i class="ti ti-chevron-down" style="font-size:13px;color:var(--ink3)"></i>
+    </button>
+    <div class="route-dropdown hidden" id="route-dropdown"></div>
+  </div>
+
+  <div class="stat-pill"><i class="ti ti-clock" style="color:var(--amber)"></i> <span id="hdr-eta">~2h 40m est.</span></div>
+  <div class="stat-pill"><i class="ti ti-map-pin" style="color:var(--accent)"></i> <span id="hdr-stops">5 paradas</span></div>
+
+  <div class="header-actions">
+    <button class="btn" id="btn-new-route" onclick="openNewRouteModal()"><i class="ti ti-route-2"></i> Nueva ruta</button>
+    <button class="btn" id="btn-edit-route" style="display:none" onclick="openEditRouteModal()"><i class="ti ti-edit"></i> Editar</button>
+    <button class="btn" onclick="toggleSettings()"><i class="ti ti-settings"></i> Ajustes</button>
+    <button class="btn btn-optimizer disabled" id="btn-optimizer" onclick="runOptimizer()">
+      <i class="ti ti-sparkles"></i> Route Optimizer
+      <span class="opt-key-req">API Key requerida</span>
+    </button>
+    <button class="btn btn-primary" onclick="openNewShipmentModal()"><i class="ti ti-plus"></i> Agregar parada</button>
+  </div>
+</header>
+
+<div class="workspace">
+  <!-- PANEL IZQUIERDO: LISTA DE PARADAS -->
+  <div class="panel">
+    <div class="panel-header">
+      <div>
+        <div class="panel-title">Paradas de la ruta</div>
+        <div class="panel-sub">Arrastra para reordenar · Click para ver en mapa</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-green" id="btn-save-route" onclick="saveRoute()" style="font-size:12px;padding:5px 10px;display:none" title="Guardar orden de la ruta">
+          <i class="ti ti-device-floppy"></i> Guardar
+        </button>
+        <button class="btn" style="font-size:12px;padding:5px 10px" onclick="printRoute()"><i class="ti ti-printer"></i></button>
+      </div>
+    </div>
+
+    <div class="geo-warning hidden" id="geo-warning">
+      <i class="ti ti-alert-triangle"></i>
+      <span id="geo-warning-text"></span>
+      <a href="/shipments" target="_blank">Ir a Envíos →</a>
+    </div>
+
+    <div class="panel-body" id="stops-list">
+      <!-- generado por JS -->
+    </div>
+
+    <div class="route-summary">
+      <div class="route-stats">
+        <div class="route-stat">
+          <div class="rs-num text-green" id="stat-done" style="color:var(--green)">0</div>
+          <div class="rs-label">Entregados</div>
+        </div>
+        <div class="route-stat">
+          <div class="rs-num" id="stat-pend" style="color:var(--accent)">0</div>
+          <div class="rs-label">Pendientes</div>
+        </div>
+        <div class="route-stat">
+          <div class="rs-num" id="stat-fail" style="color:var(--red)">0</div>
+          <div class="rs-label">No entregados</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="new-route-bar">
+      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="exportRoute()">
+        <i class="ti ti-send"></i> Enviar ruta al repartidor
+      </button>
+    </div>
+  </div>
+
+  <!-- MAPA -->
+  <div class="map-container" id="map-container">
+    <!-- Mapa simulado (canvas fallback, sin API key) -->
+    <canvas id="map-canvas" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+    <div id="markers-layer" style="position:absolute;inset:0;pointer-events:none"></div>
+    <div id="map-popup" class="map-popup hidden" style="pointer-events:all"></div>
+    <!-- Google Maps real (se muestra cuando hay API key cargada) -->
+    <div id="gm-map" style="position:absolute;inset:0;display:none"></div>
+
+    <!-- Optimizer progress -->
+    <div class="opt-progress hidden" id="opt-progress">
+      <div class="opt-spinner"></div>
+      <span>Calculando ruta óptima...</span>
+    </div>
+
+    <!-- Settings panel -->
+    <div class="settings-panel hidden" id="settings-panel">
+      <div class="sp-title"><i class="ti ti-key"></i> Google Maps API Key</div>
+      <p style="font-size:12px;color:var(--ink3);margin-bottom:10px;line-height:1.5">Necesaria para el mapa real y el Route Optimizer.</p>
+      <input type="text" class="sp-input" id="gm-key-input" placeholder="AIzaSy..." oninput="onKeyInput(this.value)">
+      <button class="btn btn-primary" style="width:100%;margin-top:10px;justify-content:center;font-size:13px" onclick="saveApiKey()"><i class="ti ti-check"></i> Guardar y activar</button>
+      <div class="sp-title" style="margin-top:16px"><i class="ti ti-truck"></i> Courier asignado</div>
+      <select style="width:100%;background:var(--paper2);border:1px solid var(--line);border-radius:8px;padding:8px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;appearance:none;margin-top:4px">
+        <option>StarShipping Chile</option>
+        <option>UrbanExpress</option>
+      </select>
+    </div>
+
+    <!-- Leyenda mapa -->
+    <div style="position:absolute;bottom:16px;left:16px;background:var(--paper);border-radius:var(--r-lg);padding:10px 14px;box-shadow:var(--sh);border:1px solid var(--line);font-size:12px">
+      <div style="font-weight:700;margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3)">Estados</div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="display:flex;align-items:center;gap:7px"><div style="width:12px;height:12px;border-radius:50%;background:var(--accent)"></div>Para enviar</div>
+        <div style="display:flex;align-items:center;gap:7px"><div style="width:12px;height:12px;border-radius:50%;background:var(--amber)"></div>En camino</div>
+        <div style="display:flex;align-items:center;gap:7px"><div style="width:12px;height:12px;border-radius:50%;background:var(--green)"></div>Entregado</div>
+        <div style="display:flex;align-items:center;gap:7px"><div style="width:12px;height:12px;border-radius:50%;background:var(--red)"></div>No entregado</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: COMANDA -->
+<div class="modal-overlay hidden" id="modal-comanda">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+      <div class="modal-title">🧾 Comanda</div>
+      <button class="btn" onclick="closeModal('modal-comanda')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-sub" id="comanda-sub">Orden ORD-001 · Juan Pérez</div>
+    <div id="comanda-content"></div>
+    <div style="display:flex;gap:8px;margin-top:20px">
+      <button class="btn" style="flex:1;justify-content:center" onclick="closeModal('modal-comanda')">Cerrar</button>
+      <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="printComanda()"><i class="ti ti-printer"></i> Imprimir</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: NUEVO ENVÍO EN RUTA -->
+<div class="modal-overlay hidden" id="modal-add">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+      <div class="modal-title">Agregar parada</div>
+      <button class="btn" onclick="closeModal('modal-add')"><i class="ti ti-x"></i></button>
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px">Orden de venta</label>
+      <select style="width:100%;background:var(--paper2);border:1px solid var(--line);border-radius:var(--r);padding:10px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;appearance:none" id="add-order-sel">
+        <option value="">Seleccionar orden...</option>
+        <option value="ORD-005">ORD-005 · Diego Morales · Ñuñoa</option>
+        <option value="ORD-006">ORD-006 · Sofia Castro · La Florida</option>
+        <option value="ORD-007">ORD-007 · Roberto Silva · San Miguel</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:20px">
+      <button class="btn" style="flex:1;justify-content:center" onclick="closeModal('modal-add')">Cancelar</button>
+      <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="addStop()"><i class="ti ti-plus"></i> Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: NUEVA / EDITAR RUTA -->
+<div class="modal-overlay hidden" id="modal-named-route">
+  <div class="modal" style="max-width:500px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+      <div>
+        <div class="modal-title" id="nr-modal-title">Nueva ruta</div>
+        <div class="modal-sub" id="nr-modal-sub">Selecciona los envíos que formarán parte de esta ruta</div>
+      </div>
+      <button class="btn" onclick="closeModal('modal-named-route')"><i class="ti ti-x"></i></button>
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="font-size:12px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px">Nombre de la ruta</label>
+      <input type="text" class="nr-input" id="nr-name" placeholder="Ej: Ruta Ñuñoa, Zona Sur, Repartidor Pedro..." maxlength="60">
+    </div>
+    <div style="margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <label style="font-size:12px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.3px">Envíos</label>
+        <span id="nr-sel-count" style="font-size:12px;color:var(--ink3)">0 seleccionados</span>
+      </div>
+    </div>
+    <div id="nr-shipments-list" style="max-height:280px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--r);padding:4px"></div>
+    <div style="display:flex;gap:8px;margin-top:20px;align-items:center">
+      <button class="btn btn-danger" id="nr-btn-delete" style="display:none" onclick="deleteCurrentRoute()"><i class="ti ti-trash"></i> Eliminar</button>
+      <div style="flex:1"></div>
+      <button class="btn" onclick="closeModal('modal-named-route')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveNamedRoute()"><i class="ti ti-device-floppy"></i> Guardar ruta</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 20px;border-radius:24px;font-size:13px;font-weight:600;opacity:0;transition:all .3s;z-index:999;white-space:nowrap"></div>
+
+<script>
+// ── AUTH GUARD ──────────────────────────────────
+(function(){
+  const token = localStorage.getItem('sf_token');
+  if (!token) {
+    const target = window.top !== window.self ? window.top : window;
+    target.location.replace('/login');
+  }
+})();
+
+function authHeaders() {
+  const token    = localStorage.getItem('sf_token');
+  const tenantId = localStorage.getItem('sf_tenant_id');
+  const h = { 'Content-Type': 'application/json' };
+  if (token)    h['Authorization'] = 'Bearer ' + token;
+  if (tenantId) h['X-Tenant-Id']   = tenantId;
+  return h;
+}
+
+// ── STATE ──────────────────────────────────────
+let gmApiKey = localStorage.getItem('gm_api_key') || '';
+let selectedStop = null;
+let dragSrc = null;
+let _routeDirty = false;
+
+// Google Maps state
+let gmMap = null;
+let gmMarkers = [];
+let gmPolyline = null;
+let gmInfoWindow = null;
+let _gmLoadPromise = null;
+
+const STATUS_GM_COLOR = {
+  ready: '#2563eb', on_the_way: '#d97706', delivered: '#059669',
+  not_delivered: '#dc2626', origin: '#7c3aed',
+};
+
+// ── GOOGLE MAPS LOADER ─────────────────────────
+function loadGoogleMaps(key) {
+  if (_gmLoadPromise) return _gmLoadPromise;
+  _gmLoadPromise = new Promise((resolve, reject) => {
+    if (window.google?.maps?.Map) { resolve(); return; }
+    window.__gmReady = resolve;
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&callback=__gmReady&language=es&region=CL`;
+    s.onerror = () => { _gmLoadPromise = null; reject(new Error('Maps API failed to load')); };
+    document.head.appendChild(s);
+  });
+  return _gmLoadPromise;
+}
+
+function initGoogleMap() {
+  if (gmMap) return; // already initialized
+  const el = document.getElementById('gm-map');
+  el.style.display = '';
+  document.getElementById('map-canvas').style.display = 'none';
+  document.getElementById('markers-layer').style.display = 'none';
+  document.getElementById('map-popup').style.display = 'none';
+
+  gmMap = new google.maps.Map(el, {
+    zoom: 12,
+    center: { lat: -33.45, lng: -70.65 },
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: false,
+    gestureHandling: 'greedy',
+  });
+  gmInfoWindow = new google.maps.InfoWindow();
+  gmMap.addListener('click', () => {
+    gmInfoWindow.close();
+    selectedStop = null;
+    document.querySelectorAll('.stop-card').forEach(c => c.classList.remove('selected'));
+  });
+}
+
+// ── GEOCODING ──────────────────────────────────
+function _geocacheKey() {
+  return `sf_geocache_${localStorage.getItem('sf_tenant_id') || 'default'}`;
+}
+function _getCachedCoords(q) {
+  try { return (JSON.parse(localStorage.getItem(_geocacheKey()) || '{}'))[q] || null; }
+  catch { return null; }
+}
+function _setCachedCoords(q, coords) {
+  try {
+    const c = JSON.parse(localStorage.getItem(_geocacheKey()) || '{}');
+    c[q] = coords;
+    localStorage.setItem(_geocacheKey(), JSON.stringify(c));
+  } catch {}
+}
+
+async function geocodeStop(stop) {
+  if (stop._realCoords) return;
+  const parts = [stop.address_street, stop.address_city, stop.address_region, 'Chile'].filter(Boolean);
+  const q = parts.join(', ').trim();
+  if (!q || q === 'Chile') return;
+  const cached = _getCachedCoords(q);
+  if (cached) { stop.lat = cached.lat; stop.lng = cached.lng; stop._realCoords = true; return; }
+  try {
+    // Nominatim (OpenStreetMap) — gratuito, sin billing
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=cl`,
+      { headers: { 'Accept-Language': 'es', 'User-Agent': 'StockFlow-Bichon/1.0' } }
+    );
+    const results = await r.json();
+    if (results && results.length > 0) {
+      const lat = parseFloat(results[0].lat);
+      const lng = parseFloat(results[0].lon);
+      stop.lat = lat; stop.lng = lng; stop._realCoords = true;
+      _setCachedCoords(q, { lat, lng });
+    }
+  } catch(e) { console.warn('[Geocode]', q, e.message); }
+}
+
+async function geocodeAllStops() {
+  const all = [
+    ...(_originStop && !_originStop._realCoords ? [_originStop] : []),
+    ...currentRoute.filter(s => !s._realCoords),
+  ];
+  if (!all.length) return;
+  // Nominatim: máx 1 req/s — procesamos de uno en uno
+  for (let i = 0; i < all.length; i++) {
+    await geocodeStop(all[i]);
+    if (i + 1 < all.length) await new Promise(r => setTimeout(r, 1100));
+  }
+}
+
+// ── GOOGLE MAPS RENDER ─────────────────────────
+function renderGMMap() {
+  if (!gmMap) return;
+  gmMarkers.forEach(m => m.setMap(null)); gmMarkers = [];
+  if (gmPolyline) { gmPolyline.setMap(null); gmPolyline = null; }
+
+  const allStops = [
+    ...(_originStop?.lat ? [_originStop] : []),
+    ...[...currentRoute].filter(s => s.lat && s.lng).sort((a, b) => a.seq - b.seq),
+  ];
+
+  const bounds = new google.maps.LatLngBounds();
+
+  allStops.forEach(stop => {
+    const color = STATUS_GM_COLOR[stop.status] || STATUS_GM_COLOR.ready;
+    const label = stop.isOrigin ? '★' : String(stop.seq);
+    const marker = new google.maps.Marker({
+      position: { lat: stop.lat, lng: stop.lng },
+      map: gmMap,
+      label: { text: label, color: '#fff', fontSize: '12px', fontWeight: '700' },
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 16,
+        fillColor: color, fillOpacity: 1,
+        strokeColor: '#fff', strokeWeight: 2,
+      },
+      title: stop.recipient_name,
+      zIndex: stop.isOrigin ? 999 : stop.seq,
+    });
+
+    marker.addListener('click', () => {
+      if (stop.isOrigin) return;
+      const win = stop.delivery_window_from
+        ? `${stop.delivery_window_from.slice(0,5)}–${(stop.delivery_window_to||'').slice(0,5)}` : '';
+      gmInfoWindow.setContent(`
+        <div style="font-family:'DM Sans',sans-serif;padding:4px;min-width:200px">
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px">#${stop.seq} · ${stop.recipient_name}</div>
+          <div style="font-size:12px;color:#666;margin-bottom:8px;line-height:1.4">
+            ${stop.address_street}${stop.address_city?' · '+stop.address_city:''}${win?'<br><i class="ti ti-clock" style="font-size:11px"></i> '+win:''}
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button onclick="openComanda('${stop.id}')" style="padding:5px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit">🧾 Comanda</button>
+            ${stop.status==='ready'?`<button onclick="changeStopStatus('${stop.id}','on_the_way')" style="padding:5px 10px;border-radius:6px;border:none;background:#2563eb;color:#fff;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit">🚚 En camino</button>`:''}
+            ${stop.status==='on_the_way'?`<button onclick="changeStopStatus('${stop.id}','delivered')" style="padding:5px 10px;border-radius:6px;border:none;background:#059669;color:#fff;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit">✅ Entregado</button>`:''}
+          </div>
+        </div>`);
+      gmInfoWindow.open(gmMap, marker);
+      selectedStop = stop.id;
+      document.querySelectorAll('.stop-card').forEach(c => c.classList.toggle('selected', c.dataset.id === stop.id));
+      const card = document.querySelector(`.stop-card[data-id="${stop.id}"]`);
+      if (card) card.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    });
+
+    gmMarkers.push(marker);
+    bounds.extend({ lat: stop.lat, lng: stop.lng });
+  });
+
+  if (allStops.length > 1) {
+    gmPolyline = new google.maps.Polyline({
+      path: allStops.map(s => ({ lat: s.lat, lng: s.lng })),
+      geodesic: true, strokeOpacity: 0,
+      icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.7, strokeColor: '#2563eb', scale: 3 }, offset: '0', repeat: '12px' }],
+    });
+    gmPolyline.setMap(gmMap);
+  }
+
+  if (!bounds.isEmpty() && allStops.length > 0) {
+    if (allStops.length === 1) {
+      gmMap.setCenter({ lat: allStops[0].lat, lng: allStops[0].lng });
+      gmMap.setZoom(14);
+    } else {
+      gmMap.fitBounds(bounds, { padding: 60 });
+    }
+  }
+}
+
+// ── HAVERSINE DISTANCE (km) ────────────────────
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+const ROUTES = {}; // populated by initRoutes()
+let currentRoute = [];
+let currentRouteId = null;
+let _originStop = null; // punto de partida del local
+
+function _getOriginFromLocales() {
+  try {
+    const tenantId = localStorage.getItem('sf_tenant_id') || 'default';
+    const raw = localStorage.getItem('sf_locales_' + tenantId);
+    if (!raw) return null;
+    const locales = JSON.parse(raw);
+    const loc = locales?.[0];
+    if (!loc) return null;
+    return {
+      id: 'ORIGIN',
+      order_id: null,
+      seq: 0,
+      recipient_name: loc.name,
+      address_street: loc.address_street || '',
+      address_city:   loc.address_city   || '',
+      status: 'origin',
+      tracking_code: '',
+      delivery_window_from: '',
+      delivery_window_to:   '',
+      kits: [], message: null,
+      isOrigin: true,
+      lat: -33.44 + (Math.random() - .5) * .04,
+      lng: -70.62 + (Math.random() - .5) * .04,
+      _realCoords: false,
+    };
+  } catch(e) { return null; }
+}
+
+// ── MAP STATE ──────────────────────────────────
+// Canvas fallback: coordenadas → posición en canvas (zona Santiago/V Región)
+const MAP_BOUNDS = { minLat:-33.700, maxLat:-32.900, minLng:-71.200, maxLng:-70.400 };
+
+function latLngToXY(lat, lng, w, h) {
+  const x = (lng - MAP_BOUNDS.minLng) / (MAP_BOUNDS.maxLng - MAP_BOUNDS.minLng) * w;
+  const y = (1 - (lat - MAP_BOUNDS.minLat) / (MAP_BOUNDS.maxLat - MAP_BOUNDS.minLat)) * h;
+  return { x, y };
+}
+
+// ── RENDER MAP (bifurca canvas ↔ Google Maps) ──
+function renderMap() {
+  if (gmMap) { renderGMMap(); return; }
+  renderSimMap();
+}
+
+function renderSimMap() {
+  const container = document.getElementById('map-container');
+  const canvas = document.getElementById('map-canvas');
+  const w = container.offsetWidth;
+  const h = container.offsetHeight;
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#e8edf3';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+  for (let i = 0; i < w; i += 40) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,h); ctx.stroke(); }
+  for (let i = 0; i < h; i += 40) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(w,i); ctx.stroke(); }
+  ctx.strokeStyle = '#d4dbe8'; ctx.lineWidth = 3;
+  [[0,h*.35,w,h*.35],[0,h*.6,w,h*.6],[w*.3,0,w*.3,h],[w*.65,0,w*.65,h]].forEach(([x1,y1,x2,y2])=>{
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  });
+
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.fillRect(w/2-140, h/2-20, 280, 40);
+  ctx.fillStyle = '#8888a0'; ctx.font = '13px DM Sans,sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Configura tu Google Maps API Key para ver el mapa real', w/2, h/2+5);
+
+  const sorted = [
+    ...(_originStop ? [_originStop] : []),
+    ...[...currentRoute].sort((a,b) => a.seq-b.seq)
+  ];
+  if (sorted.length > 1) {
+    ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2.5; ctx.setLineDash([8, 5]);
+    ctx.beginPath();
+    sorted.forEach((stop, i) => {
+      const {x,y} = latLngToXY(stop.lat||0, stop.lng||0, w, h);
+      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    });
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  renderSimMarkers(w, h);
+}
+
+function renderSimMarkers(w, h) {
+  const layer = document.getElementById('markers-layer');
+  layer.innerHTML = ''; layer.style.pointerEvents = 'all';
+  const sorted = [
+    ...(_originStop ? [_originStop] : []),
+    ...[...currentRoute].sort((a,b) => a.seq-b.seq)
+  ];
+  sorted.forEach(stop => {
+    const {x,y} = latLngToXY(stop.lat||0, stop.lng||0, w, h);
+    const div = document.createElement('div');
+    div.className = `map-marker ${selectedStop===stop.id?'selected':''}`;
+    div.style.left = x+'px'; div.style.top = y+'px';
+    div.innerHTML = `<div class="marker-pin"><div class="marker-bubble s-${stop.status}"><span class="marker-num">${stop.isOrigin?'★':stop.seq}</span></div><div class="marker-tail"></div></div>`;
+    div.onclick = e => { e.stopPropagation(); selectStop(stop.id); };
+    layer.appendChild(div);
+  });
+}
+
+function selectStop(id) {
+  if (selectedStop === id) {
+    selectedStop = null;
+    document.getElementById('map-popup').classList.add('hidden');
+    document.querySelectorAll('.stop-card').forEach(c => c.classList.remove('selected'));
+    if (!gmMap) renderSimMarkers(...getMapSize());
+    return;
+  }
+  selectedStop = id;
+  const stop = currentRoute.find(s => s.id === id);
+  if (!stop) return;
+
+  document.querySelectorAll('.stop-card').forEach(c => c.classList.toggle('selected', c.dataset.id === id));
+  const card = document.querySelector(`.stop-card[data-id="${id}"]`);
+  if (card) card.scrollIntoView({ behavior:'smooth', block:'nearest' });
+
+  if (gmMap) {
+    // Google Maps: pan to marker (InfoWindow opened via marker click)
+    if (stop.lat && stop.lng) gmMap.panTo({ lat: stop.lat, lng: stop.lng });
+    // Find and trigger the GM marker click
+    const markerIdx = [...currentRoute].filter(s => s.lat).sort((a,b)=>a.seq-b.seq).findIndex(s=>s.id===id);
+    const originOffset = (_originStop?.lat ? 1 : 0);
+    const m = gmMarkers[markerIdx + originOffset];
+    if (m) google.maps.event.trigger(m, 'click');
+  } else {
+    // Canvas: show popup overlay
+    const [w, h] = getMapSize();
+    const {x, y} = latLngToXY(stop.lat||0, stop.lng||0, w, h);
+    const popup = document.getElementById('map-popup');
+    const win = stop.delivery_window_from ? `${stop.delivery_window_from.slice(0,5)}–${(stop.delivery_window_to||'').slice(0,5)}` : '';
+    popup.style.left = x + 'px'; popup.style.top = y + 'px';
+    popup.innerHTML = `
+      <div class="popup-name">#${stop.seq} · ${stop.recipient_name}</div>
+      <div class="popup-addr">${stop.address_street}<br>${stop.address_city}${win?' · '+win:''}</div>
+      <div class="popup-actions">
+        <button class="act-btn" onclick="openComanda('${stop.id}')"><i class="ti ti-receipt"></i> Comanda</button>
+        ${stop.status==='ready'?`<button class="act-btn go" onclick="changeStopStatus('${stop.id}','on_the_way')"><i class="ti ti-truck"></i> En camino</button>`:''}
+      </div>`;
+    popup.classList.remove('hidden');
+    renderSimMarkers(w, h);
+  }
+}
+
+function getMapSize() {
+  const c = document.getElementById('map-container');
+  return [c.offsetWidth, c.offsetHeight];
+}
+
+document.getElementById('map-container').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget || e.target.id === 'map-canvas') {
+    selectedStop = null;
+    document.getElementById('map-popup').classList.add('hidden');
+    document.querySelectorAll('.stop-card').forEach(c => c.classList.remove('selected'));
+    if (!gmMap) renderSimMarkers(...getMapSize());
+  }
+});
+
+// ── RENDER STOPS LIST ──────────────────────────
+function _stopCardHtml(stop) {
+  const isOrigin = stop.isOrigin;
+  return `
+    <div class="stop-card status-${stop.status} ${selectedStop===stop.id?'selected':''}"
+         data-id="${stop.id}"
+         ${isOrigin ? '' : `draggable="true"
+           ondragstart="onDragStart(event,'${stop.id}')"
+           ondragover="onDragOver(event,'${stop.id}')"
+           ondrop="onDrop(event,'${stop.id}')"
+           ondragend="onDragEnd(event)"`}
+         onclick="selectStop('${stop.id}')">
+      <div class="stop-header">
+        <div class="stop-drag-handle"><i class="ti ti-grip-vertical" style="font-size:18px"></i></div>
+        <div class="stop-num s-${stop.status}">
+          ${isOrigin ? '<i class="ti ti-building-store" style="font-size:13px"></i>' : stop.seq}
+        </div>
+        <div class="stop-info">
+          <div class="stop-name">${stop.recipient_name}</div>
+          <div class="stop-addr">${stop.address_street}${stop.address_city ? ' · ' + stop.address_city : ''}</div>
+          <div class="stop-meta">
+            ${isOrigin
+              ? `<span class="stop-badge" style="background:var(--purple-l);color:var(--purple)"><i class="ti ti-flag" style="font-size:10px"></i> Punto de partida</span>`
+              : `<span class="stop-badge sb-${stop.status}">${statusLabel(stop.status)}</span>
+                 ${stop.delivery_window_from?`<span style="font-size:11px;color:var(--ink3)"><i class="ti ti-clock" style="font-size:11px"></i> ${stop.delivery_window_from.slice(0,5)}–${stop.delivery_window_to?.slice(0,5)}</span>`:''}
+                 ${stop.message?`<span style="font-size:11px;color:var(--amber);font-weight:600"><i class="ti ti-message" style="font-size:11px"></i> Notas</span>`:''}`
+            }
+          </div>
+        </div>
+      </div>
+      ${isOrigin ? '' : `
+      <div class="stop-card-actions">
+        <button class="act-btn" onclick="openComanda('${stop.id}');event.stopPropagation()"><i class="ti ti-receipt" style="font-size:13px"></i> Comanda</button>
+        ${stop.status==='ready'?`<button class="act-btn go" onclick="changeStopStatus('${stop.id}','on_the_way');event.stopPropagation()"><i class="ti ti-truck" style="font-size:13px"></i> En camino</button>`:''}
+        ${stop.status==='on_the_way'?`
+          <button class="act-btn ok" onclick="changeStopStatus('${stop.id}','delivered');event.stopPropagation()"><i class="ti ti-check" style="font-size:13px"></i> Entregado</button>
+          <button class="act-btn fail" onclick="changeStopStatus('${stop.id}','not_delivered');event.stopPropagation()"><i class="ti ti-x" style="font-size:13px"></i> No entregado</button>`:''}
+        ${stop.status==='not_delivered'?`<button class="act-btn" style="background:var(--amber-l);color:var(--amber);border-color:#fde68a" onclick="reagendar('${stop.id}');event.stopPropagation()"><i class="ti ti-calendar-event" style="font-size:13px"></i> Reagendar</button>`:''}
+      </div>`}
+    </div>`;
+}
+
+function renderStops() {
+  const sorted = [...currentRoute].sort((a,b) => a.seq-b.seq);
+  const el = document.getElementById('stops-list');
+
+  const originHtml = _originStop ? _stopCardHtml(_originStop) : '';
+
+  if (!sorted.length && !_originStop) {
+    el.innerHTML = `<div class="empty-stops"><i class="ti ti-route"></i><p>Sin paradas en esta ruta.<br>Agrega envíos con el botón +</p></div>`;
+  } else {
+    el.innerHTML = originHtml + sorted.map(_stopCardHtml).join('');
+  }
+
+  updateSummary();
+  _checkGeoStatus();
+}
+
+function statusLabel(s) {
+  return {ready:'Para enviar',on_the_way:'En camino',delivered:'Entregado',not_delivered:'No entregado'}[s]||s;
+}
+
+// ── DRAG & DROP ────────────────────────────────
+function onDragStart(e, id) {
+  dragSrc = id;
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function onDragOver(e, id) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.stop-card').forEach(c => c.classList.remove('drag-over'));
+  if (id !== dragSrc) e.currentTarget.classList.add('drag-over');
+}
+function onDrop(e, targetId) {
+  e.preventDefault();
+  if (dragSrc === targetId) return;
+  const src = currentRoute.find(s => s.id === dragSrc);
+  const tgt = currentRoute.find(s => s.id === targetId);
+  const srcSeq = src.seq;
+  src.seq = tgt.seq;
+  tgt.seq = srcSeq;
+  // Resequence
+  currentRoute.sort((a,b) => a.seq-b.seq).forEach((s,i) => s.seq = i+1);
+  document.querySelectorAll('.stop-card').forEach(c => c.classList.remove('drag-over','dragging'));
+  _markRouteDirty();
+  renderStops();
+  renderMap();
+  toast('🔀 Ruta reordenada');
+}
+function onDragEnd(e) {
+  document.querySelectorAll('.stop-card').forEach(c => c.classList.remove('dragging','drag-over'));
+}
+
+// ── CAMBIAR ESTADO ─────────────────────────────
+async function changeStopStatus(id, newStatus) {
+  const stop = currentRoute.find(s => s.id === id);
+  if (!stop) return;
+  stop.status = newStatus;
+  document.getElementById('map-popup').classList.add('hidden');
+  selectedStop = null;
+  renderStops();
+  renderMap();
+  toast('✅ ' + statusLabel(newStatus));
+  // Persist to API if stop is a real shipment ID
+  if (id && !id.startsWith('SHP-NEW-')) {
+    try {
+      const note = newStatus === 'not_delivered' ? 'No entregado (ruta)' : statusLabel(newStatus);
+      await fetch(`/api/shipments/${id}`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ status: newStatus, note })
+      });
+    } catch(e) { console.warn('[Routes] changeStopStatus API error', e); }
+  }
+}
+
+function reagendar(id) {
+  const date = prompt('Nueva fecha (YYYY-MM-DD):');
+  if (date) {
+    changeStopStatus(id, 'ready');
+    toast('📅 Reagendado para ' + date);
+  }
+}
+
+// ── COMANDA ────────────────────────────────────
+async function openComanda(id) {
+  const stop = currentRoute.find(s => s.id === id);
+  if (!stop) return;
+  document.getElementById('comanda-sub').textContent = `${stop.order_id||stop.id} · ${stop.recipient_name}`;
+  document.getElementById('comanda-content').innerHTML = `<p style="color:var(--ink3);font-size:13px;text-align:center;padding:16px">Cargando...</p>`;
+  document.getElementById('modal-comanda').classList.remove('hidden');
+
+  let html = '';
+  // Fetch order items
+  if (stop.order_id) {
+    try {
+      const order = await fetch(`/api/orders/${stop.order_id}`, { headers: authHeaders() }).then(r => r.ok ? r.json() : null);
+      if (order?.items?.length) {
+        html += `<div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;padding:10px 0 6px">Productos</div>`;
+        order.items.forEach(item => {
+          html += `<div class="comanda-line"><span class="comanda-qty">×${item.qty}</span><span class="comanda-item">${item.name}</span></div>`;
+        });
+        if (order.dedicatoria) {
+          html += `<div class="comanda-note" style="margin-top:12px"><i class="ti ti-heart" style="font-size:18px;flex-shrink:0;margin-top:1px"></i><div><strong>Dedicatoria:</strong><br>${order.dedicatoria}</div></div>`;
+        }
+      }
+    } catch(e) { console.warn('comanda fetch error', e); }
+  }
+  if (!html) html = `<p style="color:var(--ink3);font-size:13px;text-align:center;padding:20px">Sin productos registrados.</p>`;
+  if (stop.message) {
+    html += `<div class="comanda-note"><i class="ti ti-info-circle" style="font-size:18px;flex-shrink:0;margin-top:1px"></i><div><strong>Notas de dirección:</strong><br>${stop.message}</div></div>`;
+  }
+  document.getElementById('comanda-content').innerHTML = html;
+}
+
+function printComanda() {
+  const content = document.getElementById('comanda-content').innerHTML;
+  const sub = document.getElementById('comanda-sub').textContent;
+  const w = window.open('','_blank','width=380,height=500');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comanda</title>
+<style>body{font-family:Arial,sans-serif;padding:20px;max-width:320px}h2{font-size:16px;margin-bottom:4px}p{font-size:12px;color:#666;margin-bottom:16px}.line{display:flex;gap:8px;padding:6px 0;border-bottom:1px dashed #ddd;font-size:14px}.qty{font-weight:700;color:#2563eb;min-width:24px}.kit-title{font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;padding:8px 0 4px}.msg{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;font-size:13px;color:#d97706;margin-top:12px}@media print{button{display:none}}</style>
+</head><body><h2>🧾 Comanda</h2><p>${sub}</p>${content.replace(/class="comanda-line"/g,'class="line"').replace(/class="comanda-qty"/g,'class="qty"').replace(/class="comanda-note"/g,'class="msg"')}<br><button onclick="window.print()">🖨️ Imprimir</button></body></html>`);
+  w.document.close();
+}
+
+// ── SUMMARY ────────────────────────────────────
+function updateSummary() {
+  const stops = currentRoute.filter(s => !s.isOrigin);
+  const done = stops.filter(s=>s.status==='delivered').length;
+  const pend = stops.filter(s=>s.status==='ready'||s.status==='on_the_way').length;
+  const fail = stops.filter(s=>s.status==='not_delivered').length;
+  document.getElementById('stat-done').textContent = done;
+  document.getElementById('stat-pend').textContent = pend;
+  document.getElementById('stat-fail').textContent = fail;
+  document.getElementById('hdr-stops').textContent = stops.length + ' parada' + (stops.length!==1?'s':'');
+  document.getElementById('hdr-eta').textContent = `~${Math.ceil(stops.length*0.5)}h est.`;
+}
+
+// ── GEO STATUS CHECK ──────────────────────────
+function _checkGeoStatus() {
+  const stops = currentRoute.filter(s => !s.isOrigin);
+  const missing = stops.filter(s => !s._dbGeo);
+  const banner  = document.getElementById('geo-warning');
+  const btnOpt  = document.getElementById('btn-optimizer');
+  const btnSend = document.querySelector('.new-route-bar .btn-primary');
+
+  if (missing.length > 0) {
+    document.getElementById('geo-warning-text').textContent =
+      `${missing.length} parada${missing.length !== 1 ? 's' : ''} sin geocoordenadas — ve a Envíos y usa "Obtener Geo" en cada dirección para poder rutear.`;
+    banner.classList.remove('hidden');
+
+    // Block optimizer
+    btnOpt.classList.add('disabled');
+    btnOpt.querySelector('.opt-key-req').textContent = 'Sin geo';
+    btnOpt.querySelector('.opt-key-req').style.display = '';
+
+    // Block send button
+    if (btnSend) { btnSend.disabled = true; btnSend.style.opacity = '.5'; btnSend.style.cursor = 'not-allowed'; }
+  } else {
+    banner.classList.add('hidden');
+    if (btnSend) { btnSend.disabled = false; btnSend.style.opacity = ''; btnSend.style.cursor = ''; }
+
+    // Re-enable optimizer only if API key is set and no missing geo
+    if (gmApiKey && gmApiKey.length > 10) {
+      btnOpt.classList.remove('disabled');
+      btnOpt.querySelector('.opt-key-req').style.display = 'none';
+    }
+  }
+}
+
+// ── SAVE / RESTORE ROUTE ORDER ────────────────
+function _routeOrderKey(dateKey) {
+  const tenantId = localStorage.getItem('sf_tenant_id') || 'default';
+  return `sf_route_order_${tenantId}_${dateKey}`;
+}
+
+function _applySavedOrder(route, dateKey) {
+  try {
+    const raw = localStorage.getItem(_routeOrderKey(dateKey));
+    if (!raw) return route;
+    const order = JSON.parse(raw);
+    const byId = Object.fromEntries(route.map(s => [s.id, s]));
+    const reordered = order.map(id => byId[id]).filter(Boolean);
+    // Append any stops not present in saved order (e.g. new shipments added later)
+    const savedSet = new Set(order);
+    route.filter(s => !savedSet.has(s.id)).forEach(s => reordered.push(s));
+    reordered.forEach((s, i) => { s.seq = i + 1; });
+    return reordered;
+  } catch(e) { return route; }
+}
+
+function _markRouteDirty() {
+  _routeDirty = true;
+  const btn = document.getElementById('btn-save-route');
+  if (btn) btn.style.display = '';
+}
+
+function _markRouteClean() {
+  _routeDirty = false;
+  const btn = document.getElementById('btn-save-route');
+  if (btn) btn.style.display = 'none';
+}
+
+// ── NAMED ROUTES ───────────────────────────────
+function _isNamedRoute(id) { return typeof id === 'string' && id.startsWith('RT-'); }
+function _savedRoutesKey() { return 'sf_named_routes_' + (localStorage.getItem('sf_tenant_id') || 'default'); }
+function _loadSavedRoutes() {
+  try { return JSON.parse(localStorage.getItem(_savedRoutesKey()) || '[]'); } catch { return []; }
+}
+function _persistSavedRoutes(routes) {
+  localStorage.setItem(_savedRoutesKey(), JSON.stringify(routes));
+  // Sync to DB so drivers on other devices can see named routes
+  fetch('/api/shipments?action=routes', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ routes }),
+  }).catch(e => console.warn('[Routes] sync error', e));
+}
+
+function _buildNamedRouteStops(nr) {
+  const all = window._apiShipments || [];
+  const byId = Object.fromEntries(all.map(s => [s.id, s]));
+  const orderedIds = (nr.order && nr.order.length) ? nr.order : nr.shipment_ids;
+  const stops = orderedIds.map((id, i) => {
+    const s = byId[id];
+    return s ? _shpToStop(s, i + 1) : null;
+  }).filter(Boolean);
+  const inOrder = new Set(orderedIds);
+  nr.shipment_ids.filter(id => !inOrder.has(id) && byId[id]).forEach(id => {
+    stops.push(_shpToStop(byId[id], stops.length + 1));
+  });
+  return stops;
+}
+
+function toggleRouteDropdown() {
+  document.getElementById('route-dropdown').classList.toggle('hidden');
+}
+document.addEventListener('click', () => {
+  document.getElementById('route-dropdown')?.classList.add('hidden');
+});
+
+function _setRouteLabel(text) {
+  const el = document.getElementById('route-select-label');
+  if (el) el.textContent = text;
+  document.getElementById('route-dropdown')?.classList.add('hidden');
+}
+
+function _refreshRouteSelector() {
+  const dd = document.getElementById('route-dropdown');
+  if (!dd) return false;
+  const dateKeys = Object.keys(ROUTES).sort();
+  const namedRoutes = _loadSavedRoutes();
+  if (!dateKeys.length && !namedRoutes.length) {
+    dd.innerHTML = '<div class="rd-group"><div class="rd-item"><span class="rd-item-name" style="color:var(--ink3)">Sin envíos</span></div></div>';
+    _setRouteLabel('Sin envíos');
+    return false;
+  }
+  let html = '';
+  if (dateKeys.length) {
+    html += '<div class="rd-group"><div class="rd-group-label">Por fecha</div>';
+    dateKeys.forEach(key => {
+      const count = ROUTES[key].length;
+      const label = `${_routeDateLabel(key)} · ${count} envío${count !== 1 ? 's' : ''}`;
+      html += `<div class="rd-item ${currentRouteId===key?'active':''}" onclick="loadRoute('${key}')">
+        <span class="rd-item-name">${label}</span>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  if (namedRoutes.length) {
+    html += '<div class="rd-group"><div class="rd-group-label">Rutas guardadas</div>';
+    namedRoutes.forEach(nr => {
+      const n = nr.shipment_ids.length;
+      const label = `★ ${nr.name} · ${n} envío${n !== 1 ? 's' : ''}`;
+      html += `<div class="rd-item ${currentRouteId===nr.id?'active':''}" onclick="loadRoute('${nr.id}')">
+        <span class="rd-item-name">${label}</span>
+        <button class="rd-delete" onclick="event.stopPropagation();deleteRouteById('${nr.id}')" title="Eliminar ruta"><i class="ti ti-trash"></i></button>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  dd.innerHTML = html;
+  return true;
+}
+
+function deleteRouteById(id) {
+  const routes = _loadSavedRoutes();
+  const nr = routes.find(r => r.id === id);
+  if (!nr) return;
+  if (!confirm(`¿Eliminar la ruta "${nr.name}"?`)) return;
+  _persistSavedRoutes(routes.filter(r => r.id !== id));
+  _refreshRouteSelector();
+  if (currentRouteId === id) {
+    const firstDateKey = Object.keys(ROUTES).sort()[0];
+    if (firstDateKey) { loadRoute(firstDateKey); }
+    else { currentRoute = []; currentRouteId = null; renderStops(); renderMap(); }
+  }
+  toast('🗑️ Ruta eliminada');
+}
+
+let _nrEditId = null;
+
+function openNewRouteModal() {
+  _nrEditId = null;
+  document.getElementById('nr-modal-title').textContent = 'Nueva ruta';
+  document.getElementById('nr-modal-sub').textContent = 'Selecciona los envíos que formarán parte de esta ruta';
+  document.getElementById('nr-name').value = '';
+  document.getElementById('nr-btn-delete').style.display = 'none';
+  _populateNrShipments([]);
+  document.getElementById('modal-named-route').classList.remove('hidden');
+  setTimeout(() => document.getElementById('nr-name').focus(), 100);
+}
+
+function openEditRouteModal() {
+  if (!_isNamedRoute(currentRouteId)) return;
+  const routes = _loadSavedRoutes();
+  const nr = routes.find(r => r.id === currentRouteId);
+  if (!nr) return;
+  _nrEditId = currentRouteId;
+  document.getElementById('nr-modal-title').textContent = 'Editar ruta';
+  document.getElementById('nr-modal-sub').textContent = 'Modifica el nombre o los envíos de esta ruta';
+  document.getElementById('nr-name').value = nr.name;
+  document.getElementById('nr-btn-delete').style.display = '';
+  _populateNrShipments(nr.shipment_ids);
+  document.getElementById('modal-named-route').classList.remove('hidden');
+}
+
+function _populateNrShipments(checkedIds) {
+  const all = window._apiShipments || [];
+  const checkedSet = new Set(checkedIds);
+  const el = document.getElementById('nr-shipments-list');
+  if (!all.length) {
+    el.innerHTML = '<p style="padding:16px;text-align:center;font-size:13px;color:var(--ink3)">No hay envíos disponibles.</p>';
+    _updateNrSelCount();
+    return;
+  }
+  el.innerHTML = all.map(s => `
+    <label class="nr-ship-row">
+      <input type="checkbox" value="${s.id}" ${checkedSet.has(s.id) ? 'checked' : ''} onchange="_updateNrSelCount()">
+      <div>
+        <div class="nr-ship-name">${s.id} · ${s.recipient_name}</div>
+        <div class="nr-ship-sub">${s.address_street || ''}${s.address_city ? ' · ' + s.address_city : ''}${s.scheduled_date ? ' · ' + s.scheduled_date : ''}</div>
+      </div>
+    </label>`).join('');
+  _updateNrSelCount();
+}
+
+function _updateNrSelCount() {
+  const n = document.querySelectorAll('#nr-shipments-list input[type=checkbox]:checked').length;
+  document.getElementById('nr-sel-count').textContent = n + ' seleccionado' + (n !== 1 ? 's' : '');
+}
+
+function saveNamedRoute() {
+  const name = document.getElementById('nr-name').value.trim();
+  if (!name) { document.getElementById('nr-name').focus(); toast('⚠️ Ingresa un nombre para la ruta'); return; }
+  const checked = [...document.querySelectorAll('#nr-shipments-list input[type=checkbox]:checked')].map(el => el.value);
+  if (!checked.length) { toast('⚠️ Selecciona al menos un envío'); return; }
+
+  const routes = _loadSavedRoutes();
+  let targetId;
+  if (_nrEditId) {
+    const nr = routes.find(r => r.id === _nrEditId);
+    if (nr) {
+      nr.name = name;
+      const oldOrder = (nr.order && nr.order.length) ? nr.order : nr.shipment_ids;
+      const kept  = oldOrder.filter(id => checked.includes(id));
+      const added = checked.filter(id => !kept.includes(id));
+      nr.shipment_ids = checked;
+      nr.order = [...kept, ...added];
+    }
+    targetId = _nrEditId;
+  } else {
+    targetId = 'RT-' + Date.now();
+    routes.push({ id: targetId, name, shipment_ids: checked, order: checked, created_at: new Date().toISOString() });
+  }
+  _persistSavedRoutes(routes);
+  closeModal('modal-named-route');
+  loadRoute(targetId);
+  toast(_nrEditId ? '✅ Ruta actualizada' : '✅ Ruta creada');
+  _nrEditId = null;
+}
+
+function deleteCurrentRoute() {
+  closeModal('modal-named-route');
+  deleteRouteById(currentRouteId);
+}
+
+function saveRoute() {
+  if (!currentRouteId) return;
+  const order = [...currentRoute].sort((a,b) => a.seq - b.seq).map(s => s.id);
+  if (_isNamedRoute(currentRouteId)) {
+    const routes = _loadSavedRoutes();
+    const nr = routes.find(r => r.id === currentRouteId);
+    if (nr) { nr.order = order; _persistSavedRoutes(routes); }
+  } else {
+    localStorage.setItem(_routeOrderKey(currentRouteId), JSON.stringify(order));
+    ROUTES[currentRouteId] = currentRoute;
+  }
+  _markRouteClean();
+  toast('✅ Ruta guardada');
+}
+
+// ── ROUTE SELECTOR ─────────────────────────────
+function loadRoute(id) {
+  if (!id) return;
+  if (_isNamedRoute(id)) {
+    const routes = _loadSavedRoutes();
+    const nr = routes.find(r => r.id === id);
+    if (!nr) return;
+    currentRouteId = id;
+    currentRoute = _buildNamedRouteStops(nr);
+    document.getElementById('btn-edit-route').style.display = '';
+  } else {
+    if (!ROUTES[id]) return;
+    currentRouteId = id;
+    currentRoute = _applySavedOrder(ROUTES[id], id);
+    document.getElementById('btn-edit-route').style.display = 'none';
+  }
+  selectedStop = null;
+  _markRouteClean();
+  document.getElementById('map-popup').classList.add('hidden');
+  // Update dropdown label and active state
+  _refreshRouteSelector();
+  if (_isNamedRoute(id)) {
+    const nr = _loadSavedRoutes().find(r => r.id === id);
+    if (nr) _setRouteLabel(`★ ${nr.name} · ${nr.shipment_ids.length} envío${nr.shipment_ids.length !== 1 ? 's' : ''}`);
+  } else {
+    const count = (ROUTES[id] || []).length;
+    _setRouteLabel(`${_routeDateLabel(id)} · ${count} envío${count !== 1 ? 's' : ''}`);
+  }
+  renderStops(); renderMap();
+}
+
+// ── OPTIMIZER ──────────────────────────────────
+async function runOptimizer() {
+  if (!gmApiKey) return;
+  const prog = document.getElementById('opt-progress');
+  const progLabel = prog.querySelector('span');
+  prog.classList.remove('hidden');
+  try {
+    // 1. Geocodificar todas las paradas sin coordenadas reales
+    progLabel.textContent = 'Geocodificando direcciones...';
+    await geocodeAllStops();
+
+    // 2. Nearest-neighbor desde el origen
+    progLabel.textContent = 'Calculando ruta óptima...';
+    const origin = (_originStop?.lat && _originStop?.lng) ? _originStop
+      : currentRoute.find(s => s.lat && s.lng);
+    const withCoords = currentRoute.filter(s => s.lat && s.lng);
+    const noCoords   = currentRoute.filter(s => !s.lat || !s.lng);
+
+    if (!origin || withCoords.length < 2) {
+      toast('⚠️ No hay suficientes paradas geocodificadas');
+      return;
+    }
+
+    const remaining = [...withCoords];
+    const ordered = [];
+    let cur = origin;
+    while (remaining.length) {
+      let nearIdx = 0, nearDist = Infinity;
+      remaining.forEach((s, i) => {
+        const d = haversine(cur.lat, cur.lng, s.lat, s.lng);
+        if (d < nearDist) { nearDist = d; nearIdx = i; }
+      });
+      const next = remaining.splice(nearIdx, 1)[0];
+      ordered.push(next);
+      cur = next;
+    }
+
+    [...ordered, ...noCoords].forEach((s, i) => { s.seq = i + 1; });
+    currentRoute = [...ordered, ...noCoords];
+    _markRouteDirty();
+    renderStops(); renderMap();
+    toast('✨ Ruta optimizada por distancia real');
+  } catch(e) {
+    console.error('[Optimizer]', e);
+    toast('❌ Error en el optimizador');
+  } finally {
+    prog.classList.add('hidden');
+    progLabel.textContent = 'Calculando ruta óptima...';
+  }
+}
+
+// ── SETTINGS & API KEY ─────────────────────────
+function toggleSettings() {
+  document.getElementById('settings-panel').classList.toggle('hidden');
+}
+function onKeyInput(val) {
+  const btn = document.getElementById('btn-optimizer');
+  if (val.trim().length > 10) {
+    btn.classList.remove('disabled');
+    btn.querySelector('.opt-key-req').style.display = 'none';
+  } else {
+    btn.classList.add('disabled');
+    btn.querySelector('.opt-key-req').style.display = '';
+  }
+}
+async function saveApiKey() {
+  const key = document.getElementById('gm-key-input').value.trim();
+  if (!key) { toast('⚠️ Ingresa una API Key válida'); return; }
+  gmApiKey = key;
+  localStorage.setItem('gm_api_key', key);
+  document.getElementById('btn-optimizer').classList.remove('disabled');
+  document.getElementById('btn-optimizer').querySelector('.opt-key-req').style.display = 'none';
+  document.getElementById('settings-panel').classList.add('hidden');
+  toast('🗺️ Cargando Google Maps...');
+  try {
+    await loadGoogleMaps(key);
+    initGoogleMap();
+    await geocodeAllStops();
+    renderMap();
+    toast('✅ Google Maps activo');
+  } catch(e) {
+    console.error('[Maps]', e);
+    toast('❌ Error al cargar Google Maps — verifica la API Key');
+  }
+}
+
+// Inicializar con key guardada — carga GM automáticamente
+if (gmApiKey && gmApiKey.length > 10) {
+  document.getElementById('btn-optimizer').classList.remove('disabled');
+  document.getElementById('btn-optimizer').querySelector('.opt-key-req').style.display = 'none';
+  document.getElementById('gm-key-input').value = gmApiKey;
+  // Inicia la carga de GM en paralelo con initRoutes()
+  _gmLoadPromise = loadGoogleMaps(gmApiKey);
+}
+
+// ── MODALS ─────────────────────────────────────
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function openNewShipmentModal() { document.getElementById('modal-add').classList.remove('hidden'); }
+function addStop() {
+  const val = document.getElementById('add-order-sel').value;
+  if (!val) { toast('⚠️ Selecciona un envío'); return; }
+  if (currentRoute.find(s => s.id === val)) { toast('⚠️ Ya está en esta ruta'); return; }
+  const realShp = window._apiShipments?.find(s => s.id === val);
+  if (!realShp) { toast('⚠️ Envío no encontrado'); return; }
+  const newStop = _shpToStop(realShp, currentRoute.length + 1);
+  currentRoute.push(newStop);
+  ROUTES[currentRouteId] = currentRoute;
+  closeModal('modal-add');
+  renderStops(); renderMap();
+  toast('✅ Parada agregada');
+}
+
+// ── EXPORT / PRINT ─────────────────────────────
+function exportRoute() {
+  if (!currentRouteId || !currentRoute.length) { toast('Sin paradas en la ruta'); return; }
+  const ids = [...currentRoute].sort((a,b) => a.seq - b.seq).map(s => s.id).join(',');
+  let name = _routeDateLabel(currentRouteId);
+  if (_isNamedRoute(currentRouteId)) {
+    const nr = _loadSavedRoutes().find(r => r.id === currentRouteId);
+    if (nr) name = nr.name;
+  }
+  const url = location.origin + '/driver?ids=' + encodeURIComponent(ids) + '&name=' + encodeURIComponent(name);
+  if (navigator.share) {
+    navigator.share({ title: 'Ruta: ' + name, url }).catch(() => {});
+  } else if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(url).then(() => toast('🔗 Link copiado — pégalo al repartidor'));
+  } else {
+    prompt('Link para el repartidor:', url);
+  }
+}
+function printRoute() {
+  const sorted = [...currentRoute].sort((a, b) => a.seq - b.seq);
+  if (!sorted.length) { toast('Sin paradas en la ruta'); return; }
+
+  const dateLabel = _routeDateLabel(currentRouteId || '');
+  const originName = _originStop?.recipient_name || '';
+  const originAddr = _originStop ? `${_originStop.address_street}${_originStop.address_city ? ', ' + _originStop.address_city : ''}` : '';
+
+  const rows = sorted.map(s => {
+    const win = (s.delivery_window_from && s.delivery_window_to)
+      ? `${s.delivery_window_from}–${s.delivery_window_to}` : '';
+    const addr = `${s.address_street}${s.address_city ? ', ' + s.address_city : ''}`;
+    const statusLabel = { ready:'Por enviar', on_the_way:'En camino', delivered:'Entregado', not_delivered:'No entregado' }[s.status] || s.status;
+    return `<tr>
+      <td class="seq">${s.seq}</td>
+      <td class="info">
+        <div class="rname">${s.recipient_name}${s.recipient_phone ? `<span class="rphone"> · ${s.recipient_phone}</span>` : ''}</div>
+        ${s.receptor ? `<div class="rrec">✓ Recibe: ${s.receptor}${s.receptor_telefono ? ' · ' + s.receptor_telefono : ''}</div>` : ''}
+        <div class="raddr">${addr}</div>
+        ${s.message ? `<div class="rref">Ref: ${s.message}</div>` : ''}
+        ${win ? `<div class="rwin">⏰ ${win}</div>` : ''}
+      </td>
+      <td class="status-col">${statusLabel}</td>
+      <td class="sig"></td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ruta ${dateLabel}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;font-size:12px;color:#000;background:#fff;padding:12mm}
+@page{size:letter;margin:12mm}
+h1{font-size:18px;font-weight:900;margin-bottom:2px}
+.sub{font-size:11px;color:#555;margin-bottom:10px}
+.origin{background:#f5f5f5;border:1px solid #ccc;border-radius:4px;padding:6px 10px;margin-bottom:14px;font-size:11px}
+.origin strong{font-size:12px}
+table{width:100%;border-collapse:collapse;margin-top:4px}
+thead th{background:#222;color:#fff;padding:6px 8px;font-size:11px;text-align:left}
+th.seq,td.seq{width:32px;text-align:center;font-weight:900}
+th.status-col,td.status-col{width:90px;font-size:11px}
+th.sig,td.sig{width:100px;border-bottom:1px solid #aaa;vertical-align:bottom;padding-bottom:4px}
+tbody tr{border-bottom:1px solid #ddd}
+tbody tr:nth-child(even){background:#fafafa}
+td{padding:7px 8px;vertical-align:top}
+.rname{font-weight:700;font-size:13px}
+.rphone{font-weight:400;font-size:11px;color:#555}
+.rrec{font-size:11px;font-weight:600;color:#333;margin-top:2px}
+.raddr{color:#444;margin-top:2px}
+.rref{color:#555;font-size:11px;margin-top:2px}
+.rwin{color:#555;font-size:10px;margin-top:2px}
+.rnote{color:#777;font-size:10px;font-style:italic;margin-top:2px}
+.footer{margin-top:16px;font-size:10px;color:#aaa;text-align:center}
+</style></head><body>
+<h1>Hoja de Ruta · ${dateLabel}</h1>
+<div class="sub">${sorted.length} parada${sorted.length!==1?'s':''} · Impreso ${new Date().toLocaleDateString('es-CL',{day:'2-digit',month:'short',year:'numeric'})}</div>
+${originName ? `<div class="origin"><strong>Punto de partida:</strong> ${originName} — ${originAddr}</div>` : ''}
+<table>
+<thead><tr><th class="seq">#</th><th>Destinatario / Dirección</th><th class="status-col">Estado</th><th class="sig">Firma / Recibido</th></tr></thead>
+<tbody>${rows}</tbody>
+</table>
+<div class="footer">StockFlow · ${dateLabel}</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=850,height=700');
+  if (win) { win.document.write(html); win.document.close(); }
+}
+
+// ── RESIZE ────────────────────────────────────
+window.addEventListener('resize', () => renderMap());
+
+// ── INIT ──────────────────────────────────────
+function toast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';
+  setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(20px)';},2800);
+}
+
+function _shpToStop(s, seq) {
+  return {
+    id:                   s.id,
+    order_id:             s.order_id,
+    seq,
+    recipient_name:       s.recipient_name  || '—',
+    recipient_phone:      s.recipient_phone || '',
+    address_street:       s.address_street  || '—',
+    address_city:         s.address_city    || '',
+    address_region:       s.address_region  || '',
+    status:               s.status || 'ready',
+    tracking_code:        s.tracking_code   || '',
+    delivery_window_from: s.delivery_window_from || '',
+    delivery_window_to:   s.delivery_window_to   || '',
+    scheduled_date:       s.scheduled_date  || '',
+    kits:                 [],
+    message:              s.address_notes || s.notes || null,
+    receptor:             '',
+    receptor_telefono:    '',
+    // Use real DB coords if available; fallback to random for canvas simulation
+    lat:         s.lat  || (-33.44 + (Math.random() - .5) * .15),
+    lng:         s.lng  || (-70.62 + (Math.random() - .5) * .15),
+    _dbGeo:      !!(s.lat && s.lng),
+    _realCoords: !!(s.lat && s.lng),
+  };
+}
+
+function _routeDateLabel(dateKey) {
+  if (dateKey === 'sin-fecha') return 'Sin fecha';
+  try { return new Date(dateKey + 'T12:00:00').toLocaleDateString('es-CL', { weekday:'short', day:'2-digit', month:'short' }); }
+  catch { return dateKey; }
+}
+
+async function initRoutes() {
+  _originStop = _getOriginFromLocales();
+  try {
+    const [shipments, orders] = await Promise.all([
+      fetch('/api/shipments', { headers: authHeaders() }).then(r => r.ok ? r.json() : []),
+      fetch('/api/orders',    { headers: authHeaders() }).then(r => r.ok ? r.json() : []),
+    ]);
+    if (!Array.isArray(shipments)) return;
+    window._apiShipments = shipments;
+
+    // Build order lookup for receptor data
+    const orderMap = {};
+    if (Array.isArray(orders)) {
+      orders.forEach(o => {
+        const dv = o.delivery || {};
+        orderMap[o.id] = { receptor: dv.receptor || '', receptor_telefono: dv.receptor_telefono || '' };
+      });
+    }
+
+    // Group by scheduled_date
+    const grouped = {};
+    shipments.forEach(s => {
+      const key = s.scheduled_date || 'sin-fecha';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(s);
+    });
+
+    // Sort each group by delivery window, assign seq, store in ROUTES
+    Object.keys(grouped).sort().forEach(key => {
+      const sorted = grouped[key].sort((a, b) =>
+        (a.delivery_window_from || '').localeCompare(b.delivery_window_from || ''));
+      ROUTES[key] = sorted.map((s, i) => {
+        const stop = _shpToStop(s, i + 1);
+        if (s.order_id && orderMap[s.order_id]) {
+          stop.receptor          = orderMap[s.order_id].receptor;
+          stop.receptor_telefono = orderMap[s.order_id].receptor_telefono;
+        }
+        return stop;
+      });
+    });
+
+    // Populate selector (date routes + named routes)
+    _refreshRouteSelector();
+
+    // Populate "agregar parada" modal with all shipments
+    const addSel = document.getElementById('add-order-sel');
+    addSel.innerHTML = '<option value="">Seleccionar envío...</option>' +
+      shipments.map(s => `<option value="${s.id}">${s.id} · ${s.order_id||''} · ${s.recipient_name} · ${s.address_city||''}</option>`).join('');
+
+    // Load first available route
+    const dateKeys = Object.keys(ROUTES).sort();
+    if (!dateKeys.length && !_loadSavedRoutes().length) {
+      renderStops(); renderMap();
+      return;
+    }
+    if (dateKeys.length) {
+      currentRouteId = dateKeys[0];
+      currentRoute = _applySavedOrder(ROUTES[dateKeys[0]], dateKeys[0]);
+    }
+    _refreshRouteSelector();
+    if (currentRouteId && !_isNamedRoute(currentRouteId)) {
+      const count = (ROUTES[currentRouteId] || []).length;
+      _setRouteLabel(`${_routeDateLabel(currentRouteId)} · ${count} envío${count !== 1 ? 's' : ''}`);
+    }
+    renderStops();
+    await _activateGMOrCanvas();
+  } catch(e) {
+    console.warn('[Routes] init error', e);
+    renderStops();
+    await _activateGMOrCanvas();
+  }
+}
+
+// Activa Google Maps si la key está lista, si no usa canvas
+async function _activateGMOrCanvas() {
+  if (_gmLoadPromise) {
+    try {
+      await _gmLoadPromise;
+      initGoogleMap();
+      await geocodeAllStops();
+      renderMap();
+    } catch(e) {
+      console.warn('[Maps init]', e);
+      toast('⚠️ Google Maps no pudo cargar — usando mapa simulado');
+      setTimeout(renderMap, 100);
+    }
+  } else {
+    setTimeout(renderMap, 100);
+  }
+}
+
+initRoutes();
+</script>
+</body>
+</html>

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow — Iniciar sesión</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f5f6fa;--bg2:#fff;--bg3:#f0f1f7;
+  --text:#1a1a2e;--text2:#5a5b7a;--text3:#9a9bb8;--border:#e4e5f0;
+  --primary:#5b4fff;--primary-light:#ede9ff;--primary-dark:#4035cc;
+  --green:#16c98d;--green-light:#e6faf4;
+  --red:#ff4d6d;--red-light:#fff0f3;
+  --radius:12px;--radius-lg:16px;--shadow:0 2px 12px rgba(91,79,255,.08);
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif}
+body{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+
+.login-wrap{width:100%;max-width:400px}
+
+.logo-area{text-align:center;margin-bottom:32px}
+.logo-icon{width:64px;height:64px;background:var(--primary);border-radius:18px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;box-shadow:0 8px 24px rgba(91,79,255,.35)}
+.logo-icon i{color:#fff;font-size:32px}
+.logo-title{font-size:26px;font-weight:900;color:var(--primary)}
+.logo-sub{font-size:13px;color:var(--text3);font-weight:600;margin-top:3px}
+
+.card{background:var(--bg2);border-radius:var(--radius-lg);padding:28px 28px 24px;box-shadow:var(--shadow);border:1px solid var(--border)}
+.card-title{font-size:17px;font-weight:900;margin-bottom:4px}
+.card-sub{font-size:13px;color:var(--text3);font-weight:600;margin-bottom:22px}
+
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:11px;font-weight:800;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
+.input-wrap{position:relative}
+.form-input{width:100%;background:var(--bg3);border:2px solid var(--border);border-radius:var(--radius);padding:12px 14px;color:var(--text);font-size:15px;font-family:'Nunito',sans-serif;font-weight:600;outline:none;transition:border-color .15s}
+.form-input:focus{border-color:var(--primary);background:#fff}
+.form-input::placeholder{color:var(--text3)}
+.input-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--text3)}
+.form-input.has-icon{padding-left:38px}
+.eye-btn{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);padding:4px;display:flex;align-items:center}
+.eye-btn i{font-size:18px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:13px 20px;border-radius:var(--radius);border:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:15px;cursor:pointer;transition:all .15s;width:100%}
+.btn-primary{background:var(--primary);color:#fff;box-shadow:0 4px 14px rgba(91,79,255,.35)}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-primary:active{transform:scale(.98)}
+.btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.btn-outline{background:var(--bg3);color:var(--text);border:1.5px solid var(--border)}
+.btn-outline:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+
+.forgot-link{display:block;text-align:center;margin-top:16px;font-size:13px;font-weight:700;color:var(--primary);cursor:pointer;text-decoration:none}
+.forgot-link:hover{text-decoration:underline}
+
+.error-box{background:var(--red-light);border:1.5px solid #ffc8d2;border-radius:var(--radius);padding:10px 14px;font-size:13px;font-weight:700;color:var(--red);margin-bottom:14px;display:none}
+.success-box{background:var(--green-light);border:1.5px solid #a7f3d0;border-radius:var(--radius);padding:10px 14px;font-size:13px;font-weight:700;color:#065f46;margin-bottom:14px;display:none}
+
+/* Reset token display */
+.token-box{background:var(--primary-light);border:2px dashed var(--primary);border-radius:var(--radius);padding:16px;text-align:center;margin-bottom:16px;display:none}
+.token-label{font-size:11px;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.token-code{font-size:28px;font-weight:900;color:var(--primary);letter-spacing:4px;font-family:monospace;word-break:break-all}
+.token-note{font-size:11px;font-weight:600;color:var(--text3);margin-top:6px}
+
+/* View panel switcher */
+.view{display:none}
+.view.active{display:block}
+
+.divider{height:1px;background:var(--border);margin:18px 0}
+.footer-text{text-align:center;font-size:11px;color:var(--text3);font-weight:600;margin-top:18px}
+
+.spinner{width:18px;height:18px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn-primary.loading .spinner{display:inline-block}
+.btn-primary.loading .btn-text{display:none}
+</style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <!-- LOGO -->
+  <div class="logo-area">
+    <div class="logo-icon"><i class="ti ti-packages"></i></div>
+    <div class="logo-title">StockFlow</div>
+    <div class="logo-sub">OMS · WMS · Sistema de gestión</div>
+  </div>
+
+  <div class="card">
+
+    <!-- ── VIEW: LOGIN ───────────────────────────── -->
+    <div class="view active" id="view-login">
+      <div class="card-title">Iniciar sesión</div>
+      <div class="card-sub">Accede a tu cuenta para continuar</div>
+
+      <div class="error-box" id="login-error"></div>
+
+      <div class="form-group">
+        <label class="form-label">Usuario</label>
+        <div class="input-wrap">
+          <i class="ti ti-user input-icon"></i>
+          <input class="form-input has-icon" type="text" id="login-user" placeholder="Ingresa tu usuario" autocomplete="username" autofocus>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Contraseña</label>
+        <div class="input-wrap">
+          <i class="ti ti-lock input-icon"></i>
+          <input class="form-input has-icon" type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+          <button class="eye-btn" onclick="toggleEye('login-pass',this)" type="button"><i class="ti ti-eye"></i></button>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="login-btn" onclick="doLogin()">
+        <div class="spinner"></div>
+        <span class="btn-text"><i class="ti ti-login"></i> Ingresar</span>
+      </button>
+
+      <a class="forgot-link" onclick="showView('view-forgot')">¿Olvidaste tu contraseña?</a>
+    </div>
+
+    <!-- ── VIEW: FORGOT — step 1: enter username ─── -->
+    <div class="view" id="view-forgot">
+      <div class="card-title">Recuperar contraseña</div>
+      <div class="card-sub">Ingresa tu usuario para generar un código de recuperación</div>
+
+      <div class="error-box" id="forgot-error"></div>
+      <div class="success-box" id="forgot-success"></div>
+
+      <div class="token-box" id="token-display">
+        <div class="token-label">Tu código de recuperación</div>
+        <div class="token-code" id="token-value"></div>
+        <div class="token-note">Cópialo — lo necesitarás en el siguiente paso. Expira en 60 min.</div>
+      </div>
+
+      <div id="forgot-form-section">
+        <div class="form-group">
+          <label class="form-label">Usuario</label>
+          <div class="input-wrap">
+            <i class="ti ti-user input-icon"></i>
+            <input class="form-input has-icon" type="text" id="forgot-user" placeholder="Tu nombre de usuario">
+          </div>
+        </div>
+        <button class="btn btn-primary" id="forgot-btn" onclick="doRequestReset()">
+          <div class="spinner"></div>
+          <span class="btn-text"><i class="ti ti-key"></i> Generar código</span>
+        </button>
+      </div>
+
+      <div class="divider"></div>
+      <a class="forgot-link" onclick="showView('view-reset')">Ya tengo un código → Ingresar nueva contraseña</a>
+      <a class="forgot-link" style="color:var(--text3);margin-top:8px" onclick="showView('view-login')">Volver al login</a>
+    </div>
+
+    <!-- ── VIEW: RESET — step 2: enter code + new pass ── -->
+    <div class="view" id="view-reset">
+      <div class="card-title">Nueva contraseña</div>
+      <div class="card-sub">Ingresa el código de recuperación y tu nueva contraseña</div>
+
+      <div class="error-box" id="reset-error"></div>
+      <div class="success-box" id="reset-success"></div>
+
+      <div class="form-group">
+        <label class="form-label">Usuario</label>
+        <div class="input-wrap">
+          <i class="ti ti-user input-icon"></i>
+          <input class="form-input has-icon" type="text" id="reset-user" placeholder="Tu nombre de usuario">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Código de recuperación</label>
+        <div class="input-wrap">
+          <i class="ti ti-key input-icon"></i>
+          <input class="form-input has-icon" type="text" id="reset-token" placeholder="Ej: A1B2C3D4" style="text-transform:uppercase;letter-spacing:2px;font-family:monospace;font-size:17px" maxlength="8">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nueva contraseña</label>
+        <div class="input-wrap">
+          <i class="ti ti-lock input-icon"></i>
+          <input class="form-input has-icon" type="password" id="reset-pass" placeholder="Mínimo 6 caracteres">
+          <button class="eye-btn" onclick="toggleEye('reset-pass',this)" type="button"><i class="ti ti-eye"></i></button>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="reset-btn" onclick="doReset()">
+        <div class="spinner"></div>
+        <span class="btn-text"><i class="ti ti-check"></i> Cambiar contraseña</span>
+      </button>
+
+      <a class="forgot-link" style="color:var(--text3);margin-top:12px" onclick="showView('view-forgot')">← Solicitar código nuevo</a>
+    </div>
+
+  </div>
+
+  <div class="footer-text">StockFlow v1.0 · Bichon Labs</div>
+</div>
+
+<script>
+// ── Check if already logged in ───────────────────────
+(function() {
+  const token = localStorage.getItem('sf_token');
+  if (!token) return;
+  fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } })
+    .then(r => r.ok ? r.json() : null)
+    .then(user => {
+      if (!user) return;
+      if (user.role === 'superadmin' || user.role === 'master') location.replace('/admin');
+      else location.replace('/');
+    })
+    .catch(() => {});
+})();
+
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  // Clear errors when switching views
+  document.querySelectorAll('.error-box,.success-box').forEach(b => { b.style.display='none'; b.textContent=''; });
+}
+
+function showError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function showSuccess(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function setLoading(btnId, on) {
+  const btn = document.getElementById(btnId);
+  if (on) btn.classList.add('loading'), btn.disabled = true;
+  else btn.classList.remove('loading'), btn.disabled = false;
+}
+
+function toggleEye(inputId, btn) {
+  const inp = document.getElementById(inputId);
+  const isPass = inp.type === 'password';
+  inp.type = isPass ? 'text' : 'password';
+  btn.querySelector('i').className = isPass ? 'ti ti-eye-off' : 'ti ti-eye';
+}
+
+// ── LOGIN ─────────────────────────────────────────
+async function doLogin() {
+  const username = document.getElementById('login-user').value.trim();
+  const password = document.getElementById('login-pass').value;
+  document.getElementById('login-error').style.display = 'none';
+
+  if (!username || !password) { showError('login-error', 'Completa usuario y contraseña'); return; }
+
+  setLoading('login-btn', true);
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await r.json();
+    if (!r.ok) { showError('login-error', data.error || 'Error al iniciar sesión'); return; }
+
+    localStorage.setItem('sf_token', data.token);
+    localStorage.setItem('sf_user', data.username);
+    localStorage.setItem('sf_role', data.role || 'staff');
+    // Clear any previous tenant context
+    localStorage.removeItem('sf_tenant_id');
+    localStorage.removeItem('sf_tenant_name');
+    localStorage.removeItem('sf_tenant_color');
+    localStorage.removeItem('sf_tenant_logo_text');
+    localStorage.removeItem('sf_tenant_logo_url');
+    // Superadmin → /admin, regular users → /
+    if (data.role === 'superadmin' || data.role === 'master') {
+      location.replace('/admin');
+    } else {
+      // Store tenant info for branding
+      if (data.tenant) {
+        localStorage.setItem('sf_tenant_id',        data.tenant.id);
+        localStorage.setItem('sf_tenant_name',      data.tenant.name);
+        localStorage.setItem('sf_tenant_color',     data.tenant.color || '#5b4fff');
+        localStorage.setItem('sf_tenant_logo_text', data.tenant.logo_text || '');
+        localStorage.setItem('sf_tenant_logo_url',  data.tenant.logo_url || '');
+      }
+      location.replace('/');
+    }
+  } catch (e) {
+    showError('login-error', 'Sin conexión. Intenta de nuevo.');
+  } finally {
+    setLoading('login-btn', false);
+  }
+}
+
+// ── REQUEST RESET ─────────────────────────────────
+async function doRequestReset() {
+  const username = document.getElementById('forgot-user').value.trim();
+  document.getElementById('forgot-error').style.display = 'none';
+  document.getElementById('forgot-success').style.display = 'none';
+  document.getElementById('token-display').style.display = 'none';
+
+  if (!username) { showError('forgot-error', 'Ingresa tu nombre de usuario'); return; }
+
+  setLoading('forgot-btn', true);
+  try {
+    const r = await fetch('/api/auth/request-reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username }),
+    });
+    const data = await r.json();
+    if (!r.ok) { showError('forgot-error', data.error || 'Error al generar código'); return; }
+
+    // Show token on screen
+    document.getElementById('token-value').textContent = data.reset_token;
+    document.getElementById('token-display').style.display = 'block';
+    document.getElementById('forgot-form-section').style.display = 'none';
+    showSuccess('forgot-success', '¡Código generado! Cópialo antes de continuar.');
+
+    // Pre-fill reset form
+    document.getElementById('reset-user').value = username;
+  } catch (e) {
+    showError('forgot-error', 'Sin conexión. Intenta de nuevo.');
+  } finally {
+    setLoading('forgot-btn', false);
+  }
+}
+
+// ── RESET PASSWORD ────────────────────────────────
+async function doReset() {
+  const username    = document.getElementById('reset-user').value.trim();
+  const reset_token = document.getElementById('reset-token').value.trim().toUpperCase();
+  const new_password = document.getElementById('reset-pass').value;
+  document.getElementById('reset-error').style.display = 'none';
+  document.getElementById('reset-success').style.display = 'none';
+
+  if (!username)     { showError('reset-error', 'Ingresa tu usuario'); return; }
+  if (!reset_token)  { showError('reset-error', 'Ingresa el código de recuperación'); return; }
+  if (!new_password) { showError('reset-error', 'Ingresa una nueva contraseña'); return; }
+  if (new_password.length < 6) { showError('reset-error', 'La contraseña debe tener al menos 6 caracteres'); return; }
+
+  setLoading('reset-btn', true);
+  try {
+    const r = await fetch('/api/auth/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, reset_token, new_password }),
+    });
+    const data = await r.json();
+    if (!r.ok) { showError('reset-error', data.error || 'Error al cambiar contraseña'); return; }
+
+    showSuccess('reset-success', '¡Contraseña actualizada! Redirigiendo al login...');
+    document.getElementById('reset-btn').style.display = 'none';
+    setTimeout(() => showView('view-login'), 2000);
+  } catch (e) {
+    showError('reset-error', 'Sin conexión. Intenta de nuevo.');
+  } finally {
+    setLoading('reset-btn', false);
+  }
+}
+</script>
+</body>
+</html>

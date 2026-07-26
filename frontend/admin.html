@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow — Administración</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f5f6fa;--bg2:#fff;--bg3:#f0f1f7;
+  --text:#1a1a2e;--text2:#5a5b7a;--text3:#9a9bb8;--border:#e4e5f0;
+  --primary:#5b4fff;--primary-light:#ede9ff;--primary-dark:#4035cc;
+  --green:#16c98d;--green-light:#e6faf4;--green-dark:#0da070;
+  --red:#ff4d6d;--red-light:#fff0f3;
+  --amber:#f59e0b;--amber-light:#fffbeb;--amber-dark:#d97706;
+  --master:#7c3aed;--master-light:#f3e8ff;
+  --radius:12px;--radius-lg:16px;--shadow:0 2px 12px rgba(91,79,255,.08);
+}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif}
+
+/* TOPBAR */
+.topbar{background:var(--bg2);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);box-shadow:var(--shadow);position:sticky;top:0;z-index:100}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.logo-mark{width:38px;height:38px;border-radius:10px;background:var(--primary);display:flex;align-items:center;justify-content:center}
+.logo-mark i{color:#fff;font-size:20px}
+.page-title{font-size:18px;font-weight:900}
+.page-sub{font-size:11px;color:var(--text3);font-weight:600}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.icon-btn{width:38px;height:38px;border-radius:10px;background:var(--bg3);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);text-decoration:none;font-size:20px}
+.icon-btn:hover{background:var(--primary-light);color:var(--primary)}
+.role-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:800;color:#fff}
+.chip-superadmin{background:linear-gradient(135deg,#5b4fff,#4035cc)}
+.chip-master{background:linear-gradient(135deg,#7c3aed,#6d28d9)}
+
+/* MAIN */
+.main{max-width:960px;margin:0 auto;padding:28px 20px 60px}
+
+/* TABS */
+.admin-tabs{display:flex;gap:4px;background:var(--bg3);border-radius:14px;padding:4px;margin-bottom:28px;width:fit-content}
+.admin-tab{padding:8px 20px;border-radius:10px;border:none;background:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;color:var(--text3);cursor:pointer;display:flex;align-items:center;gap:7px;transition:all .15s}
+.admin-tab.active{background:var(--bg2);color:var(--text);box-shadow:0 1px 6px rgba(0,0,0,.08)}
+.tab-section{display:none}.tab-section.active{display:block}
+
+/* SECTION HEADER */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.section-title{font-size:20px;font-weight:900}
+.section-sub{font-size:13px;color:var(--text3);font-weight:600;margin-top:2px}
+
+/* BTN */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:var(--radius);border:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:14px;cursor:pointer;transition:all .15s}
+.btn-primary{background:var(--primary);color:#fff;box-shadow:0 4px 14px rgba(91,79,255,.3)}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-master{background:var(--master);color:#fff;box-shadow:0 4px 14px rgba(124,58,237,.3)}
+.btn-master:hover{opacity:.9}
+.btn-sm{padding:7px 13px;font-size:12px;border-radius:9px}
+.btn-outline{background:var(--bg3);color:var(--text2);border:1.5px solid var(--border)}
+.btn-outline:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+.btn-danger{background:var(--red-light);color:var(--red);border:1.5px solid #ffc8d2}
+.btn-danger:hover{background:var(--red);color:#fff}
+.btn-enter{background:linear-gradient(135deg,#5b4fff,#4035cc);color:#fff;box-shadow:0 3px 10px rgba(91,79,255,.3)}
+.btn-enter:hover{opacity:.9;transform:translateY(-1px)}
+
+/* TENANT CARDS */
+.tenants-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.tenant-card{background:var(--bg2);border-radius:var(--radius-lg);padding:0;box-shadow:var(--shadow);border:1.5px solid var(--border);overflow:hidden;transition:box-shadow .15s,border-color .15s}
+.tenant-card:hover{box-shadow:0 4px 24px rgba(91,79,255,.14);border-color:var(--primary)}
+.tenant-header{padding:16px 18px 14px;display:flex;align-items:flex-start;gap:12px;border-bottom:1px solid var(--border)}
+.tenant-logo{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff;flex-shrink:0;background:var(--primary)}
+.tenant-logo img{width:100%;height:100%;object-fit:cover;border-radius:12px}
+.tenant-info{flex:1;min-width:0}
+.tenant-name{font-size:15px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tenant-slug{font-size:11px;color:var(--text3);font-weight:600;font-family:monospace;margin-top:2px}
+.tenant-body{padding:14px 18px}
+.tenant-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.tmeta{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--text2)}
+.tmeta i{font-size:14px}
+.status-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:800}
+.status-active{background:var(--green-light);color:var(--green-dark)}
+.status-inactive{background:var(--red-light);color:var(--red)}
+.status-suspended{background:var(--amber-light);color:var(--amber-dark)}
+.status-pending{background:var(--amber-light);color:var(--amber-dark)}
+.plan-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:800;background:var(--primary-light);color:var(--primary)}
+.tenant-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+/* MASTER USERS TABLE */
+.master-table{background:var(--bg2);border-radius:var(--radius-lg);box-shadow:var(--shadow);border:1px solid var(--border);overflow:hidden}
+.master-table-head{display:grid;grid-template-columns:1fr 1fr 120px 120px;gap:12px;padding:12px 18px;background:var(--bg3);border-bottom:1px solid var(--border);font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.3px}
+.master-row{display:grid;grid-template-columns:1fr 1fr 120px 120px;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);align-items:center;transition:background .1s}
+.master-row:last-child{border-bottom:none}
+.master-row:hover{background:var(--bg3)}
+.master-avatar{width:32px;height:32px;border-radius:9px;background:var(--master);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:12px;flex-shrink:0;margin-right:8px}
+.user-info{display:flex;align-items:center;min-width:0}
+.user-name{font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-handle{font-size:11px;color:var(--text3);font-weight:600}
+.user-email{font-size:12px;color:var(--text2);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-actions{display:flex;gap:6px;justify-content:flex-end}
+
+/* INVITE BOX */
+.invite-box{background:var(--master-light);border:2px dashed var(--master);border-radius:var(--radius);padding:14px 16px;margin-top:14px;display:none}
+.invite-box-label{font-size:11px;font-weight:800;color:var(--master);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.invite-url{font-size:11px;font-family:monospace;color:var(--text2);word-break:break-all;background:rgba(124,58,237,.08);border-radius:6px;padding:8px 10px;cursor:pointer;border:none;width:100%;text-align:left;font-weight:600}
+.invite-url:hover{background:rgba(124,58,237,.15)}
+.invite-note{font-size:11px;color:var(--text3);font-weight:600;margin-top:6px}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(26,26,46,.55);z-index:200;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+@media(min-width:600px){.modal-overlay{align-items:center}}
+.modal{background:var(--bg2);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:24px 24px 32px;width:100%;max-width:520px;transform:translateY(40px);transition:transform .2s}
+.modal-overlay.open .modal{transform:translateY(0)}
+@media(min-width:600px){.modal{border-radius:var(--radius-lg);transform:scale(.96)}.modal-overlay.open .modal{transform:scale(1)}}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.modal-title{font-size:17px;font-weight:900}
+.modal-close{width:32px;height:32px;border-radius:8px;border:none;background:var(--bg3);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:18px}
+.modal-close:hover{background:var(--red-light);color:var(--red)}
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:11px;font-weight:800;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
+.form-input{width:100%;background:var(--bg3);border:2px solid var(--border);border-radius:var(--radius);padding:11px 14px;color:var(--text);font-size:14px;font-family:'Nunito',sans-serif;font-weight:600;outline:none;transition:border-color .15s}
+.form-input:focus{border-color:var(--primary);background:#fff}
+.form-input::placeholder{color:var(--text3)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-hint{font-size:11px;color:var(--text3);font-weight:600;margin-top:4px}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.color-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.color-swatch{width:32px;height:32px;border-radius:8px;cursor:pointer;border:3px solid transparent;transition:all .15s}
+.color-swatch.selected{border-color:var(--text);transform:scale(1.1)}
+
+/* EMPTY */
+.empty{text-align:center;padding:60px 20px;color:var(--text3)}
+.empty i{font-size:52px;margin-bottom:12px;display:block}
+.empty p{font-size:14px;font-weight:700}
+
+/* TOAST */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:10px 20px;border-radius:var(--radius);font-size:13px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;z-index:500;white-space:nowrap}
+#toast.show{opacity:1}
+
+/* CONFIRM */
+.confirm-overlay{position:fixed;inset:0;background:rgba(26,26,46,.6);z-index:300;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.confirm-overlay.open{opacity:1;pointer-events:all}
+.confirm-box{background:var(--bg2);border-radius:var(--radius-lg);padding:24px;max-width:340px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.confirm-icon{width:48px;height:48px;border-radius:14px;background:var(--red-light);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px;color:var(--red)}
+.confirm-title{font-size:16px;font-weight:900;text-align:center;margin-bottom:6px}
+.confirm-sub{font-size:13px;color:var(--text2);font-weight:600;text-align:center;margin-bottom:20px;line-height:1.5}
+.confirm-btns{display:flex;gap:10px}
+.confirm-btns .btn{flex:1;justify-content:center}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo-mark"><i class="ti ti-packages"></i></div>
+    <div>
+      <div class="page-title">Administración</div>
+      <div class="page-sub">Panel de plataforma — StockFlow</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="role-chip chip-superadmin" id="role-chip"><i class="ti ti-shield-check"></i> <span id="role-chip-label">Superadmin</span></div>
+    <button class="icon-btn" onclick="doLogout()" title="Cerrar sesión"><i class="ti ti-logout"></i></button>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- TABS -->
+  <div class="admin-tabs">
+    <button class="admin-tab active" id="tab-clientes" onclick="switchTab('clientes')">
+      <i class="ti ti-building-store"></i> Clientes
+    </button>
+    <button class="admin-tab" id="tab-masters" onclick="switchTab('masters')">
+      <i class="ti ti-users-group"></i> Usuarios Master
+    </button>
+  </div>
+
+  <!-- TAB: CLIENTES -->
+  <div class="tab-section active" id="section-clientes">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Clientes</div>
+        <div class="section-sub">Cada cliente opera en un ambiente totalmente independiente</div>
+      </div>
+      <button class="btn btn-primary" id="btn-new-tenant" onclick="openCreateModal()">
+        <i class="ti ti-plus"></i> Nuevo cliente
+      </button>
+    </div>
+    <div class="tenants-grid" id="tenants-grid">
+      <div class="empty"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i><p>Cargando...</p></div>
+    </div>
+  </div>
+
+  <!-- TAB: USUARIOS MASTER -->
+  <div class="tab-section" id="section-masters">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Usuarios Master</div>
+        <div class="section-sub">Acceso a todos los clientes · No pertenecen a ningún ambiente específico</div>
+      </div>
+      <button class="btn btn-master" id="btn-new-master" onclick="openMasterModal()">
+        <i class="ti ti-plus"></i> Nuevo usuario master
+      </button>
+    </div>
+
+    <!-- Invite result box -->
+    <div class="invite-box" id="master-invite-box">
+      <div class="invite-box-label"><i class="ti ti-link"></i> Enlace de invitación</div>
+      <button class="invite-url" id="master-invite-url" onclick="copyMasterInvite()"></button>
+      <div class="invite-note" id="master-invite-note">Clic para copiar · Válido 7 días</div>
+    </div>
+
+    <div id="masters-wrap">
+      <div class="empty"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i><p>Cargando...</p></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL: TENANT CREATE/EDIT -->
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Nuevo cliente</div>
+      <button class="modal-close" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Nombre del cliente *</label>
+        <input class="form-input" id="f-name" placeholder="Ej: Panadería Los Andes">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Slug (URL) *</label>
+        <input class="form-input" id="f-slug" placeholder="Ej: los-andes">
+        <div class="form-hint">Solo letras minúsculas, números y guiones</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Texto del logo</label>
+        <input class="form-input" id="f-logo-text" placeholder="Ej: LA" maxlength="3">
+        <div class="form-hint">2-3 letras que aparecerán como logo</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Plan</label>
+        <select class="form-input" id="f-plan">
+          <option value="starter">Starter</option>
+          <option value="pro">Pro</option>
+          <option value="enterprise">Enterprise</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">URL del logo <span style="font-weight:600;color:var(--text3)">(opcional)</span></label>
+      <input class="form-input" id="f-logo-url" placeholder="https://...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Color de la marca</label>
+      <div class="color-row" id="color-row"></div>
+      <input class="form-input" id="f-color" placeholder="#5b4fff" style="margin-top:8px;font-family:monospace" oninput="syncColorPicker(this.value)">
+    </div>
+    <div class="form-group" id="f-status-group" style="display:none">
+      <label class="form-label">Estado</label>
+      <select class="form-input" id="f-status">
+        <option value="active">Activo</option>
+        <option value="inactive">Inactivo</option>
+        <option value="suspended">Suspendido</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" id="modal-save-btn" onclick="saveTenant()">
+        <i class="ti ti-check"></i> <span id="modal-save-label">Crear cliente</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: MASTER USER CREATE -->
+<div class="modal-overlay" id="master-modal-overlay" onclick="if(event.target===this)closeMasterModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Nuevo usuario master</div>
+      <button class="modal-close" onclick="closeMasterModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nombre de usuario *</label>
+      <input class="form-input" id="m-username" placeholder="Ej: pedro_master">
+      <div class="form-hint">3-32 caracteres · letras, números, guión bajo</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Nombre completo</label>
+        <input class="form-input" id="m-display" placeholder="Ej: Pedro García">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Correo electrónico *</label>
+        <input class="form-input" id="m-email" type="email" placeholder="correo@empresa.com">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeMasterModal()">Cancelar</button>
+      <button class="btn btn-master" id="master-save-btn" onclick="saveMasterUser()">
+        <i class="ti ti-send"></i> Crear y enviar invitación
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM DELETE -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <div class="confirm-icon"><i class="ti ti-trash"></i></div>
+    <div class="confirm-title" id="confirm-title">¿Eliminar?</div>
+    <div class="confirm-sub" id="confirm-sub"></div>
+    <div class="confirm-btns">
+      <button class="btn btn-outline" onclick="closeConfirm()">Cancelar</button>
+      <button class="btn btn-danger" id="confirm-ok-btn" onclick="confirmDeleteAction()">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const TENANT_API = '/api/auth/tenants';
+const MASTER_API = '/api/auth/master-users';
+const COLORS = ['#5b4fff','#e11d48','#16a34a','#0284c7','#d97706','#7c3aed','#0f766e','#be123c','#1d4ed8','#15803d'];
+
+let tenants = [];
+let masterUsers = [];
+let editingTenantId = null;
+let deletingId = null;
+let deleteType = 'tenant'; // 'tenant' | 'master'
+let currentRole = 'superadmin';
+let lastMasterInviteUrl = '';
+
+// ── AUTH GUARD ──────────────────────────────────────────
+(function(){
+  const token = localStorage.getItem('sf_token');
+  if (!token) { location.replace('/login'); return; }
+  fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + token } })
+    .then(r => r.ok ? r.json() : null)
+    .then(user => {
+      if (!user || (user.role !== 'superadmin' && user.role !== 'master')) {
+        location.replace('/');
+        return;
+      }
+      currentRole = user.role;
+      // Update role chip
+      const chip = document.getElementById('role-chip');
+      const label = document.getElementById('role-chip-label');
+      if (user.role === 'master') {
+        chip.className = 'role-chip chip-master';
+        label.textContent = 'Usuario Master';
+      }
+      // Only superadmin can create tenants or master users
+      if (user.role !== 'superadmin') {
+        document.getElementById('btn-new-tenant').style.display = 'none';
+        document.getElementById('btn-new-master').style.display = 'none';
+      }
+      init();
+    })
+    .catch(() => location.replace('/login'));
+})();
+
+async function apiFetch(path, opts = {}) {
+  const token = localStorage.getItem('sf_token');
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const r = await fetch(path, { ...opts, headers });
+  if (r.status === 401) { location.replace('/login'); throw new Error('Unauthorized'); }
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: r.statusText }));
+    throw new Error(err.error || r.statusText);
+  }
+  return r.json();
+}
+
+async function doLogout() {
+  const token = localStorage.getItem('sf_token');
+  if (token) fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer '+token } }).catch(()=>{});
+  localStorage.clear();
+  location.replace('/login');
+}
+
+// ── TABS ────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('section-' + tab).classList.add('active');
+  if (tab === 'masters') loadMasterUsers(); // always refresh to reflect latest DB state
+}
+
+// ── INIT ────────────────────────────────────────────────
+async function init() {
+  buildColorPicker();
+  await loadTenants();
+}
+
+// ───────────────────────────────────────────────────────
+// TENANTS
+// ───────────────────────────────────────────────────────
+async function loadTenants() {
+  try {
+    tenants = await apiFetch(TENANT_API);
+    renderTenants();
+  } catch (e) {
+    document.getElementById('tenants-grid').innerHTML =
+      `<div class="empty"><i class="ti ti-alert-circle"></i><p>Error: ${e.message}</p></div>`;
+  }
+}
+
+function renderTenants() {
+  const grid = document.getElementById('tenants-grid');
+  if (!tenants.length) {
+    grid.innerHTML = '<div class="empty"><i class="ti ti-building-store"></i><p>Aún no hay clientes. Crea el primero.</p></div>';
+    return;
+  }
+  const statusMap = { active:'Activo', inactive:'Inactivo', suspended:'Suspendido' };
+  const statusCss = { active:'status-active', inactive:'status-inactive', suspended:'status-suspended' };
+  const planLabels = { starter:'Starter', pro:'Pro', enterprise:'Enterprise' };
+  const canEdit = currentRole === 'superadmin';
+
+  grid.innerHTML = tenants.map(t => {
+    const logoHtml = t.logo_url
+      ? `<div class="tenant-logo" style="background:${t.color||'#5b4fff'}"><img src="${esc(t.logo_url)}" alt="" onerror="this.style.display='none'"></div>`
+      : `<div class="tenant-logo" style="background:${t.color||'#5b4fff'}">${esc(t.logo_text || t.name.slice(0,2).toUpperCase())}</div>`;
+    return `
+    <div class="tenant-card">
+      <div class="tenant-header">
+        ${logoHtml}
+        <div class="tenant-info">
+          <div class="tenant-name">${esc(t.name)}</div>
+          <div class="tenant-slug">${esc(t.id)} · /${esc(t.slug)}</div>
+        </div>
+      </div>
+      <div class="tenant-body">
+        <div class="tenant-meta">
+          <span class="status-chip ${statusCss[t.status]||'status-active'}"><i class="ti ti-circle-filled" style="font-size:8px"></i> ${statusMap[t.status]||t.status}</span>
+          <span class="plan-chip"><i class="ti ti-star"></i> ${planLabels[t.plan]||t.plan}</span>
+          <span class="tmeta"><i class="ti ti-users"></i> ${t.users_count||0} usuarios</span>
+        </div>
+        <div class="tenant-actions">
+          <button class="btn btn-enter btn-sm" onclick='enterTenant(${JSON.stringify(t)})'><i class="ti ti-door-enter"></i> Entrar</button>
+          ${canEdit ? `<button class="btn btn-outline btn-sm" onclick='openEditModal(${JSON.stringify(t)})'><i class="ti ti-edit"></i> Editar</button>` : ''}
+          ${canEdit && t.id !== 'TEN-001' ? `<button class="btn btn-danger btn-sm" onclick="openConfirmTenant('${t.id}','${esc(t.name).replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function enterTenant(t) {
+  localStorage.setItem('sf_tenant_id',        t.id);
+  localStorage.setItem('sf_tenant_name',      t.name);
+  localStorage.setItem('sf_tenant_color',     t.color || '#5b4fff');
+  localStorage.setItem('sf_tenant_logo_text', t.logo_text || t.name.slice(0,2).toUpperCase());
+  localStorage.setItem('sf_tenant_logo_url',  t.logo_url || '');
+  location.replace('/');
+}
+
+// Color picker
+function buildColorPicker() {
+  const row = document.getElementById('color-row');
+  row.innerHTML = COLORS.map(c => `<div class="color-swatch" style="background:${c}" data-color="${c}" onclick="selectColor('${c}')"></div>`).join('');
+}
+function selectColor(c) {
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.toggle('selected', s.dataset.color === c));
+  document.getElementById('f-color').value = c;
+}
+function syncColorPicker(val) {
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.toggle('selected', s.dataset.color === val.trim()));
+}
+
+// Tenant modals
+function openCreateModal() {
+  editingTenantId = null;
+  document.getElementById('modal-title').textContent = 'Nuevo cliente';
+  document.getElementById('modal-save-label').textContent = 'Crear cliente';
+  document.getElementById('f-status-group').style.display = 'none';
+  ['f-name','f-slug','f-logo-text','f-logo-url'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-plan').value = 'starter';
+  selectColor('#5b4fff');
+  document.getElementById('f-color').value = '#5b4fff';
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('f-name').focus(), 200);
+}
+function openEditModal(t) {
+  editingTenantId = t.id;
+  document.getElementById('modal-title').textContent = 'Editar cliente';
+  document.getElementById('modal-save-label').textContent = 'Guardar cambios';
+  document.getElementById('f-status-group').style.display = 'block';
+  document.getElementById('f-name').value = t.name || '';
+  document.getElementById('f-slug').value = t.slug || '';
+  document.getElementById('f-logo-text').value = t.logo_text || '';
+  document.getElementById('f-logo-url').value = t.logo_url || '';
+  document.getElementById('f-plan').value = t.plan || 'starter';
+  document.getElementById('f-status').value = t.status || 'active';
+  const color = t.color || '#5b4fff';
+  document.getElementById('f-color').value = color;
+  selectColor(color);
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+
+document.getElementById('f-name').addEventListener('input', function() {
+  if (editingTenantId) return;
+  document.getElementById('f-slug').value = this.value.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+});
+
+async function saveTenant() {
+  const btn = document.getElementById('modal-save-btn');
+  const name = document.getElementById('f-name').value.trim();
+  const slug = document.getElementById('f-slug').value.trim();
+  if (!name) { showToast('El nombre es requerido', true); return; }
+  if (!editingTenantId && !slug) { showToast('El slug es requerido', true); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Guardando...';
+  try {
+    const payload = {
+      name, logo_text: document.getElementById('f-logo-text').value.trim().toUpperCase(),
+      logo_url: document.getElementById('f-logo-url').value.trim(),
+      color: document.getElementById('f-color').value.trim() || '#5b4fff',
+      plan: document.getElementById('f-plan').value,
+      ...(editingTenantId ? { status: document.getElementById('f-status').value } : { slug }),
+    };
+    if (editingTenantId) {
+      const updated = await apiFetch(`${TENANT_API}?id=${editingTenantId}`, { method:'PUT', body:JSON.stringify(payload) });
+      const idx = tenants.findIndex(t => t.id === editingTenantId);
+      if (idx >= 0) tenants[idx] = updated;
+      showToast('Cliente actualizado');
+    } else {
+      const created = await apiFetch(TENANT_API, { method:'POST', body:JSON.stringify(payload) });
+      tenants.push(created);
+      showToast('Cliente creado correctamente');
+    }
+    closeModal();
+    renderTenants();
+  } catch (e) {
+    showToast('Error: ' + e.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<i class="ti ti-check"></i> <span id="modal-save-label">${editingTenantId ? 'Guardar cambios' : 'Crear cliente'}</span>`;
+  }
+}
+
+// ───────────────────────────────────────────────────────
+// MASTER USERS
+// ───────────────────────────────────────────────────────
+async function loadMasterUsers() {
+  document.getElementById('masters-wrap').innerHTML =
+    '<div class="empty"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i><p>Cargando...</p></div>';
+  try {
+    masterUsers = await apiFetch(MASTER_API);
+    renderMasterUsers();
+  } catch (e) {
+    document.getElementById('masters-wrap').innerHTML =
+      `<div class="empty"><i class="ti ti-alert-circle"></i><p>Error: ${e.message}</p></div>`;
+  }
+}
+
+function renderMasterUsers() {
+  const wrap = document.getElementById('masters-wrap');
+  if (!masterUsers.length) {
+    wrap.innerHTML = '<div class="empty"><i class="ti ti-users-group"></i><p>Aún no hay usuarios master. Crea el primero desde el botón superior.</p></div>';
+    return;
+  }
+  const canEdit = currentRole === 'superadmin';
+  const myId = localStorage.getItem('sf_user'); // username actually, but let's use it for check
+
+  wrap.innerHTML = `
+  <div class="master-table">
+    <div class="master-table-head">
+      <div>Usuario</div>
+      <div>Correo</div>
+      <div>Estado</div>
+      <div style="text-align:right">Acciones</div>
+    </div>
+    ${masterUsers.map(u => {
+      const initials = (u.display_name || u.username).slice(0,2).toUpperCase();
+      const statusLabel = u.invite_pending ? 'Invitación pendiente' : (u.status === 'active' ? 'Activo' : u.status);
+      const statusCss   = u.invite_pending ? 'status-pending' : (u.status === 'active' ? 'status-active' : 'status-inactive');
+      return `
+      <div class="master-row">
+        <div class="user-info">
+          <div class="master-avatar">${esc(initials)}</div>
+          <div>
+            <div class="user-name">${esc(u.display_name || u.username)}</div>
+            <div class="user-handle">@${esc(u.username)}</div>
+          </div>
+        </div>
+        <div class="user-email">${esc(u.email || '—')}</div>
+        <div><span class="status-chip ${statusCss}">${esc(statusLabel)}</span></div>
+        <div class="row-actions">
+          ${canEdit && u.invite_pending ? `<button class="btn btn-outline btn-sm" onclick="resendMasterInvite('${u.id}','${esc(u.username)}')" title="Reenviar invitación"><i class="ti ti-send"></i></button>` : ''}
+          ${canEdit ? `<button class="btn btn-danger btn-sm" onclick="openConfirmMaster('${u.id}','${esc(u.username)}')" title="Eliminar"><i class="ti ti-trash"></i></button>` : ''}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+// Master modal
+function openMasterModal() {
+  ['m-username','m-display','m-email'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('master-invite-box').style.display = 'none';
+  document.getElementById('master-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('m-username').focus(), 200);
+}
+function closeMasterModal() { document.getElementById('master-modal-overlay').classList.remove('open'); }
+
+async function saveMasterUser() {
+  const btn = document.getElementById('master-save-btn');
+  const username     = document.getElementById('m-username').value.trim();
+  const display_name = document.getElementById('m-display').value.trim();
+  const email        = document.getElementById('m-email').value.trim();
+
+  if (!username) { showToast('El usuario es requerido', true); return; }
+  if (!email)    { showToast('El correo es requerido', true); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Creando...';
+
+  try {
+    const data = await apiFetch(MASTER_API, {
+      method: 'POST',
+      body: JSON.stringify({ username, email, display_name }),
+    });
+    masterUsers.push({ ...data, status: 'pending_invite', invite_pending: true });
+    renderMasterUsers();
+
+    // Show invite link
+    const inviteUrl = location.origin + `/invite?token=${data.invite_token}&u=${encodeURIComponent(username)}`;
+    lastMasterInviteUrl = inviteUrl;
+    document.getElementById('master-invite-url').textContent = inviteUrl;
+    document.getElementById('master-invite-note').textContent = data.invite_sent
+      ? '✉️ Email enviado · Válido 7 días · Clic para copiar'
+      : '⚠️ Email no enviado — comparte este enlace manualmente · Clic para copiar';
+    document.getElementById('master-invite-box').style.display = 'block';
+    closeMasterModal();
+
+    showToast(data.invite_sent ? '✅ Usuario master creado y correo enviado' : '⚠️ Usuario creado — email no enviado');
+  } catch (e) {
+    showToast('Error: ' + e.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-send"></i> Crear y enviar invitación';
+  }
+}
+
+function copyMasterInvite() {
+  navigator.clipboard.writeText(lastMasterInviteUrl).then(() => showToast('🔗 Enlace copiado'));
+}
+
+async function resendMasterInvite(id, username) {
+  showToast('Reenviando...');
+  try {
+    const data = await apiFetch(`${MASTER_API}?id=${id}`, { method: 'POST' });
+    // show invite box if needed
+    showToast('✅ Invitación reenviada a @' + username);
+  } catch (e) {
+    showToast('Error: ' + e.message, true);
+  }
+}
+
+// ── CONFIRMS ────────────────────────────────────────────
+function openConfirmTenant(id, name) {
+  deletingId  = id;
+  deleteType  = 'tenant';
+  document.getElementById('confirm-title').textContent = '¿Eliminar cliente?';
+  document.getElementById('confirm-sub').textContent = `Se eliminará "${name}". Los datos del ambiente deben eliminarse manualmente.`;
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+function openConfirmMaster(id, username) {
+  deletingId  = id;
+  deleteType  = 'master';
+  document.getElementById('confirm-title').textContent = '¿Eliminar usuario master?';
+  document.getElementById('confirm-sub').textContent = `Se eliminará @${username} y todas sus sesiones activas.`;
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+function closeConfirm() { document.getElementById('confirm-overlay').classList.remove('open'); deletingId = null; }
+
+async function confirmDeleteAction() {
+  if (!deletingId) return;
+  const btn = document.getElementById('confirm-ok-btn');
+  btn.disabled = true; btn.textContent = 'Eliminando...';
+  try {
+    if (deleteType === 'tenant') {
+      await apiFetch(`${TENANT_API}?id=${deletingId}`, { method:'DELETE' });
+      tenants = tenants.filter(t => t.id !== deletingId);
+      renderTenants();
+      showToast('Cliente eliminado');
+    } else {
+      await apiFetch(`${MASTER_API}?id=${deletingId}`, { method:'DELETE' });
+      masterUsers = masterUsers.filter(u => u.id !== deletingId);
+      renderMasterUsers();
+      showToast('Usuario master eliminado');
+    }
+    closeConfirm();
+  } catch (e) {
+    showToast('Error: ' + e.message, true);
+    btn.disabled = false; btn.textContent = 'Eliminar';
+  }
+}
+
+// ── TOAST ────────────────────────────────────────────────
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = isError ? '#ff4d6d' : '#1a1a2e';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
