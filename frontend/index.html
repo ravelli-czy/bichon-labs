@@ -2104,10 +2104,11 @@ async function _saveProdImpl() {
   if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
 
   let warehouse_id = '', stockVal = 0, thresholdVal = 10;
+  let whSel = null;
   if (isAddSku) {
     // Adding a new warehouse instance for an existing product
     const warehouses = getWarehouses();
-    const whSel = document.getElementById('p-warehouse');
+    whSel = document.getElementById('p-warehouse');
     warehouse_id = warehouses.length > 0 ? (whSel?.value || '') : '';
     if (warehouses.length > 0 && !warehouse_id) { toast('⚠️ Selecciona un almacén'); return; }
     stockVal     = parseInt(document.getElementById('p-stock').value)     || 0;
@@ -2129,7 +2130,7 @@ async function _saveProdImpl() {
   } else {
     // Inventory mode
     const warehouses = getWarehouses();
-    const whSel = document.getElementById('p-warehouse');
+    whSel = document.getElementById('p-warehouse');
     warehouse_id = warehouses.length > 0 ? (whSel?.value || '') : '';
     if (warehouses.length > 0 && !warehouse_id) { toast('⚠️ Selecciona un almacén'); return; }
     stockVal     = parseInt(document.getElementById('p-stock').value)     || 0;
