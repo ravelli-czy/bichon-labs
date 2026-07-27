@@ -16,7 +16,6 @@
     { "source": "/api/v1/:slug/WMS/kits",              "destination": "/api/kits" },
     { "source": "/api/v1/:slug/WMS/kits/:sku",         "destination": "/api/kits/:sku" },
     { "source": "/api/v1/:slug/WMS/locales",           "destination": "/api/locales" },
-    { "source": "/api/v1/:slug/WMS/locales/:path*",    "destination": "/api/locales/:path*" },
     { "source": "/api/v1/:slug/SHM/shipments",         "destination": "/api/shipments" },
     { "source": "/api/v1/:slug/SHM/shipments/:id",     "destination": "/api/shipments/:id" },
     { "source": "/api/v1/:slug/IAM/users",             "destination": "/api/users" },

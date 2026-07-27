@@ -1,25 +1,26 @@
-// api/locales/[[...path]].js — Locales, Almacenes y Formas de entrega
-// Ruta única (catch-all) para no sumar más Serverless Functions (tope 12 en Hobby):
+// api/locales.js — Locales, Almacenes y Formas de entrega
+// Todo resuelto con querystring (sin rutas dinámicas [id].js) para no sumar
+// más Serverless Functions (tope 12 en Hobby) y evitar el catch-all opcional
+// [[...path]].js, que NO está soportado fuera de un proyecto Next.js.
 //
-// GET    /api/locales                                                   → listar locales (con almacenes y formas de entrega anidadas)
-// POST   /api/locales                                                   → crear local
-// GET    /api/locales/:id                                               → obtener un local
-// PUT    /api/locales/:id                                               → editar local
-// DELETE /api/locales/:id                                               → eliminar local (cascada: almacenes, formas de entrega, slots)
-// POST   /api/locales/:id/warehouses                                    → crear almacén
-// PUT    /api/locales/:id/warehouses/:whId                              → editar almacén
-// DELETE /api/locales/:id/warehouses/:whId                              → eliminar almacén
-// POST   /api/locales/:id/delivery-methods                              → crear forma de entrega
-// PUT    /api/locales/:id/delivery-methods/:dmId                        → editar forma de entrega
-// DELETE /api/locales/:id/delivery-methods/:dmId                        → eliminar forma de entrega (cascada: slots)
-// POST   /api/locales/:id/delivery-methods/:dmId/slots                  → crear slot
-// PUT    /api/locales/:id/delivery-methods/:dmId/slots/:slotId          → editar slot
-// DELETE /api/locales/:id/delivery-methods/:dmId/slots/:slotId          → eliminar slot
+// GET    /api/locales                                                              → listar locales (con almacenes y formas de entrega anidadas)
+// POST   /api/locales                                                              → crear local
+// PUT    /api/locales?id=:id                                                       → editar local
+// DELETE /api/locales?id=:id                                                       → eliminar local (cascada: almacenes, formas de entrega, slots)
+// POST   /api/locales?id=:id&resource=warehouses                                   → crear almacén
+// PUT    /api/locales?id=:id&resource=warehouses&whId=:whId                        → editar almacén
+// DELETE /api/locales?id=:id&resource=warehouses&whId=:whId                        → eliminar almacén
+// POST   /api/locales?id=:id&resource=delivery-methods                             → crear forma de entrega
+// PUT    /api/locales?id=:id&resource=delivery-methods&dmId=:dmId                  → editar forma de entrega
+// DELETE /api/locales?id=:id&resource=delivery-methods&dmId=:dmId                  → eliminar forma de entrega (cascada: slots)
+// POST   /api/locales?id=:id&resource=delivery-methods&dmId=:dmId&sub=slots        → crear slot
+// PUT    /api/locales?id=:id&resource=delivery-methods&dmId=:dmId&sub=slots&slotId=:slotId    → editar slot
+// DELETE /api/locales?id=:id&resource=delivery-methods&dmId=:dmId&sub=slots&slotId=:slotId    → eliminar slot
 
-const { getDb } = require('../_db');
-const cors = require('../_cors');
-const { writeLog } = require('../_log');
-const { getSession, resolveTenantId } = require('../_tenant');
+const { getDb } = require('./_db');
+const cors = require('./_cors');
+const { writeLog } = require('./_log');
+const { getSession, resolveTenantId } = require('./_tenant');
 
 async function nextLocalId(sql, tenantId) {
   const [{ max_num }] = await sql`
@@ -103,13 +104,11 @@ module.exports = async (req, res) => {
   if (!tenantId) return res.status(401).json({ error: 'No autenticado o sin tenant' });
   const actor = session?.username || 'sistema';
 
-  const raw = req.query.path;
-  const segments = Array.isArray(raw) ? raw : (raw ? [raw] : []);
-  const [localId, sub, subId, sub2, sub2Id] = segments;
+  const { id: localId, resource, whId, dmId, sub, slotId: slotIdRaw } = req.query || {};
 
   try {
-    // ── /api/locales ──────────────────────────────────────────────────────
-    if (segments.length === 0) {
+    // ── /api/locales (sin id) ────────────────────────────────────────────
+    if (!localId) {
       if (req.method === 'GET') {
         return res.json(await fetchLocalesNested(sql, tenantId));
       }
@@ -137,13 +136,8 @@ module.exports = async (req, res) => {
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    // ── /api/locales/:id ──────────────────────────────────────────────────
-    if (segments.length === 1) {
-      if (req.method === 'GET') {
-        const [loc] = await fetchLocalesNested(sql, tenantId, localId);
-        if (!loc) return res.status(404).json({ error: 'Local not found' });
-        return res.json(loc);
-      }
+    // ── /api/locales?id=:id (sin resource) ───────────────────────────────
+    if (!resource) {
       if (req.method === 'PUT') {
         const { name, address_street, address_city, address_region, phone, email, lat, lng } = req.body || {};
         const [row] = await sql`
@@ -186,8 +180,8 @@ module.exports = async (req, res) => {
     const [parentLocal] = await sql`SELECT id FROM locales WHERE id = ${localId} AND tenant_id = ${tenantId}`;
     if (!parentLocal) return res.status(404).json({ error: 'Local not found' });
 
-    // ── /api/locales/:id/warehouses ─────────────────────────────────────────
-    if (sub === 'warehouses' && segments.length === 2) {
+    // ── /api/locales?id=:id&resource=warehouses ──────────────────────────
+    if (resource === 'warehouses' && !whId) {
       if (req.method === 'POST') {
         const { name, description = '' } = req.body || {};
         if (!name) return res.status(400).json({ error: 'name is required' });
@@ -207,9 +201,8 @@ module.exports = async (req, res) => {
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    // ── /api/locales/:id/warehouses/:whId ────────────────────────────────
-    if (sub === 'warehouses' && segments.length === 3) {
-      const whId = subId;
+    // ── /api/locales?id=:id&resource=warehouses&whId=:whId ───────────────
+    if (resource === 'warehouses' && whId) {
       if (req.method === 'PUT') {
         const { name, description } = req.body || {};
         const [row] = await sql`
@@ -240,8 +233,8 @@ module.exports = async (req, res) => {
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    // ── /api/locales/:id/delivery-methods ───────────────────────────────
-    if (sub === 'delivery-methods' && segments.length === 2) {
+    // ── /api/locales?id=:id&resource=delivery-methods (sin dmId) ─────────
+    if (resource === 'delivery-methods' && !dmId) {
       if (req.method === 'POST') {
         const {
           name, type = 'home_delivery', base_cost = 0, free_above = null, prep_hours = 2,
@@ -264,9 +257,8 @@ module.exports = async (req, res) => {
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    // ── /api/locales/:id/delivery-methods/:dmId ─────────────────────────
-    if (sub === 'delivery-methods' && segments.length === 3) {
-      const dmId = subId;
+    // ── /api/locales?id=:id&resource=delivery-methods&dmId=:dmId (sin sub) ─
+    if (resource === 'delivery-methods' && dmId && !sub) {
       if (req.method === 'PUT') {
         const { name, type, base_cost, free_above, prep_hours } = req.body || {};
         if (!name || !type) return res.status(400).json({ error: 'name and type are required' });
@@ -304,14 +296,12 @@ module.exports = async (req, res) => {
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    // Everything below requires the parent delivery method to exist within the tenant/local
-    if (sub === 'delivery-methods') {
-      const dmId = subId;
+    // ── /api/locales?...&resource=delivery-methods&dmId=:dmId&sub=slots ──
+    if (resource === 'delivery-methods' && dmId && sub === 'slots') {
       const [parentMethod] = await sql`SELECT id FROM delivery_methods WHERE id = ${dmId} AND local_id = ${localId} AND tenant_id = ${tenantId}`;
       if (!parentMethod) return res.status(404).json({ error: 'Delivery method not found' });
 
-      // ── /api/locales/:id/delivery-methods/:dmId/slots ─────────────────
-      if (sub2 === 'slots' && segments.length === 4) {
+      if (!slotIdRaw) {
         if (req.method === 'POST') {
           const { day_of_week, time_from, time_to, label = '', max_orders = 20, extra_cost = 0 } = req.body || {};
           if (day_of_week === undefined || day_of_week === null) return res.status(400).json({ error: 'day_of_week is required' });
@@ -331,43 +321,41 @@ module.exports = async (req, res) => {
         return res.status(405).json({ error: 'Method not allowed' });
       }
 
-      // ── /api/locales/:id/delivery-methods/:dmId/slots/:slotId ─────────
-      if (sub2 === 'slots' && segments.length === 5) {
-        const slotId = Number(sub2Id);
-        if (!Number.isInteger(slotId)) return res.status(400).json({ error: 'Invalid slot id' });
-        if (req.method === 'PUT') {
-          const { day_of_week, time_from, time_to, label, max_orders, extra_cost } = req.body || {};
-          const [row] = await sql`
-            UPDATE delivery_slots SET
-              day_of_week = COALESCE(${day_of_week ?? null}, day_of_week),
-              time_from   = COALESCE(${time_from   ?? null}, time_from),
-              time_to     = COALESCE(${time_to     ?? null}, time_to),
-              label       = COALESCE(${label       ?? null}, label),
-              max_orders  = COALESCE(${max_orders  ?? null}, max_orders),
-              extra_cost  = COALESCE(${extra_cost  ?? null}, extra_cost)
-            WHERE id = ${slotId} AND delivery_method_id = ${dmId} AND tenant_id = ${tenantId}
-            RETURNING *
-          `;
-          if (!row) return res.status(404).json({ error: 'Slot not found' });
-          await writeLog(sql, {
-            tenant_id: tenantId, actor, action: 'slot.editado',
-            entity_type: 'delivery_slot', entity_id: String(slotId), entity_name: `${dmId} — ${row.label}`,
-            details: { id: slotId, delivery_method_id: dmId },
-          });
-          return res.json(mapSlot(row));
-        }
-        if (req.method === 'DELETE') {
-          const [row] = await sql`DELETE FROM delivery_slots WHERE id = ${slotId} AND delivery_method_id = ${dmId} AND tenant_id = ${tenantId} RETURNING *`;
-          if (!row) return res.status(404).json({ error: 'Slot not found' });
-          await writeLog(sql, {
-            tenant_id: tenantId, actor, action: 'slot.eliminado',
-            entity_type: 'delivery_slot', entity_id: String(slotId), entity_name: `${dmId} — ${row.label}`,
-            details: { id: slotId, delivery_method_id: dmId },
-          });
-          return res.json({ ok: true, deleted: slotId });
-        }
-        return res.status(405).json({ error: 'Method not allowed' });
+      const slotId = Number(slotIdRaw);
+      if (!Number.isInteger(slotId)) return res.status(400).json({ error: 'Invalid slot id' });
+
+      if (req.method === 'PUT') {
+        const { day_of_week, time_from, time_to, label, max_orders, extra_cost } = req.body || {};
+        const [row] = await sql`
+          UPDATE delivery_slots SET
+            day_of_week = COALESCE(${day_of_week ?? null}, day_of_week),
+            time_from   = COALESCE(${time_from   ?? null}, time_from),
+            time_to     = COALESCE(${time_to     ?? null}, time_to),
+            label       = COALESCE(${label       ?? null}, label),
+            max_orders  = COALESCE(${max_orders  ?? null}, max_orders),
+            extra_cost  = COALESCE(${extra_cost  ?? null}, extra_cost)
+          WHERE id = ${slotId} AND delivery_method_id = ${dmId} AND tenant_id = ${tenantId}
+          RETURNING *
+        `;
+        if (!row) return res.status(404).json({ error: 'Slot not found' });
+        await writeLog(sql, {
+          tenant_id: tenantId, actor, action: 'slot.editado',
+          entity_type: 'delivery_slot', entity_id: String(slotId), entity_name: `${dmId} — ${row.label}`,
+          details: { id: slotId, delivery_method_id: dmId },
+        });
+        return res.json(mapSlot(row));
       }
+      if (req.method === 'DELETE') {
+        const [row] = await sql`DELETE FROM delivery_slots WHERE id = ${slotId} AND delivery_method_id = ${dmId} AND tenant_id = ${tenantId} RETURNING *`;
+        if (!row) return res.status(404).json({ error: 'Slot not found' });
+        await writeLog(sql, {
+          tenant_id: tenantId, actor, action: 'slot.eliminado',
+          entity_type: 'delivery_slot', entity_id: String(slotId), entity_name: `${dmId} — ${row.label}`,
+          details: { id: slotId, delivery_method_id: dmId },
+        });
+        return res.json({ ok: true, deleted: slotId });
+      }
+      return res.status(405).json({ error: 'Method not allowed' });
     }
 
     return res.status(404).json({ error: 'Not found' });

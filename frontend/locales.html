@@ -683,7 +683,7 @@ async function getGeoForLocal() {
       const lng = parseFloat(results[0].lon);
       if (S.editingLocalId) {
         try {
-          const updated = await apiFetch(`/api/locales/${S.editingLocalId}`, { method:'PUT', body: JSON.stringify({ lat, lng }) });
+          const updated = await apiFetch(`/api/locales?id=${encodeURIComponent(S.editingLocalId)}`, { method:'PUT', body: JSON.stringify({ lat, lng }) });
           const idx = S.locales.findIndex(l => l.id === S.editingLocalId);
           if (idx >= 0) S.locales[idx] = updated;
           if (S.currentLocal?.id === S.editingLocalId) S.currentLocal = updated;
@@ -738,7 +738,7 @@ async function deleteLocal(id) {
   if (!loc) return;
   if (!confirm(`¿Eliminar "${loc.name}" y todos sus almacenes y formas de entrega?`)) return;
   try {
-    await apiFetch(`/api/locales/${id}`, { method:'DELETE' });
+    await apiFetch(`/api/locales?id=${encodeURIComponent(id)}`, { method:'DELETE' });
     S.locales = S.locales.filter(l => l.id !== id);
     if (S.currentLocal?.id === id) S.currentLocal = null;
     renderLocales();
@@ -760,7 +760,7 @@ async function saveLocal() {
 
   if (S.editingLocalId) {
     try {
-      const updated = await apiFetch(`/api/locales/${S.editingLocalId}`, {
+      const updated = await apiFetch(`/api/locales?id=${encodeURIComponent(S.editingLocalId)}`, {
         method:'PUT',
         body: JSON.stringify({ name, address_street:street, address_city:city, address_region, phone, email }),
       });
@@ -807,7 +807,7 @@ async function saveWarehouse() {
   const loc = S.locales.find(l => l.id === localId);
   if (!loc) return;
   try {
-    const wh = await apiFetch(`/api/locales/${localId}/warehouses`, {
+    const wh = await apiFetch(`/api/locales?id=${encodeURIComponent(localId)}&resource=warehouses`, {
       method:'POST',
       body: JSON.stringify({ name, description: document.getElementById('wh-desc').value }),
     });
@@ -870,7 +870,7 @@ async function saveDeliveryMethod() {
   const prep_hours= parseInt(document.getElementById('dm-prep').value)||2;
   if (S.editingDmId) {
     try {
-      const updated = await apiFetch(`/api/locales/${localId}/delivery-methods/${S.editingDmId}`, {
+      const updated = await apiFetch(`/api/locales?id=${encodeURIComponent(localId)}&resource=delivery-methods&dmId=${encodeURIComponent(S.editingDmId)}`, {
         method:'PUT', body: JSON.stringify({ name, type, base_cost, free_above, prep_hours }),
       });
       const idx = loc.delivery_methods.findIndex(x => x.id === S.editingDmId);
@@ -883,7 +883,7 @@ async function saveDeliveryMethod() {
     }
   } else {
     try {
-      const created = await apiFetch(`/api/locales/${localId}/delivery-methods`, {
+      const created = await apiFetch(`/api/locales?id=${encodeURIComponent(localId)}&resource=delivery-methods`, {
         method:'POST', body: JSON.stringify({ name, type, base_cost, free_above, prep_hours }),
       });
       loc.delivery_methods.push(created);
@@ -956,7 +956,7 @@ async function saveSlot() {
   if (S.editingSlotId) {
     try {
       const dow = [...S.selectedDays][0];
-      const updated = await apiFetch(`/api/locales/${loc.id}/delivery-methods/${methodId}/slots/${S.editingSlotId}`, {
+      const updated = await apiFetch(`/api/locales?id=${encodeURIComponent(loc.id)}&resource=delivery-methods&dmId=${encodeURIComponent(methodId)}&sub=slots&slotId=${S.editingSlotId}`, {
         method:'PUT',
         body: JSON.stringify({ day_of_week:dow, time_from:from, time_to:to, label:label||autoLabel(from), max_orders:max, extra_cost:cost }),
       });
@@ -971,7 +971,7 @@ async function saveSlot() {
   } else {
     try {
       const created = await Promise.all([...S.selectedDays].map(dow =>
-        apiFetch(`/api/locales/${loc.id}/delivery-methods/${methodId}/slots`, {
+        apiFetch(`/api/locales?id=${encodeURIComponent(loc.id)}&resource=delivery-methods&dmId=${encodeURIComponent(methodId)}&sub=slots`, {
           method:'POST',
           body: JSON.stringify({ day_of_week:dow, time_from:from, time_to:to, label:label||autoLabel(from), max_orders:max, extra_cost:cost }),
         })
@@ -992,7 +992,7 @@ async function deleteSlot(methodId, slotId) {
   const { loc, m } = _findLocalAndMethod(methodId);
   if (!loc || !m) return;
   try {
-    await apiFetch(`/api/locales/${loc.id}/delivery-methods/${methodId}/slots/${slotId}`, { method:'DELETE' });
+    await apiFetch(`/api/locales?id=${encodeURIComponent(loc.id)}&resource=delivery-methods&dmId=${encodeURIComponent(methodId)}&sub=slots&slotId=${slotId}`, { method:'DELETE' });
     m.slots = m.slots.filter(s => s.id !== slotId);
     renderConfig();
     toast('🗑️ Slot eliminado');
@@ -1006,7 +1006,7 @@ async function deleteWarehouse(localId, whId) {
   const wh = loc.warehouses.find(w => w.id === whId);
   if (!wh || !confirm(`¿Eliminar el almacén "${wh.name}"?`)) return;
   try {
-    await apiFetch(`/api/locales/${localId}/warehouses/${whId}`, { method:'DELETE' });
+    await apiFetch(`/api/locales?id=${encodeURIComponent(localId)}&resource=warehouses&whId=${encodeURIComponent(whId)}`, { method:'DELETE' });
     loc.warehouses = loc.warehouses.filter(w => w.id !== whId);
     renderConfig();
     toast('🗑️ Almacén eliminado');
@@ -1020,7 +1020,7 @@ async function deleteDeliveryMethod(localId, methodId) {
   const dm = loc.delivery_methods.find(m => m.id === methodId);
   if (!dm || !confirm(`¿Eliminar "${dm.name}" y todos sus slots?`)) return;
   try {
-    await apiFetch(`/api/locales/${localId}/delivery-methods/${methodId}`, { method:'DELETE' });
+    await apiFetch(`/api/locales?id=${encodeURIComponent(localId)}&resource=delivery-methods&dmId=${encodeURIComponent(methodId)}`, { method:'DELETE' });
     loc.delivery_methods = loc.delivery_methods.filter(m => m.id !== methodId);
     renderConfig();
     toast('🗑️ Forma de entrega eliminada');
