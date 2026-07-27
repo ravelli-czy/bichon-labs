@@ -3114,7 +3114,20 @@ async function deleteAllBySku(sku) {
   if (S.currentPage==='catalogo')  renderCatalogo();
 }
 
+function _catExportImportToolbar(fileInputId) {
+  return `<div style="display:flex;gap:8px;margin-bottom:12px">
+    <button onclick="exportProductsXlsx()" style="display:flex;align-items:center;gap:6px;padding:9px 14px;background:var(--bg3);color:var(--text);border:1.5px solid var(--border);border-radius:var(--radius);font-weight:800;cursor:pointer;font-size:13px">
+      <i class="ti ti-file-export"></i> Exportar
+    </button>
+    <button onclick="document.getElementById('${fileInputId}').click()" style="display:flex;align-items:center;gap:6px;padding:9px 14px;background:var(--bg3);color:var(--text);border:1.5px solid var(--border);border-radius:var(--radius);font-weight:800;cursor:pointer;font-size:13px">
+      <i class="ti ti-file-import"></i> Importar
+    </button>
+    <input type="file" id="${fileInputId}" accept=".xlsx,.xls" style="display:none" onchange="importProductsXlsx(this.files[0]);this.value=''">
+  </div>`;
+}
+
 function renderCatalogProductsView(el) {
+  const toolbar = _catExportImportToolbar('import-products-file-cat-prod');
   const addBtn = `<button onclick="openSheetProdCatalog()" style="display:flex;align-items:center;gap:6px;width:100%;padding:11px 14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius);font-weight:800;cursor:pointer;font-size:13px;margin-bottom:12px;box-sizing:border-box">
     <i class="ti ti-plus"></i> Nuevo Producto
   </button>`;
@@ -3123,7 +3136,7 @@ function renderCatalogProductsView(el) {
   const masterKits = S.kits.filter(k => (k.warehouse_id||'') === '');
 
   if (!S.products.length && !masterKits.length) {
-    el.innerHTML = addBtn + `<div class="empty-state"><i class="ti ti-box"></i><p>Sin productos en el catálogo.<br>Crea el primero arriba.</p></div>`;
+    el.innerHTML = toolbar + addBtn + `<div class="empty-state"><i class="ti ti-box"></i><p>Sin productos en el catálogo.<br>Crea el primero arriba.</p></div>`;
     return;
   }
 
@@ -3147,7 +3160,7 @@ function renderCatalogProductsView(el) {
     kitSkuInstances.get(k.sku).push(k);
   });
 
-  el.innerHTML = addBtn + `<div class="card" style="padding:4px 0">` +
+  el.innerHTML = toolbar + addBtn + `<div class="card" style="padding:4px 0">` +
     unique.map(p => {
       const skuEsc = (p.sku||'').replace(/'/g,"&#39;");
       if (p._isKit) {
@@ -3210,17 +3223,18 @@ function renderCatalogProductsView(el) {
 }
 
 function renderCatalogSKUsView(el) {
+  const toolbar = _catExportImportToolbar('import-products-file-cat-skus');
   const whs = getWarehouses();
   const kitVariants = S.kits.filter(k => (k.warehouse_id||'') !== '');
   if (!S.products.length && !kitVariants.length) {
-    el.innerHTML = `<div class="empty-state"><i class="ti ti-barcode"></i><p>Sin SKUs registrados</p></div>`;
+    el.innerHTML = toolbar + `<div class="empty-state"><i class="ti ti-barcode"></i><p>Sin SKUs registrados</p></div>`;
     return;
   }
   // Merge product SKUs + kit SKUs, sort by sku
   const prodRows = S.products.map(p => ({ ...p, _isKit: false }));
   const kitRows  = kitVariants.map(k => ({ ...k, _isKit: true }));
   const sorted   = [...prodRows, ...kitRows].sort((a,b) => a.sku.localeCompare(b.sku));
-  el.innerHTML = `
+  el.innerHTML = toolbar + `
     <div style="display:grid;grid-template-columns:68px 1fr auto auto;font-size:10px;font-weight:800;color:var(--text3);padding:8px 12px;background:var(--bg3);border-radius:var(--radius) var(--radius) 0 0;text-transform:uppercase;letter-spacing:.4px;border:1px solid var(--border);border-bottom:2px solid var(--border);gap:4px;align-items:center">
       <div>SKU</div><div style="padding-left:6px">Producto</div><div>Almacén</div><div></div>
     </div>
