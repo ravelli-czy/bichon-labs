@@ -448,6 +448,15 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <div class="page" id="page-inventory">
     <div class="section-title">Inventario</div>
     <div class="section-sub">Productos, insumos y KITs</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn btn-outline btn-sm" onclick="exportProductsXlsx()" title="Exportar productos a Excel">
+        <i class="ti ti-file-export"></i> Exportar
+      </button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('import-products-file').click()" title="Importar productos desde Excel">
+        <i class="ti ti-file-import"></i> Importar
+      </button>
+      <input type="file" id="import-products-file" accept=".xlsx,.xls" style="display:none" onchange="importProductsXlsx(this.files[0]);this.value=''">
+    </div>
     <div id="inv-warehouse-bar" style="display:none;margin-bottom:10px"></div>
     <div class="search-bar" id="inv-search-bar">
       <i class="ti ti-search" style="color:var(--text3);font-size:20px"></i>
@@ -993,6 +1002,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 
 <div id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 // ── TENANT BRANDING ───────────────────────────────
 (function applyTenantBranding(){
@@ -1536,6 +1546,143 @@ function getWarehouses() {
     });
   });
   return result;
+}
+
+// ── EXPORT / IMPORT PRODUCTOS (.xlsx) ─────────
+function exportProductsXlsx() {
+  if (typeof XLSX === 'undefined') { toast('❌ No se pudo cargar el motor de Excel'); return; }
+  const whs = getWarehouses();
+  const groupById = new Map((S.productGroups || []).map(g => [g.id, g.name]));
+
+  const rows = S.products.map(p => ({
+    'SKU': p.sku,
+    'Nombre': p.name,
+    'Marca': p.brand || '',
+    'Categoria': p.cat || '',
+    'Tipo': p.tipo || 'producto',
+    'Costo': p.cost || 0,
+    'Precio': p.price || 0,
+    'Stock': p.stock || 0,
+    'Alerta': p.threshold || 0,
+    'Codigo de barras': p.barcode || '',
+    'Almacen': (whs.find(w => w.id === (p.warehouse_id || '')) || {}).name || '',
+    'Grupos': (p.groups || []).map(id => groupById.get(id)).filter(Boolean).join(', '),
+  }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Productos');
+
+  const refRows = [{ Campo: 'Tipo (valores válidos)', Valor: 'insumo, producto, ambos' }];
+  whs.forEach(w => refRows.push({ Campo: 'Almacén disponible', Valor: w.name }));
+  (S.productGroups || []).forEach(g => refRows.push({ Campo: 'Grupo disponible', Valor: g.name }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(refRows), 'Referencia');
+
+  XLSX.writeFile(wb, `productos_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  toast(`✅ ${rows.length} SKU${rows.length !== 1 ? 's' : ''} exportados`);
+}
+
+async function importProductsXlsx(file) {
+  if (!file) return;
+  if (typeof XLSX === 'undefined') { toast('❌ No se pudo cargar el motor de Excel'); return; }
+  toast('⏳ Importando...');
+
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const sheetName = wb.SheetNames.find(n => n.toLowerCase() !== 'referencia') || wb.SheetNames[0];
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
+    if (!rows.length) { toast('⚠️ El archivo no tiene filas'); return; }
+
+    const whs = getWarehouses();
+    const whByName = new Map(whs.map(w => [w.name.trim().toLowerCase(), w.id]));
+    const groupByName = new Map((S.productGroups || []).map(g => [g.name.trim().toLowerCase(), g.id]));
+
+    let created = 0, updated = 0;
+    const errors = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const rowNum = i + 2; // fila 1 = encabezados
+      const sku  = String(r['SKU'] || '').trim();
+      const name = String(r['Nombre'] || '').trim();
+      if (!name) { errors.push(`Fila ${rowNum}: falta Nombre`); continue; }
+
+      const almacenName = String(r['Almacen'] || r['Almacén'] || '').trim();
+      let warehouse_id = '';
+      if (almacenName) {
+        const whId = whByName.get(almacenName.toLowerCase());
+        if (!whId) { errors.push(`Fila ${rowNum}: el almacén "${almacenName}" no existe`); continue; }
+        warehouse_id = whId;
+      }
+
+      const groupNames = String(r['Grupos'] || '').split(',').map(s => s.trim()).filter(Boolean);
+      const groupIds = [];
+      let groupError = false;
+      for (const gName of groupNames) {
+        let gId = groupByName.get(gName.toLowerCase());
+        if (!gId) {
+          try {
+            const createdGroup = await apiFetch('/api/products?groups=1', { method: 'POST', body: JSON.stringify({ name: gName }) });
+            gId = createdGroup.id;
+            groupByName.set(gName.toLowerCase(), gId);
+            S.productGroups.push(createdGroup);
+          } catch (e) {
+            errors.push(`Fila ${rowNum}: no se pudo crear el grupo "${gName}" (${e.message})`);
+            groupError = true;
+            continue;
+          }
+        }
+        groupIds.push(gId);
+      }
+      if (groupError) continue;
+
+      const validTipos = ['insumo', 'producto', 'ambos'];
+      const tipoRaw = String(r['Tipo'] || '').trim();
+
+      const payload = {
+        name,
+        brand: String(r['Marca'] || 'Sin marca'),
+        cat: String(r['Categoria'] || r['Categoría'] || 'General'),
+        tipo: validTipos.includes(tipoRaw) ? tipoRaw : 'producto',
+        cost: Number(r['Costo']) || 0,
+        price: Number(r['Precio']) || 0,
+        stock: Number(r['Stock']) || 0,
+        threshold: Number(r['Alerta']) || 10,
+        barcode: String(r['Codigo de barras'] || r['Código de barras'] || ''),
+        groups: groupIds,
+      };
+
+      const existing = sku ? S.products.find(p => p.sku === sku && (p.warehouse_id || '') === warehouse_id) : null;
+
+      try {
+        if (existing) {
+          const updatedRow = await apiFetch(`/api/products/${encodeURIComponent(sku)}?warehouse_id=${encodeURIComponent(warehouse_id)}`, {
+            method: 'PUT', body: JSON.stringify(payload),
+          });
+          const idx = S.products.findIndex(p => p.sku === sku && (p.warehouse_id || '') === warehouse_id);
+          if (idx >= 0) S.products[idx] = updatedRow;
+          updated++;
+        } else {
+          const createdRow = await apiFetch('/api/products', {
+            method: 'POST', body: JSON.stringify({ ...payload, warehouse_id, sku: sku || undefined }),
+          });
+          S.products.push(createdRow);
+          created++;
+        }
+      } catch (e) {
+        errors.push(`Fila ${rowNum} (${sku || 'nuevo'}): ${e.message}`);
+      }
+    }
+
+    renderInventory();
+    if (S.currentPage === 'home') renderHome();
+
+    toast(`✅ Importación completa — ${created} creados, ${updated} actualizados` + (errors.length ? `, ${errors.length} con error (ver consola)` : ''));
+    if (errors.length) console.warn('[Import Productos] Errores:', errors);
+  } catch (e) {
+    console.error('[Import Productos]', e);
+    toast('❌ Error al importar: ' + e.message);
+  }
 }
 
 function initInvWarehouseBar() {
