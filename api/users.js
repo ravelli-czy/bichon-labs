@@ -26,6 +26,40 @@ module.exports = async (req, res) => {
 
   if (!session) return res.status(401).json({ error: 'No autenticado' });
 
+  // ── LOGS — GET /api/users?action=logs (admin o superadmin, scoped to tenant) ──
+  // Colapsado acá para no sumar otra Serverless Function (tope 12 en Hobby).
+  if ((req.query || {}).action === 'logs') {
+    if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+    if (!['admin','superadmin','master'].includes(session.role))
+      return res.status(403).json({ error: 'Solo administradores pueden ver los logs' });
+    if (!tenantId) return res.status(400).json({ error: 'Sin contexto de cliente.' });
+
+    const { entity_type, actor: logActor, limit = '60', offset = '0' } = req.query || {};
+    const lim = Math.min(parseInt(limit) || 60, 500);
+    const off = parseInt(offset) || 0;
+
+    try {
+      let rows, countRow;
+      if (entity_type && logActor) {
+        rows     = await sql`SELECT * FROM audit_logs WHERE tenant_id = ${tenantId} AND entity_type = ${entity_type} AND actor = ${logActor} ORDER BY created_at DESC LIMIT ${lim} OFFSET ${off}`;
+        [countRow] = await sql`SELECT COUNT(*)::int AS total FROM audit_logs WHERE tenant_id = ${tenantId} AND entity_type = ${entity_type} AND actor = ${logActor}`;
+      } else if (entity_type) {
+        rows     = await sql`SELECT * FROM audit_logs WHERE tenant_id = ${tenantId} AND entity_type = ${entity_type} ORDER BY created_at DESC LIMIT ${lim} OFFSET ${off}`;
+        [countRow] = await sql`SELECT COUNT(*)::int AS total FROM audit_logs WHERE tenant_id = ${tenantId} AND entity_type = ${entity_type}`;
+      } else if (logActor) {
+        rows     = await sql`SELECT * FROM audit_logs WHERE tenant_id = ${tenantId} AND actor = ${logActor} ORDER BY created_at DESC LIMIT ${lim} OFFSET ${off}`;
+        [countRow] = await sql`SELECT COUNT(*)::int AS total FROM audit_logs WHERE tenant_id = ${tenantId} AND actor = ${logActor}`;
+      } else {
+        rows     = await sql`SELECT * FROM audit_logs WHERE tenant_id = ${tenantId} ORDER BY created_at DESC LIMIT ${lim} OFFSET ${off}`;
+        [countRow] = await sql`SELECT COUNT(*)::int AS total FROM audit_logs WHERE tenant_id = ${tenantId}`;
+      }
+      return res.json({ rows, total: countRow?.total ?? 0, limit: lim, offset: off });
+    } catch (err) {
+      console.error('[users/logs] error:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
   // ── SETTINGS — cualquier usuario autenticado puede leer; solo admin+ puede escribir ──
   if ((req.query || {}).action === 'settings') {
     if (!tenantId) return res.status(400).json({ error: 'Sin contexto de cliente' });

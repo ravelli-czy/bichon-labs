@@ -434,80 +434,35 @@ const fmt = n => '$' + Math.round(n).toLocaleString('es-CL');
 const DOW = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 const DOW_FULL = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
 
-// ── LOCALSTORAGE PERSISTENCE ───────────────────
-const DEFAULT_LOCALES = [
-  {id:'LOC-001',name:'Tienda Centro',address_street:'Av. Providencia 1234',address_city:'Santiago',address_region:'RM',phone:'+56 2 2222 3333',email:'centro@tienda.cl',
-   warehouses:[
-     {id:'WHS-001',name:'Bodega Principal',description:'Electrónica y seguridad'},
-     {id:'WHS-002',name:'Bodega Accesorios',description:'Cables y pequeños componentes'},
-   ],
-   delivery_methods:[
-     {id:'DLM-001',name:'Despacho a domicilio',type:'home_delivery',base_cost:2900,free_above:50000,prep_hours:2,requires_address:true,
-      slots:[
-        {id:1,day_of_week:1,time_from:'09:00',time_to:'13:00',label:'Mañana',max_orders:20,extra_cost:0},
-        {id:2,day_of_week:1,time_from:'14:00',time_to:'18:00',label:'Tarde',max_orders:20,extra_cost:0},
-        {id:3,day_of_week:2,time_from:'09:00',time_to:'13:00',label:'Mañana',max_orders:20,extra_cost:0},
-        {id:4,day_of_week:2,time_from:'14:00',time_to:'18:00',label:'Tarde',max_orders:20,extra_cost:0},
-        {id:5,day_of_week:3,time_from:'09:00',time_to:'13:00',label:'Mañana',max_orders:15,extra_cost:0},
-        {id:6,day_of_week:3,time_from:'14:00',time_to:'18:00',label:'Tarde',max_orders:15,extra_cost:0},
-        {id:7,day_of_week:3,time_from:'18:00',time_to:'22:00',label:'Noche Express',max_orders:8,extra_cost:1500},
-        {id:8,day_of_week:4,time_from:'09:00',time_to:'18:00',label:'Todo el día',max_orders:30,extra_cost:0},
-        {id:9,day_of_week:5,time_from:'09:00',time_to:'13:00',label:'Mañana',max_orders:20,extra_cost:0},
-        {id:10,day_of_week:6,time_from:'09:00',time_to:'14:00',label:'Mañana Sábado',max_orders:10,extra_cost:500},
-      ]},
-     {id:'DLM-002',name:'Retiro en tienda',type:'store_pickup',base_cost:0,free_above:null,prep_hours:1,requires_address:false,
-      slots:[
-        {id:11,day_of_week:1,time_from:'10:00',time_to:'19:00',label:'Horario normal',max_orders:50,extra_cost:0},
-        {id:12,day_of_week:2,time_from:'10:00',time_to:'19:00',label:'Horario normal',max_orders:50,extra_cost:0},
-        {id:13,day_of_week:3,time_from:'10:00',time_to:'19:00',label:'Horario normal',max_orders:50,extra_cost:0},
-        {id:14,day_of_week:4,time_from:'10:00',time_to:'19:00',label:'Horario normal',max_orders:50,extra_cost:0},
-        {id:15,day_of_week:5,time_from:'10:00',time_to:'19:00',label:'Horario normal',max_orders:50,extra_cost:0},
-        {id:16,day_of_week:6,time_from:'10:00',time_to:'15:00',label:'Horario Sábado',max_orders:20,extra_cost:0},
-      ]},
-   ]
-  },
-  {id:'LOC-002',name:'Sucursal Norte',address_street:'Recoleta 5678',address_city:'Recoleta',address_region:'RM',phone:'+56 2 4444 5555',email:'norte@tienda.cl',
-   warehouses:[{id:'WHS-003',name:'Bodega Norte',description:'Stock local'}],
-   delivery_methods:[
-     {id:'DLM-003',name:'Despacho zona norte',type:'home_delivery',base_cost:1900,free_above:30000,prep_hours:3,requires_address:true,
-      slots:[
-        {id:17,day_of_week:2,time_from:'09:00',time_to:'13:00',label:'Mañana',max_orders:10,extra_cost:0},
-        {id:18,day_of_week:4,time_from:'14:00',time_to:'18:00',label:'Tarde',max_orders:10,extra_cost:0},
-      ]}
-   ]
-  },
-];
-
-function _localesKey() {
-  return 'sf_locales_' + (localStorage.getItem('sf_tenant_id') || 'default');
+// ── API PERSISTENCE ─────────────────────────────
+async function apiFetch(path, opts = {}) {
+  const token    = localStorage.getItem('sf_token');
+  const tenantId = localStorage.getItem('sf_tenant_id');
+  const headers  = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (token)    headers['Authorization'] = 'Bearer ' + token;
+  if (tenantId) headers['X-Tenant-Id']   = tenantId;
+  const r = await fetch(path, { ...opts, headers });
+  if (r.status === 401) { localStorage.removeItem('sf_token'); location.replace('/login'); throw new Error('Unauthorized'); }
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: r.statusText }));
+    throw new Error(err.error || r.statusText);
+  }
+  return r.json();
 }
-function saveLocales() {
-  try { localStorage.setItem(_localesKey(), JSON.stringify(S.locales)); } catch(e) {}
-  // Also save a flattened slots index so index.html can read delivery slots
+async function loadLocales() {
   try {
-    const slotsIndex = {};
-    S.locales.forEach(loc => loc.delivery_methods.forEach(m => {
-      slotsIndex[m.type] = slotsIndex[m.type] || [];
-      m.slots.forEach(sl => {
-        if (!slotsIndex[m.type].find(x => x.id === sl.id)) {
-          slotsIndex[m.type].push({ id: sl.id, label: sl.label, time_from: sl.time_from, time_to: sl.time_to, day_of_week: sl.day_of_week, extra_cost: sl.extra_cost });
-        }
-      });
-    }));
-    localStorage.setItem(_localesKey() + '_slots', JSON.stringify(slotsIndex));
-  } catch(e) {}
-}
-function loadLocalesFromStorage() {
-  try {
-    const raw = localStorage.getItem(_localesKey());
-    if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed) && parsed.length) return parsed; }
-  } catch(e) {}
-  return JSON.parse(JSON.stringify(DEFAULT_LOCALES)); // deep clone defaults
+    const rows = await apiFetch('/api/locales');
+    return Array.isArray(rows) ? rows : [];
+  } catch (e) {
+    console.error('[Locales] Error al cargar desde la API:', e);
+    toast('❌ No se pudo cargar Locales: ' + e.message);
+    return [];
+  }
 }
 
 // ── STATE ──────────────────────────────────────
 const S = {
-  locales: loadLocalesFromStorage(),
+  locales: [],
   currentLocal: null,
   editingLocalId: null,
   editingDmLocalId: null,
@@ -727,9 +682,14 @@ async function getGeoForLocal() {
       const lat = parseFloat(results[0].lat);
       const lng = parseFloat(results[0].lon);
       if (S.editingLocalId) {
-        const loc = S.locales.find(l => l.id === S.editingLocalId);
-        if (loc) { loc.lat = lat; loc.lng = lng; }
-        saveLocales();
+        try {
+          const updated = await apiFetch(`/api/locales/${S.editingLocalId}`, { method:'PUT', body: JSON.stringify({ lat, lng }) });
+          const idx = S.locales.findIndex(l => l.id === S.editingLocalId);
+          if (idx >= 0) S.locales[idx] = updated;
+          if (S.currentLocal?.id === S.editingLocalId) S.currentLocal = updated;
+        } catch(saveErr) {
+          toast('❌ No se pudo guardar la geo: ' + saveErr.message);
+        }
       } else {
         S._pendingLocalGeo = { lat, lng };
       }
@@ -773,53 +733,64 @@ function closeLocalSheet() {
   S.editingLocalId = null;
   closeSheet('sheet-local');
 }
-function deleteLocal(id) {
+async function deleteLocal(id) {
   const loc = S.locales.find(l => l.id === id);
   if (!loc) return;
   if (!confirm(`¿Eliminar "${loc.name}" y todos sus almacenes y formas de entrega?`)) return;
-  S.locales = S.locales.filter(l => l.id !== id);
-  if (S.currentLocal?.id === id) S.currentLocal = null;
-  saveLocales();
-  renderLocales();
-  toast('🗑️ Local eliminado');
+  try {
+    await apiFetch(`/api/locales/${id}`, { method:'DELETE' });
+    S.locales = S.locales.filter(l => l.id !== id);
+    if (S.currentLocal?.id === id) S.currentLocal = null;
+    renderLocales();
+    toast('🗑️ Local eliminado');
+  } catch(e) {
+    toast('❌ Error al eliminar: ' + e.message);
+  }
 }
 
 // ── SAVE FUNCTIONS ────────────────────────────
-function saveLocal() {
+async function saveLocal() {
   const name   = document.getElementById('loc-name').value.trim();
   const street = document.getElementById('loc-street').value.trim();
   const city   = document.getElementById('loc-city').value.trim();
   if (!name||!street||!city) { toast('⚠️ Nombre, dirección y ciudad son obligatorios'); return; }
+  const address_region = document.getElementById('loc-region').value;
+  const phone = document.getElementById('loc-phone').value;
+  const email = document.getElementById('loc-email').value;
+
   if (S.editingLocalId) {
-    const loc = S.locales.find(l => l.id === S.editingLocalId);
-    if (loc) {
-      loc.name = name; loc.address_street = street; loc.address_city = city;
-      loc.address_region = document.getElementById('loc-region').value;
-      loc.phone = document.getElementById('loc-phone').value;
-      loc.email = document.getElementById('loc-email').value;
-      if (S.currentLocal?.id === S.editingLocalId) S.currentLocal = loc;
+    try {
+      const updated = await apiFetch(`/api/locales/${S.editingLocalId}`, {
+        method:'PUT',
+        body: JSON.stringify({ name, address_street:street, address_city:city, address_region, phone, email }),
+      });
+      const idx = S.locales.findIndex(l => l.id === S.editingLocalId);
+      if (idx >= 0) S.locales[idx] = updated;
+      if (S.currentLocal?.id === S.editingLocalId) S.currentLocal = updated;
+      S.editingLocalId = null;
+      closeSheet('sheet-local');
+      renderLocales();
+      toast('✅ Local actualizado');
+    } catch(e) {
+      toast('❌ Error al actualizar: ' + e.message);
     }
-    S.editingLocalId = null;
-    saveLocales();
-    closeSheet('sheet-local');
-    renderLocales();
-    toast('✅ Local actualizado');
   } else {
-    const id = 'LOC-' + String(Date.now()).slice(-5);
-    S.locales.push({
-      id, name, address_street:street, address_city:city,
-      address_region:document.getElementById('loc-region').value,
-      phone:document.getElementById('loc-phone').value,
-      email:document.getElementById('loc-email').value,
-      lat: S._pendingLocalGeo?.lat || null,
-      lng: S._pendingLocalGeo?.lng || null,
-      warehouses:[], delivery_methods:[]
-    });
-    S._pendingLocalGeo = null;
-    saveLocales();
-    closeSheet('sheet-local');
-    renderLocales();
-    toast('✅ Local creado');
+    try {
+      const created = await apiFetch('/api/locales', {
+        method:'POST',
+        body: JSON.stringify({
+          name, address_street:street, address_city:city, address_region, phone, email,
+          lat: S._pendingLocalGeo?.lat ?? null, lng: S._pendingLocalGeo?.lng ?? null,
+        }),
+      });
+      S.locales.push(created);
+      S._pendingLocalGeo = null;
+      closeSheet('sheet-local');
+      renderLocales();
+      toast('✅ Local creado');
+    } catch(e) {
+      toast('❌ Error al crear: ' + e.message);
+    }
   }
 }
 
@@ -829,20 +800,25 @@ function openWHSheet(localId) {
   document.getElementById('wh-desc').value = '';
   openSheet('sheet-wh');
 }
-function saveWarehouse() {
+async function saveWarehouse() {
   const name = document.getElementById('wh-name').value.trim();
   if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
   const localId = document.getElementById('wh-local-id').value;
   const loc = S.locales.find(l => l.id === localId);
   if (!loc) return;
-  loc.warehouses.push({
-    id:'WHS-'+String(Date.now()).slice(-4),
-    name, description:document.getElementById('wh-desc').value
-  });
-  saveLocales();
-  closeSheet('sheet-wh');
-  renderConfig();
-  toast('✅ Almacén agregado');
+  try {
+    const wh = await apiFetch(`/api/locales/${localId}/warehouses`, {
+      method:'POST',
+      body: JSON.stringify({ name, description: document.getElementById('wh-desc').value }),
+    });
+    loc.warehouses.push(wh);
+    if (S.currentLocal?.id === localId) S.currentLocal = loc;
+    closeSheet('sheet-wh');
+    renderConfig();
+    toast('✅ Almacén agregado');
+  } catch(e) {
+    toast('❌ Error al crear el almacén: ' + e.message);
+  }
 }
 
 function openDMSheet(localId) {
@@ -882,7 +858,7 @@ function selDmType(el, val) {
   document.querySelectorAll('#sheet-dm .pill-opt').forEach(p => p.classList.remove('selected'));
   el.classList.add('selected');
 }
-function saveDeliveryMethod() {
+async function saveDeliveryMethod() {
   const name = document.getElementById('dm-name').value.trim();
   if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
   const localId = document.getElementById('dm-local-id').value;
@@ -893,15 +869,29 @@ function saveDeliveryMethod() {
   const free_above= parseFloat(document.getElementById('dm-free').value)||null;
   const prep_hours= parseInt(document.getElementById('dm-prep').value)||2;
   if (S.editingDmId) {
-    const m = loc.delivery_methods.find(x => x.id === S.editingDmId);
-    if (m) Object.assign(m, { name, type, base_cost, free_above, prep_hours, requires_address: type !== 'store_pickup' });
-    S.editingDmId = null; S.editingDmLocalId = null;
-    saveLocales(); closeSheet('sheet-dm'); renderConfig();
-    toast('✅ Forma de entrega actualizada');
+    try {
+      const updated = await apiFetch(`/api/locales/${localId}/delivery-methods/${S.editingDmId}`, {
+        method:'PUT', body: JSON.stringify({ name, type, base_cost, free_above, prep_hours }),
+      });
+      const idx = loc.delivery_methods.findIndex(x => x.id === S.editingDmId);
+      if (idx >= 0) loc.delivery_methods[idx] = updated;
+      S.editingDmId = null; S.editingDmLocalId = null;
+      closeSheet('sheet-dm'); renderConfig();
+      toast('✅ Forma de entrega actualizada');
+    } catch(e) {
+      toast('❌ Error al actualizar: ' + e.message);
+    }
   } else {
-    loc.delivery_methods.push({ id:'DLM-'+String(Date.now()).slice(-4), name, type, base_cost, free_above, prep_hours, requires_address: type !== 'store_pickup', slots:[] });
-    saveLocales(); closeSheet('sheet-dm'); renderConfig();
-    toast('✅ Forma de entrega creada — agrega los slots');
+    try {
+      const created = await apiFetch(`/api/locales/${localId}/delivery-methods`, {
+        method:'POST', body: JSON.stringify({ name, type, base_cost, free_above, prep_hours }),
+      });
+      loc.delivery_methods.push(created);
+      closeSheet('sheet-dm'); renderConfig();
+      toast('✅ Forma de entrega creada — agrega los slots');
+    } catch(e) {
+      toast('❌ Error al crear: ' + e.message);
+    }
   }
 }
 
@@ -944,7 +934,14 @@ function toggleDayPill(el, dow) {
   if (S.selectedDays.has(dow)) { S.selectedDays.delete(dow); el.classList.remove('selected'); }
   else { S.selectedDays.add(dow); el.classList.add('selected'); }
 }
-function saveSlot() {
+function _findLocalAndMethod(methodId) {
+  for (const loc of S.locales) {
+    const m = loc.delivery_methods.find(x => x.id === methodId);
+    if (m) return { loc, m };
+  }
+  return { loc: null, m: null };
+}
+async function saveSlot() {
   if (!S.selectedDays.size) { toast('⚠️ Selecciona al menos un día'); return; }
   const from = document.getElementById('slot-from').value;
   const to   = document.getElementById('slot-to').value;
@@ -953,68 +950,83 @@ function saveSlot() {
   const label = document.getElementById('slot-label').value;
   const cost  = parseFloat(document.getElementById('slot-cost').value)||0;
   const max   = parseInt(document.getElementById('slot-max').value)||20;
+  const { loc, m } = _findLocalAndMethod(methodId);
+  if (!loc || !m) return;
+
   if (S.editingSlotId) {
-    for (const loc of S.locales) {
-      const m = loc.delivery_methods.find(x => x.id === methodId);
-      if (m) {
-        const idx = m.slots.findIndex(s => s.id === S.editingSlotId);
-        if (idx >= 0) {
-          const dow = [...S.selectedDays][0];
-          m.slots[idx] = { ...m.slots[idx], day_of_week:dow, time_from:from, time_to:to, label:label||autoLabel(from), max_orders:max, extra_cost:cost };
-        }
-        break;
-      }
+    try {
+      const dow = [...S.selectedDays][0];
+      const updated = await apiFetch(`/api/locales/${loc.id}/delivery-methods/${methodId}/slots/${S.editingSlotId}`, {
+        method:'PUT',
+        body: JSON.stringify({ day_of_week:dow, time_from:from, time_to:to, label:label||autoLabel(from), max_orders:max, extra_cost:cost }),
+      });
+      const idx = m.slots.findIndex(s => s.id === S.editingSlotId);
+      if (idx >= 0) m.slots[idx] = updated;
+      S.editingSlotId = null; S.editingSlotMethodId = null;
+      closeSheet('sheet-slot'); renderConfig();
+      toast('✅ Slot actualizado');
+    } catch(e) {
+      toast('❌ Error al actualizar el slot: ' + e.message);
     }
-    S.editingSlotId = null; S.editingSlotMethodId = null;
-    saveLocales(); closeSheet('sheet-slot'); renderConfig();
-    toast('✅ Slot actualizado');
   } else {
-    let idCounter = Date.now();
-    for (const loc of S.locales) {
-      const m = loc.delivery_methods.find(x => x.id === methodId);
-      if (m) {
-        for (const dow of S.selectedDays) {
-          m.slots.push({ id:idCounter++, day_of_week:dow, time_from:from, time_to:to, label:label||autoLabel(from), max_orders:max, extra_cost:cost });
-        }
-        break;
-      }
+    try {
+      const created = await Promise.all([...S.selectedDays].map(dow =>
+        apiFetch(`/api/locales/${loc.id}/delivery-methods/${methodId}/slots`, {
+          method:'POST',
+          body: JSON.stringify({ day_of_week:dow, time_from:from, time_to:to, label:label||autoLabel(from), max_orders:max, extra_cost:cost }),
+        })
+      ));
+      m.slots.push(...created);
+      closeSheet('sheet-slot'); renderConfig();
+      toast(`✅ Slot agregado para ${S.selectedDays.size} día${S.selectedDays.size>1?'s':''}`);
+    } catch(e) {
+      toast('❌ Error al crear el slot: ' + e.message);
     }
-    saveLocales(); closeSheet('sheet-slot'); renderConfig();
-    toast(`✅ Slot agregado para ${S.selectedDays.size} día${S.selectedDays.size>1?'s':''}`);
   }
 }
 function autoLabel(timeFrom) {
   const h = parseInt(timeFrom.split(':')[0]);
   if (h < 12) return 'Mañana'; if (h < 17) return 'Tarde'; return 'Noche';
 }
-function deleteSlot(methodId, slotId) {
-  for (const loc of S.locales) {
-    const m = loc.delivery_methods.find(x => x.id === methodId);
-    if (m) { m.slots = m.slots.filter(s => s.id !== slotId); break; }
+async function deleteSlot(methodId, slotId) {
+  const { loc, m } = _findLocalAndMethod(methodId);
+  if (!loc || !m) return;
+  try {
+    await apiFetch(`/api/locales/${loc.id}/delivery-methods/${methodId}/slots/${slotId}`, { method:'DELETE' });
+    m.slots = m.slots.filter(s => s.id !== slotId);
+    renderConfig();
+    toast('🗑️ Slot eliminado');
+  } catch(e) {
+    toast('❌ Error al eliminar el slot: ' + e.message);
   }
-  saveLocales();
-  renderConfig();
-  toast('🗑️ Slot eliminado');
 }
-function deleteWarehouse(localId, whId) {
+async function deleteWarehouse(localId, whId) {
   const loc = S.locales.find(l => l.id === localId);
   if (!loc) return;
   const wh = loc.warehouses.find(w => w.id === whId);
   if (!wh || !confirm(`¿Eliminar el almacén "${wh.name}"?`)) return;
-  loc.warehouses = loc.warehouses.filter(w => w.id !== whId);
-  saveLocales();
-  renderConfig();
-  toast('🗑️ Almacén eliminado');
+  try {
+    await apiFetch(`/api/locales/${localId}/warehouses/${whId}`, { method:'DELETE' });
+    loc.warehouses = loc.warehouses.filter(w => w.id !== whId);
+    renderConfig();
+    toast('🗑️ Almacén eliminado');
+  } catch(e) {
+    toast('❌ Error al eliminar: ' + e.message);
+  }
 }
-function deleteDeliveryMethod(localId, methodId) {
+async function deleteDeliveryMethod(localId, methodId) {
   const loc = S.locales.find(l => l.id === localId);
   if (!loc) return;
   const dm = loc.delivery_methods.find(m => m.id === methodId);
   if (!dm || !confirm(`¿Eliminar "${dm.name}" y todos sus slots?`)) return;
-  loc.delivery_methods = loc.delivery_methods.filter(m => m.id !== methodId);
-  saveLocales();
-  renderConfig();
-  toast('🗑️ Forma de entrega eliminada');
+  try {
+    await apiFetch(`/api/locales/${localId}/delivery-methods/${methodId}`, { method:'DELETE' });
+    loc.delivery_methods = loc.delivery_methods.filter(m => m.id !== methodId);
+    renderConfig();
+    toast('🗑️ Forma de entrega eliminada');
+  } catch(e) {
+    toast('❌ Error al eliminar: ' + e.message);
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -1240,9 +1252,16 @@ function toast(msg) {
   setTimeout(()=>{ t.style.opacity='0';t.style.transform='translateX(-50%) translateY(20px)'; },3000);
 }
 
-// INIT — persist defaults on first load
-saveLocales();
-renderLocales();
+// INIT — load locales from the database
+async function initLocales() {
+  S.locales = await loadLocales();
+  renderLocales();
+  if (S.currentLocal) {
+    S.currentLocal = S.locales.find(l => l.id === S.currentLocal.id) || null;
+    if (isDesktop()) renderConfig();
+  }
+}
+initLocales();
 </script>
 </body>
 </html>

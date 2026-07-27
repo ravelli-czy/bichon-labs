@@ -619,12 +619,9 @@ let currentRoute = [];
 let currentRouteId = null;
 let _originStop = null; // punto de partida del local
 
-function _getOriginFromLocales() {
+async function _getOriginFromLocales() {
   try {
-    const tenantId = localStorage.getItem('sf_tenant_id') || 'default';
-    const raw = localStorage.getItem('sf_locales_' + tenantId);
-    if (!raw) return null;
-    const locales = JSON.parse(raw);
+    const locales = await fetch('/api/locales', { headers: authHeaders() }).then(r => r.ok ? r.json() : null);
     const loc = locales?.[0];
     if (!loc) return null;
     return {
@@ -1493,7 +1490,7 @@ function _routeDateLabel(dateKey) {
 }
 
 async function initRoutes() {
-  _originStop = _getOriginFromLocales();
+  _originStop = await _getOriginFromLocales();
   try {
     const [shipments, orders] = await Promise.all([
       fetch('/api/shipments', { headers: authHeaders() }).then(r => r.ok ? r.json() : []),

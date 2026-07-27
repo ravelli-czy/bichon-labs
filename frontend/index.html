@@ -1114,6 +1114,7 @@ const S = {
   products: [],
   kits: [],
   ventas: [],
+  locales: [],
   productGroups: [],
   tempProdGroups: [],
   tempKitGroups: [],
@@ -1292,17 +1293,19 @@ function openCreateShipmentFromOrder(orderId) {
 // ── Load all data from API on startup ─────────
 async function initApp() {
   try {
-    const [products, kits, orders, tenantSettings, productGroups] = await Promise.all([
+    const [products, kits, orders, tenantSettings, productGroups, locales] = await Promise.all([
       apiFetch('/api/products'),
       apiFetch('/api/kits'),
       apiFetch('/api/orders'),
       apiFetch('/api/users?action=settings').catch(() => null),
       apiFetch('/api/products?groups=1').catch(() => []),
+      apiFetch('/api/locales').catch(() => []),
     ]);
     S.products = Array.isArray(products) ? products : [];
     S.kits = Array.isArray(kits) ? kits : [];
     S.ventas = Array.isArray(orders) ? orders : [];
     S.productGroups = Array.isArray(productGroups) ? productGroups : [];
+    S.locales = Array.isArray(locales) ? locales : [];
     if (tenantSettings && typeof tenantSettings === 'object') {
       S._tenantSettings = tenantSettings;
       const dbTab = tenantSettings.invDefaultTab;
@@ -3109,14 +3112,9 @@ function renderCatalogSKUsView(el) {
     </div>`;
 }
 
-// Read locale config saved by locales.html
+// Locales/almacenes/formas de entrega — cargados desde la API en initApp()
 function getLocalesData() {
-  try {
-    const tenantId = localStorage.getItem('sf_tenant_id') || 'default';
-    const raw = localStorage.getItem('sf_locales_' + tenantId);
-    if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length) return p; }
-  } catch(e) {}
-  return null;
+  return (Array.isArray(S.locales) && S.locales.length) ? S.locales : null;
 }
 
 const DM_ICONS = { store_pickup:'ti-building-store', home_delivery:'ti-home', pickup_point:'ti-map-pin', express:'ti-bolt' };
@@ -3388,22 +3386,19 @@ function getConfiguredSlots(methodType, dateStr, methodId, dow) {
       return method.slots;
     }
   }
-  // Priority 2: flattened slots index saved by locales.html
-  try {
-    const tenantId = localStorage.getItem('sf_tenant_id') || 'default';
-    const raw = localStorage.getItem('sf_locales_' + tenantId + '_slots');
-    if (raw) {
-      const slotsIndex = JSON.parse(raw);
-      const allSlots   = slotsIndex[methodType] || [];
-      if (allSlots.length) {
-        if (dow !== undefined) {
-          const daySlots = allSlots.filter(s => Number(s.day_of_week) === dow);
-          if (daySlots.length) return daySlots;
-        }
-        return allSlots;
-      }
+  // Priority 2: flatten slots for this method type across all locales
+  const allLocales = S.locales || [];
+  const allSlots = [];
+  allLocales.forEach(loc => (loc.delivery_methods || []).forEach(m => {
+    if (m.type === methodType) (m.slots || []).forEach(s => allSlots.push(s));
+  }));
+  if (allSlots.length) {
+    if (dow !== undefined) {
+      const daySlots = allSlots.filter(s => Number(s.day_of_week) === dow);
+      if (daySlots.length) return daySlots;
     }
-  } catch(e) {}
+    return allSlots;
+  }
   // Priority 3: hardcoded defaults
   return DELIVERY_SLOTS[methodType] || DELIVERY_SLOTS.home_delivery;
 }

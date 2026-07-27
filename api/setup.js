@@ -283,6 +283,72 @@ module.exports = async (req, res) => {
     await sql`ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'TEN-001'`;
     await sql`CREATE INDEX IF NOT EXISTS audit_logs_tenant_idx ON audit_logs (tenant_id)`;
 
+    // ── Locales / Almacenes / Formas de entrega ───────────────────────────────
+    await sql`
+      CREATE TABLE IF NOT EXISTS locales (
+        id             TEXT PRIMARY KEY,
+        tenant_id      TEXT NOT NULL DEFAULT 'TEN-001',
+        name           TEXT NOT NULL,
+        address_street TEXT DEFAULT '',
+        address_city   TEXT DEFAULT '',
+        address_region TEXT DEFAULT '',
+        phone          TEXT DEFAULT '',
+        email          TEXT DEFAULT '',
+        lat            DOUBLE PRECISION,
+        lng            DOUBLE PRECISION,
+        created_by     TEXT DEFAULT '',
+        created_at     TIMESTAMPTZ DEFAULT NOW(),
+        updated_at     TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS locales_tenant_idx ON locales (tenant_id)`;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS warehouses (
+        id          TEXT PRIMARY KEY,
+        tenant_id   TEXT NOT NULL DEFAULT 'TEN-001',
+        local_id    TEXT NOT NULL REFERENCES locales(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS warehouses_local_idx ON warehouses (local_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS warehouses_tenant_idx ON warehouses (tenant_id)`;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS delivery_methods (
+        id               TEXT PRIMARY KEY,
+        tenant_id        TEXT NOT NULL DEFAULT 'TEN-001',
+        local_id         TEXT NOT NULL REFERENCES locales(id) ON DELETE CASCADE,
+        name             TEXT NOT NULL,
+        type             TEXT NOT NULL DEFAULT 'home_delivery',
+        base_cost        INTEGER NOT NULL DEFAULT 0,
+        free_above       INTEGER,
+        prep_hours       INTEGER NOT NULL DEFAULT 2,
+        requires_address BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at       TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS delivery_methods_local_idx ON delivery_methods (local_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS delivery_methods_tenant_idx ON delivery_methods (tenant_id)`;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS delivery_slots (
+        id                  SERIAL PRIMARY KEY,
+        tenant_id           TEXT NOT NULL DEFAULT 'TEN-001',
+        delivery_method_id  TEXT NOT NULL REFERENCES delivery_methods(id) ON DELETE CASCADE,
+        day_of_week         INTEGER NOT NULL,
+        time_from           TEXT NOT NULL,
+        time_to             TEXT NOT NULL,
+        label               TEXT DEFAULT '',
+        max_orders          INTEGER DEFAULT 20,
+        extra_cost          INTEGER DEFAULT 0,
+        created_at          TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS delivery_slots_method_idx ON delivery_slots (delivery_method_id)`;
+
     // API Keys table
     await sql`
       CREATE TABLE IF NOT EXISTS api_keys (
@@ -301,7 +367,7 @@ module.exports = async (req, res) => {
     await sql`CREATE INDEX IF NOT EXISTS api_keys_tenant_idx  ON api_keys (tenant_id)`;
     await sql`CREATE INDEX IF NOT EXISTS api_keys_user_idx    ON api_keys (user_id)`;
 
-    const created = ['tenants', 'products', 'kits', 'product_groups', 'orders', 'purchases', 'suppliers', 'shipments', 'users', 'sessions', 'audit_logs', 'api_keys'];
+    const created = ['tenants', 'products', 'kits', 'product_groups', 'orders', 'purchases', 'suppliers', 'shipments', 'users', 'sessions', 'audit_logs', 'api_keys', 'locales', 'warehouses', 'delivery_methods', 'delivery_slots'];
 
     // Always ensure superadmin user exists
     const [{ ucount }] = await sql`SELECT COUNT(*) AS ucount FROM users WHERE username = 'admin'`;

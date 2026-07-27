@@ -221,6 +221,7 @@ async function load(reset = false) {
   }
 
   const params = new URLSearchParams({
+    action: 'logs',
     limit:  S.limit,
     offset: S.offset,
     ...(S.entity_type && { entity_type: S.entity_type }),
@@ -228,7 +229,7 @@ async function load(reset = false) {
   });
 
   try {
-    const r = await fetch(`/api/logs?${params}`, { headers: authHeaders() });
+    const r = await fetch(`/api/users?${params}`, { headers: authHeaders() });
     if (!r.ok) { showToast('Error al cargar logs'); document.getElementById('loading-area').style.display = 'none'; return; }
     const data = await r.json();
 
