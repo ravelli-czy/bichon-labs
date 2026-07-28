@@ -172,10 +172,12 @@ module.exports = async (req, res) => {
         updated_at  TIMESTAMPTZ DEFAULT NOW()
       )
     `;
-    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS created_by  TEXT DEFAULT ''`;
-    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_by  TEXT DEFAULT ''`;
-    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_at  TIMESTAMPTZ DEFAULT NOW()`;
-    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tenant_id   TEXT NOT NULL DEFAULT 'TEN-001'`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS created_by     TEXT DEFAULT ''`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_by     TEXT DEFAULT ''`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_at     TIMESTAMPTZ DEFAULT NOW()`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tenant_id      TEXT NOT NULL DEFAULT 'TEN-001'`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT ''`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS sales_channel  TEXT DEFAULT ''`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS purchases (

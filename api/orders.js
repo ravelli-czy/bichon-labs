@@ -43,6 +43,7 @@ module.exports = async (req, res) => {
       const {
         cliente = 'Cliente', telefono = '', dedicatoria = '',
         total = 0, items = [], delivery = {}, warehouse_id: orderWarehouseId = '',
+        payment_method = '', sales_channel = '',
       } = req.body || {};
 
       if (!items.length) return res.status(400).json({ error: 'items is required' });
@@ -57,11 +58,11 @@ module.exports = async (req, res) => {
 
       // Insert order
       const [order] = await sql`
-        INSERT INTO orders (id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status, created_by, tenant_id)
+        INSERT INTO orders (id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status, created_by, tenant_id, payment_method, sales_channel)
         VALUES (
           ${id}, ${cliente}, ${telefono}, ${total},
           ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
-          ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}
+          ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel}
         )
         RETURNING *
       `;

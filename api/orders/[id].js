@@ -28,18 +28,23 @@ module.exports = async (req, res) => {
 
     // ── PUT — update status OR customer info ─────────────────────────────
     if (req.method === 'PUT') {
-      const { status, action, cliente, telefono, dedicatoria, receptor, receptor_telefono } = req.body || {};
+      const {
+        status, action, cliente, telefono, dedicatoria, receptor, receptor_telefono,
+        payment_method, sales_channel,
+      } = req.body || {};
 
       // Update customer-facing info fields
       if (action === 'info') {
         const [row] = await sql`
           UPDATE orders SET
-            cliente     = ${cliente ?? ''},
-            telefono    = ${telefono ?? ''},
-            dedicatoria = ${dedicatoria ?? ''},
-            delivery    = delivery || ${JSON.stringify({ receptor: receptor ?? '', receptor_telefono: receptor_telefono ?? '' })}::jsonb,
-            updated_by  = ${actor},
-            updated_at  = NOW()
+            cliente        = ${cliente ?? ''},
+            telefono       = ${telefono ?? ''},
+            dedicatoria    = ${dedicatoria ?? ''},
+            delivery       = delivery || ${JSON.stringify({ receptor: receptor ?? '', receptor_telefono: receptor_telefono ?? '' })}::jsonb,
+            payment_method = ${payment_method ?? ''},
+            sales_channel  = ${sales_channel ?? ''},
+            updated_by     = ${actor},
+            updated_at     = NOW()
           WHERE id = ${id} AND tenant_id = ${tenantId}
           RETURNING *
         `;

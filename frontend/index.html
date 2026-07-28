@@ -544,6 +544,8 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="tab" id="ctab-grupos" onclick="switchCatTab('grupos',this)">Grupos</div>
       <div class="tab" id="ctab-productos" onclick="switchCatTab('productos',this)">Productos</div>
       <div class="tab" id="ctab-skus" onclick="switchCatTab('skus',this)">SKUs</div>
+      <div class="tab" id="ctab-pagos" onclick="switchCatTab('pagos',this)">Pagos</div>
+      <div class="tab" id="ctab-canales" onclick="switchCatTab('canales',this)">Canales</div>
     </div>
     <div id="cat-content" style="margin-top:10px"></div>
   </div>
@@ -743,6 +745,10 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div class="form-group"><div class="form-label">Cliente</div><input class="form-input" id="oe-cliente" placeholder="Nombre"></div>
         <div class="form-group"><div class="form-label">Teléfono</div><input class="form-input" id="oe-telefono" placeholder="+56 9..." type="tel"></div>
       </div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Medio de pago</div><select class="form-input" id="oe-payment-method"></select></div>
+        <div class="form-group"><div class="form-label">Canal de venta</div><select class="form-input" id="oe-sales-channel"></select></div>
+      </div>
       <div class="form-label" style="margin-top:4px;margin-bottom:6px"><i class="ti ti-user-check" style="font-size:13px"></i> ¿Quién recibe?</div>
       <div class="form-row">
         <div class="form-group"><input class="form-input" id="oe-receptor" placeholder="Ej: María González"></div>
@@ -844,6 +850,10 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="form-row">
         <div class="form-group"><div class="form-label">Cliente</div><input class="form-input" id="venta-cliente" placeholder="Nombre (opcional)"></div>
         <div class="form-group"><div class="form-label">Teléfono</div><input class="form-input" id="venta-telefono" placeholder="+56 9..." type="tel"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Medio de pago</div><select class="form-input" id="venta-payment-method"></select></div>
+        <div class="form-group"><div class="form-label">Canal de venta</div><select class="form-input" id="venta-sales-channel"></select></div>
       </div>
 
       <!-- ÍTEMS -->
@@ -2648,6 +2658,17 @@ function getCatalogList(key) {
   return Array.isArray(val) ? [...val] : [];
 }
 
+// Llena un <select> con las opciones configuradas en Catálogo (Pagos/Canales),
+// dejando la opción vacía seleccionada si el valor actual ya no existe en la lista.
+function _populateOptionSelect(selectId, key, currentValue) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const items = getCatalogList(key);
+  sel.innerHTML = '<option value="">Sin especificar</option>' +
+    items.map(v => `<option value="${v.replace(/"/g,'&quot;')}">${v}</option>`).join('');
+  sel.value = currentValue && items.includes(currentValue) ? currentValue : '';
+}
+
 function _populateCatalogLists() {
   // Categories use cascading selects (not a datalist) — populated on-demand by populateCatSelects()
   const brands    = getCatalogList('brands');
@@ -2689,6 +2710,8 @@ function renderCatalogo() {
   else if (tab === 'grupos')     renderProductGroupsView(el);
   else if (tab === 'productos')  renderCatalogProductsView(el);
   else if (tab === 'skus')       renderCatalogSKUsView(el);
+  else if (tab === 'pagos')      renderCatalogList(el, 'paymentMethods', 'medios de pago', 'ti-credit-card', 'Ej: Efectivo, Transferencia, Tarjeta débito...');
+  else if (tab === 'canales')    renderCatalogList(el, 'salesChannels', 'canales de venta', 'ti-broadcast', 'Ej: Tienda, WhatsApp, Instagram...');
 }
 
 // ── CATÁLOGO: Grupo de Productos ──────────────────────────────────────────
@@ -3448,6 +3471,8 @@ function openSheetVenta(pushURL = true) {
   document.getElementById('venta-total').textContent = '$0';
   document.getElementById('venta-cliente').value = '';
   document.getElementById('venta-telefono').value = '';
+  _populateOptionSelect('venta-payment-method', 'paymentMethods', '');
+  _populateOptionSelect('venta-sales-channel', 'salesChannels', '');
   document.getElementById('venta-receptor').value = '';
   document.getElementById('venta-receptor-tel').value = '';
   document.getElementById('venta-dedicatoria').value = '';
@@ -3921,12 +3946,14 @@ async function saveVenta() {
 
   const payload = {
     total,
-    cliente:      document.getElementById('venta-cliente').value || 'Cliente',
-    telefono:     document.getElementById('venta-telefono').value || '',
-    dedicatoria:  document.getElementById('venta-dedicatoria').value.trim(),
-    items:        S.tempVentaItems.slice(),
+    cliente:        document.getElementById('venta-cliente').value || 'Cliente',
+    telefono:       document.getElementById('venta-telefono').value || '',
+    dedicatoria:    document.getElementById('venta-dedicatoria').value.trim(),
+    items:          S.tempVentaItems.slice(),
     delivery,
-    warehouse_id: S.warehouseId || '',  // order-level warehouse (fallback for kit components)
+    warehouse_id:   S.warehouseId || '',  // order-level warehouse (fallback for kit components)
+    payment_method: document.getElementById('venta-payment-method').value || '',
+    sales_channel:  document.getElementById('venta-sales-channel').value || '',
   };
 
   // Loading state — prevent double-submit
@@ -4118,6 +4145,8 @@ function openOrderEditSheet(id, pushURL = true) {
   S._editingOrderId = id;
   document.getElementById('oe-cliente').value = v.cliente || '';
   document.getElementById('oe-telefono').value = v.telefono || '';
+  _populateOptionSelect('oe-payment-method', 'paymentMethods', v.payment_method || '');
+  _populateOptionSelect('oe-sales-channel', 'salesChannels', v.sales_channel || '');
   document.getElementById('oe-receptor').value = v.delivery?.receptor || '';
   document.getElementById('oe-receptor-tel').value = v.delivery?.receptor_telefono || '';
   document.getElementById('oe-dedicatoria').value = v.dedicatoria || '';
@@ -4140,12 +4169,15 @@ async function saveOrderEdit() {
     dedicatoria:       document.getElementById('oe-dedicatoria').value.trim(),
     receptor:          document.getElementById('oe-receptor').value.trim(),
     receptor_telefono: document.getElementById('oe-receptor-tel').value.trim(),
+    payment_method:    document.getElementById('oe-payment-method').value || '',
+    sales_channel:     document.getElementById('oe-sales-channel').value || '',
   };
   const applyLocal = (updated) => {
     const idx = S.ventas.findIndex(o => o.id === id);
     if (idx >= 0) S.ventas[idx] = updated || {
       ...S.ventas[idx],
       cliente: payload.cliente, telefono: payload.telefono, dedicatoria: payload.dedicatoria,
+      payment_method: payload.payment_method, sales_channel: payload.sales_channel,
       delivery: { ...(S.ventas[idx].delivery||{}), receptor: payload.receptor, receptor_telefono: payload.receptor_telefono },
     };
   };
@@ -4333,13 +4365,15 @@ async function confirmarDuplicarOrden() {
   const items = S._tempDuplicarItems;
   const total = items.reduce((s,i) => s + i.qty * i.price, 0) + (S._tempDuplicarSlotCost || 0);
   const payload = {
-    cliente:      v.cliente,
-    telefono:     v.telefono || '',
-    dedicatoria:  v.dedicatoria || '',
+    cliente:        v.cliente,
+    telefono:       v.telefono || '',
+    dedicatoria:    v.dedicatoria || '',
     total,
     items,
-    delivery:     v.delivery || {},
-    warehouse_id: v.warehouse_id || '',
+    delivery:       v.delivery || {},
+    warehouse_id:   v.warehouse_id || '',
+    payment_method: v.payment_method || '',
+    sales_channel:  v.sales_channel || '',
   };
   if (S._apiReady) {
     try {
