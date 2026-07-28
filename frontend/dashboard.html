@@ -162,6 +162,14 @@ body.embedded .topbar{display:none}
 body.embedded .content{padding-top:8px}
 body.embedded #modules-section,body.embedded .footer{display:none}
 
+/* Embedded in the desktop Home iframe: the iframe itself already sits in
+   the app's full-width content area, so don't re-cap it — just keep a
+   normal content gutter instead of centering in a narrow column. */
+@media(min-width:768px){
+  body.embedded{max-width:100%}
+  body.embedded .content{padding-left:32px;padding-right:32px}
+}
+
 /* ═══════════════════════════════════════════════
    RESPONSIVE — Desktop ≥ 768 px
 ═══════════════════════════════════════════════ */
