@@ -929,6 +929,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div class="sheet-handle"></div>
     <div class="sheet-content" style="padding:16px 20px 28px;display:flex;flex-direction:column;gap:10px">
       <div class="form-label" style="font-size:14px;margin-bottom:2px">¿Qué quieres hacer?</div>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openSheetVenta()"><i class="ti ti-shopping-bag" style="color:var(--green-dark)"></i> Nueva venta</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openSheetProd()"><i class="ti ti-box" style="color:var(--primary)"></i> Agregar producto</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openSheetKit()"><i class="ti ti-stack-2" style="color:var(--amber-dark)"></i> Crear KIT</button>
       <button class="btn btn-outline" style="color:var(--text3)" onclick="closeSheet('sheet-fab')"><i class="ti ti-x"></i> Cancelar</button>
