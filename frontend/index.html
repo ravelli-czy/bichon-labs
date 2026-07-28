@@ -4433,6 +4433,8 @@ function openOrdenDetalle(id, pushURL = true) {
         <div style="font-size:18px;font-weight:900;margin-bottom:2px">${v.cliente||'Cliente'}</div>
         ${v.telefono?`<div style="font-size:13px;color:var(--text2);font-weight:600;margin-top:4px;display:flex;align-items:center;gap:5px"><i class="ti ti-phone" style="font-size:13px"></i>${v.telefono}</div>`:''}
         <div style="font-size:12px;color:var(--text3);font-weight:600;margin-top:5px">${v.fecha}</div>
+        ${v.payment_method?`<div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:5px;display:flex;align-items:center;gap:5px"><i class="ti ti-credit-card" style="font-size:13px;color:var(--text3)"></i>${v.payment_method}</div>`:''}
+        ${v.sales_channel?`<div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:3px;display:flex;align-items:center;gap:5px"><i class="ti ti-broadcast" style="font-size:13px;color:var(--text3)"></i>${v.sales_channel}</div>`:''}
         <div style="margin-top:8px">${statusBadge(v.status||'por_hacer')}</div>
         ${STATUS_NEXT[v.status]
           ? `<button class="advance-btn" onclick="event.stopPropagation();advanceOrderStatus('${v.id}')" style="margin-top:10px;width:100%;justify-content:center">
