@@ -313,12 +313,12 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .meson-cost-badge i{font-size:13px}
 .meson-create-btn{width:auto;flex-shrink:0;padding:11px 20px}
 .meson-advanced{padding:14px 16px;background:var(--green-light)}
-.meson-price-summary{background:var(--bg2);border:1.5px solid #a7f3d0;border-radius:var(--radius);padding:10px 14px;margin-bottom:14px}
-.meson-price-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;font-size:13px;color:var(--text2);font-weight:700}
-.meson-price-row:not(:last-child){border-bottom:1px solid var(--border)}
-.meson-price-row strong{font-size:14px;color:var(--text)}
-.meson-price-profit strong{color:var(--green-dark)}
-.meson-price-profit strong.negative{color:var(--red)}
+.kit-price-summary{background:var(--bg2);border:1.5px solid #a7f3d0;border-radius:var(--radius);padding:10px 14px;margin-bottom:14px}
+.kit-price-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;font-size:13px;color:var(--text2);font-weight:700}
+.kit-price-row:not(:last-child){border-bottom:1px solid var(--border)}
+.kit-price-row strong{font-size:14px;color:var(--text)}
+.kit-price-profit strong{color:var(--green-dark)}
+.kit-price-profit strong.negative{color:var(--red)}
 .meson-catalog{background:var(--bg2);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:14px}
 .meson-catalog-list{display:flex;flex-direction:column;gap:8px;max-height:520px;overflow-y:auto;padding-right:2px}
 .meson-catalog-item{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:12px;padding:9px 10px;cursor:grab;background:var(--bg2);transition:border-color .12s ease,background .12s ease}
@@ -659,10 +659,10 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
             <div class="form-group"><div class="form-label">Precio de venta</div><input class="form-input" type="number" id="meson-kit-price" placeholder="$0" oninput="mesonUpdatePriceSummary()"></div>
             <div class="form-group"><div class="form-label">SKU (opcional)</div><input class="form-input" id="meson-kit-sku" placeholder="KIT-001"></div>
           </div>
-          <div class="meson-price-summary" id="meson-price-summary">
-            <div class="meson-price-row"><span>Precio costo</span><strong id="meson-summary-cost">$0</strong></div>
-            <div class="meson-price-row"><span>Precio venta</span><strong id="meson-summary-price">$0</strong></div>
-            <div class="meson-price-row meson-price-profit"><span>Ganancia</span><strong id="meson-summary-profit">$0</strong></div>
+          <div class="kit-price-summary" id="meson-price-summary">
+            <div class="kit-price-row"><span>Precio costo</span><strong id="meson-summary-cost">$0</strong></div>
+            <div class="kit-price-row"><span>Precio venta</span><strong id="meson-summary-price">$0</strong></div>
+            <div class="kit-price-row kit-price-profit"><span>Ganancia</span><strong id="meson-summary-profit">$0</strong></div>
           </div>
           <div class="form-group">
             <div class="form-label">Grupos que determinan stock/disponibilidad <span style="font-weight:600;color:var(--text3)">(opcional)</span></div>
@@ -832,7 +832,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div id="kit-main-fields">
         <div class="form-group"><div class="form-label">Nombre del KIT *</div><input class="form-input" id="kit-name" placeholder="Ej: Desayuno Ejecutivo"></div>
         <div class="form-row">
-          <div class="form-group"><div class="form-label">Precio de venta</div><input class="form-input" type="number" id="kit-price" placeholder="$0"></div>
+          <div class="form-group"><div class="form-label">Precio de venta</div><input class="form-input" type="number" id="kit-price" placeholder="$0" oninput="updateKitPriceSummary()"></div>
           <div class="form-group"><div class="form-label">SKU (opcional)</div><input class="form-input" id="kit-sku-input" placeholder="KIT-001"></div>
         </div>
         <div class="divider"></div>
@@ -841,6 +841,11 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div class="add-row mt-2">
           <select id="kit-add-prod"><option value="">Seleccionar componente...</option></select>
           <button class="add-row-btn" onclick="addKitItem()"><i class="ti ti-plus"></i></button>
+        </div>
+        <div class="kit-price-summary mt-2" id="kit-price-summary">
+          <div class="kit-price-row"><span>Precio costo</span><strong id="kit-summary-cost">$0</strong></div>
+          <div class="kit-price-row"><span>Precio venta</span><strong id="kit-summary-price">$0</strong></div>
+          <div class="kit-price-row kit-price-profit"><span>Ganancia</span><strong id="kit-summary-profit">$0</strong></div>
         </div>
         <div class="divider"></div>
         <div class="form-group">
@@ -2664,8 +2669,36 @@ function renderKitItemsList() {
       <button class="btn-icon-sm" onclick="S.tempKitItems.splice(${idx},1);renderKitItemsList()"><i class="ti ti-trash"></i></button>
     </div>`;
   }).join('');
+  updateKitPriceSummary();
 }
 function adjKQ(idx,d){ S.tempKitItems[idx].qty=Math.max(1,S.tempKitItems[idx].qty+d); renderKitItemsList(); }
+
+// Costo de un componente del KIT — si es un sub-KIT, suma recursivamente el costo de sus propios componentes.
+function kitItemUnitCost(item) {
+  if (item.type === 'kit') {
+    const sub = S.kits.find(k => k.sku === item.sku && (k.warehouse_id||'') === '');
+    return sub ? kitComputeCostForItems(sub.items) : 0;
+  }
+  const p = S.products.find(x => x.sku === item.sku && (x.warehouse_id||'') === (item.warehouse_id||''))
+         || S.products.find(x => x.sku === item.sku);
+  return p ? (p.cost || 0) : 0;
+}
+function kitComputeCostForItems(items) {
+  return (items || []).reduce((sum, item) => sum + kitItemUnitCost(item) * item.qty, 0);
+}
+function updateKitPriceSummary() {
+  const costEl   = document.getElementById('kit-summary-cost');
+  const priceEl  = document.getElementById('kit-summary-price');
+  const profitEl = document.getElementById('kit-summary-profit');
+  if (!costEl || !priceEl || !profitEl) return;
+  const cost   = kitComputeCostForItems(S.tempKitItems);
+  const price  = parseFloat(document.getElementById('kit-price')?.value) || 0;
+  const profit = price - cost;
+  costEl.textContent   = fmt(cost);
+  priceEl.textContent  = fmt(price);
+  profitEl.textContent = fmt(profit);
+  profitEl.classList.toggle('negative', profit < 0);
+}
 // Mismo blindaje anti doble-submit que saveProd().
 function closeKitSheet() {
   S.editingKitSku = null;
@@ -2901,11 +2934,7 @@ function renderMesonTiles() {
 
 // Suma del costo (Precio Costo) de cada SKU del mesón × su cantidad.
 function mesonComputeCost() {
-  return S.mesonItems.reduce((sum, item) => {
-    const p = S.products.find(x => x.sku === item.sku && (x.warehouse_id || '') === (item.warehouse_id || ''))
-           || S.products.find(x => x.sku === item.sku);
-    return sum + (p ? (p.cost || 0) : 0) * item.qty;
-  }, 0);
+  return kitComputeCostForItems(S.mesonItems);
 }
 
 function mesonUpdatePriceSummary() {
