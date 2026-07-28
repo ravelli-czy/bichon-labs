@@ -197,7 +197,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 
 /* ADD ROW */
 .add-row{display:flex;gap:8px;align-items:center;background:var(--bg3);border-radius:var(--radius);padding:10px}
-.add-row select{flex:1;background:var(--bg2);border:1.5px solid var(--border);border-radius:8px;padding:9px 10px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:600;color:var(--text);outline:none;appearance:none}
+.add-row select{flex:1;min-width:0;background:var(--bg2);border:1.5px solid var(--border);border-radius:8px;padding:9px 10px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:600;color:var(--text);outline:none;appearance:none;text-overflow:ellipsis}
 .add-row-btn{width:38px;height:38px;background:var(--primary);border:none;border-radius:10px;cursor:pointer;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 
 /* VENTA ITEMS */
@@ -2428,19 +2428,27 @@ function editKit(sku, pushURL = true) {
   openSheet('sheet-kit');
   if (pushURL) history.pushState({ kitSku: sku }, '', '/' + _editPagePrefix() + '/kit/' + encodeURIComponent(sku) + '/edit');
 }
+// Trunca nombres largos en las opciones de <select> — un <select> nativo
+// ensancha su control según el option más largo, lo que provoca scroll
+// lateral en toda la página si no se acota el texto.
+function _truncLabel(s, max = 30) {
+  s = String(s || '');
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+}
+
 function _populateKitCompSelect(excludeSku) {
   const sel = document.getElementById('kit-add-prod');
   const whs = getWarehouses();
   const masterKits = S.kits.filter(k => (k.warehouse_id||'') === '' && k.sku !== excludeSku);
   const kitOpts = masterKits.length
     ? `<optgroup label="— KITs —">${masterKits.map(k =>
-        `<option value="kit:${k.sku}:">[KIT] ${k.name} (${kitStock(k)} disp.)</option>`
+        `<option value="kit:${k.sku}:">[KIT] ${_truncLabel(k.name)} (${kitStock(k)} disp.)</option>`
       ).join('')}</optgroup>`
     : '';
   const prodOpts = S.products.map(p => {
     const wh = whs.find(w => w.id === p.warehouse_id);
-    const wLabel = wh ? ` [${wh.name}]` : '';
-    return `<option value="prod:${p.sku}:${p.warehouse_id||''}">${p.name}${wLabel} (stock: ${p.stock})</option>`;
+    const wLabel = wh ? ` [${_truncLabel(wh.name, 14)}]` : '';
+    return `<option value="prod:${p.sku}:${p.warehouse_id||''}">${_truncLabel(p.name)}${wLabel} (stock: ${p.stock})</option>`;
   }).join('');
   sel.innerHTML = `<option value="">Seleccionar componente...</option>${kitOpts}<optgroup label="— Productos —">${prodOpts}</optgroup>`;
 }
@@ -3418,7 +3426,7 @@ function openSheetVenta(pushURL = true) {
     const stk = kitStock(k);
     const o = document.createElement('option');
     o.value = 'kit:' + k.sku + ':';
-    o.textContent = `[KIT] ${k.name} — ${fmt(k.price)} (${stk} disp.)`;
+    o.textContent = `[KIT] ${_truncLabel(k.name)} — ${fmt(k.price)} (${stk} disp.)`;
     sel.appendChild(o);
   });
   // Filter products by active warehouse
@@ -3428,10 +3436,10 @@ function openSheetVenta(pushURL = true) {
     .filter(p => (p.tipo==='producto'||p.tipo==='ambos') && (!ventaWid || (p.warehouse_id||'')===ventaWid))
     .forEach(p => {
       const wh = whs.find(w => w.id === p.warehouse_id);
-      const wLabel = wh ? ` [${wh.name}]` : '';
+      const wLabel = wh ? ` [${_truncLabel(wh.name, 14)}]` : '';
       const o = document.createElement('option');
       o.value = `prod:${p.sku}:${p.warehouse_id||''}`;
-      o.textContent = `[${tipoMeta[p.tipo].label}] ${p.name}${wLabel} — ${fmt(p.price)} (${p.stock} stk)`;
+      o.textContent = `[${tipoMeta[p.tipo].label}] ${_truncLabel(p.name)}${wLabel} — ${fmt(p.price)} (${p.stock} stk)`;
       sel.appendChild(o);
     });
 
@@ -4221,7 +4229,7 @@ function _populateDupSelect() {
   S.kits.filter(k => (k.warehouse_id||'') === '').forEach(k => {
     const o = document.createElement('option');
     o.value = 'kit:' + k.sku + ':';
-    o.textContent = `[KIT] ${k.name} — ${fmt(k.price)} (${kitStock(k)} disp.)`;
+    o.textContent = `[KIT] ${_truncLabel(k.name)} — ${fmt(k.price)} (${kitStock(k)} disp.)`;
     sel.appendChild(o);
   });
   const ventaWid = S.warehouseId || '';
@@ -4230,10 +4238,10 @@ function _populateDupSelect() {
     .filter(p => (p.tipo==='producto'||p.tipo==='ambos') && (!ventaWid || (p.warehouse_id||'')===ventaWid))
     .forEach(p => {
       const wh = whs.find(w => w.id === p.warehouse_id);
-      const wLabel = wh ? ` [${wh.name}]` : '';
+      const wLabel = wh ? ` [${_truncLabel(wh.name, 14)}]` : '';
       const o = document.createElement('option');
       o.value = `prod:${p.sku}:${p.warehouse_id||''}`;
-      o.textContent = `[${tipoMeta[p.tipo]?.label||p.tipo}] ${p.name}${wLabel} — ${fmt(p.price)} (${p.stock} stk)`;
+      o.textContent = `[${tipoMeta[p.tipo]?.label||p.tipo}] ${_truncLabel(p.name)}${wLabel} — ${fmt(p.price)} (${p.stock} stk)`;
       sel.appendChild(o);
     });
 }
