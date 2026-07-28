@@ -306,10 +306,19 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .meson-tile-qty{margin-top:8px;display:flex;align-items:center;justify-content:center;gap:6px}
 .meson-tile-qty button{width:20px;height:20px;border-radius:6px;border:1px solid #e3d3ae;background:#fff;cursor:pointer;font-size:12px;line-height:1;color:#5c3b1f}
 .meson-tile-qty span{font-size:12px;font-weight:800;min-width:14px;color:#3a342b}
-.meson-footer{padding:14px 16px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:14px}
+.meson-footer{padding:14px 16px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.meson-footer-info{display:flex;flex-direction:column;gap:5px;min-width:0}
 .meson-count{font-size:12px;color:var(--text3);font-weight:700}
+.meson-cost-badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;color:var(--amber-dark);background:var(--amber-light);padding:4px 10px;border-radius:20px;width:fit-content}
+.meson-cost-badge i{font-size:13px}
 .meson-create-btn{width:auto;flex-shrink:0;padding:11px 20px}
 .meson-advanced{padding:14px 16px;background:var(--green-light)}
+.meson-price-summary{background:var(--bg2);border:1.5px solid #a7f3d0;border-radius:var(--radius);padding:10px 14px;margin-bottom:14px}
+.meson-price-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;font-size:13px;color:var(--text2);font-weight:700}
+.meson-price-row:not(:last-child){border-bottom:1px solid var(--border)}
+.meson-price-row strong{font-size:14px;color:var(--text)}
+.meson-price-profit strong{color:var(--green-dark)}
+.meson-price-profit strong.negative{color:var(--red)}
 .meson-catalog{background:var(--bg2);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:14px}
 .meson-catalog-list{display:flex;flex-direction:column;gap:8px;max-height:520px;overflow-y:auto;padding-right:2px}
 .meson-catalog-item{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:12px;padding:9px 10px;cursor:grab;background:var(--bg2);transition:border-color .12s ease,background .12s ease}
@@ -638,14 +647,22 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
           <div class="meson-tiles" id="meson-tiles" style="display:none"></div>
         </div>
         <div class="meson-footer">
-          <span class="meson-count" id="meson-count">0 productos en el mesón</span>
+          <div class="meson-footer-info">
+            <span class="meson-count" id="meson-count">0 productos en el mesón</span>
+            <span class="meson-cost-badge" id="meson-cost-badge" style="display:none"><i class="ti ti-coin"></i> Costo del KIT: <strong id="meson-cost-value">$0</strong></span>
+          </div>
           <button class="btn btn-primary meson-create-btn" id="meson-create-btn" disabled onclick="mesonToggleAdvanced()"><i class="ti ti-check"></i> Crear nuevo kit</button>
         </div>
         <div class="meson-advanced" id="meson-advanced" style="display:none">
           <div class="form-label mb-2">Datos para completar la creación del KIT</div>
           <div class="form-row">
-            <div class="form-group"><div class="form-label">Precio de venta</div><input class="form-input" type="number" id="meson-kit-price" placeholder="$0"></div>
+            <div class="form-group"><div class="form-label">Precio de venta</div><input class="form-input" type="number" id="meson-kit-price" placeholder="$0" oninput="mesonUpdatePriceSummary()"></div>
             <div class="form-group"><div class="form-label">SKU (opcional)</div><input class="form-input" id="meson-kit-sku" placeholder="KIT-001"></div>
+          </div>
+          <div class="meson-price-summary" id="meson-price-summary">
+            <div class="meson-price-row"><span>Precio costo</span><strong id="meson-summary-cost">$0</strong></div>
+            <div class="meson-price-row"><span>Precio venta</span><strong id="meson-summary-price">$0</strong></div>
+            <div class="meson-price-row meson-price-profit"><span>Ganancia</span><strong id="meson-summary-profit">$0</strong></div>
           </div>
           <div class="form-group">
             <div class="form-label">Grupos que determinan stock/disponibilidad <span style="font-weight:600;color:var(--text3)">(opcional)</span></div>
@@ -2872,7 +2889,37 @@ function renderMesonTiles() {
     }).join('');
   }
   if (count) count.textContent = `${S.mesonItems.length} producto${S.mesonItems.length === 1 ? '' : 's'} en el mesón`;
+  const costBadge = document.getElementById('meson-cost-badge');
+  const costValue = document.getElementById('meson-cost-value');
+  if (costBadge && costValue) {
+    if (S.mesonItems.length) { costBadge.style.display = ''; costValue.textContent = fmt(mesonComputeCost()); }
+    else { costBadge.style.display = 'none'; }
+  }
   mesonUpdateCreateBtn();
+  mesonUpdatePriceSummary();
+}
+
+// Suma del costo (Precio Costo) de cada SKU del mesón × su cantidad.
+function mesonComputeCost() {
+  return S.mesonItems.reduce((sum, item) => {
+    const p = S.products.find(x => x.sku === item.sku && (x.warehouse_id || '') === (item.warehouse_id || ''))
+           || S.products.find(x => x.sku === item.sku);
+    return sum + (p ? (p.cost || 0) : 0) * item.qty;
+  }, 0);
+}
+
+function mesonUpdatePriceSummary() {
+  const costEl    = document.getElementById('meson-summary-cost');
+  const priceEl   = document.getElementById('meson-summary-price');
+  const profitEl  = document.getElementById('meson-summary-profit');
+  if (!costEl || !priceEl || !profitEl) return;
+  const cost   = mesonComputeCost();
+  const price  = parseFloat(document.getElementById('meson-kit-price')?.value) || 0;
+  const profit = price - cost;
+  costEl.textContent   = fmt(cost);
+  priceEl.textContent  = fmt(price);
+  profitEl.textContent = fmt(profit);
+  profitEl.classList.toggle('negative', profit < 0);
 }
 
 function mesonUpdateCreateBtn() {
@@ -2887,7 +2934,10 @@ function mesonToggleAdvanced() {
   if (!panel) return;
   const opening = panel.style.display === 'none';
   panel.style.display = opening ? '' : 'none';
-  if (opening) renderGroupChips('meson-groups-wrap', S.mesonGroups, 'toggleMesonGroup');
+  if (opening) {
+    renderGroupChips('meson-groups-wrap', S.mesonGroups, 'toggleMesonGroup');
+    mesonUpdatePriceSummary();
+  }
 }
 function toggleMesonGroup(id, el) {
   const i = S.mesonGroups.indexOf(id);
