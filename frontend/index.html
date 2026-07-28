@@ -4518,13 +4518,20 @@ function openOrderEditSheet(id, pushURL = true) {
   document.getElementById('oe-receptor').value = v.delivery?.receptor || '';
   document.getElementById('oe-receptor-tel').value = v.delivery?.receptor_telefono || '';
   document.getElementById('oe-dedicatoria').value = v.dedicatoria || '';
+  // overlay-orden sits behind this sheet in the DOM but shares the same
+  // z-index, so it paints on top and hides the edit form unless we hide it.
+  document.getElementById('overlay-orden').classList.add('hidden');
   openSheet('sheet-orden-edit');
   if (pushURL) history.pushState({ orderEdit: id }, '', '/orders/' + encodeURIComponent(id) + '/edit');
 }
 
 function closeOrderEditSheet() {
   closeSheet('sheet-orden-edit');
-  if (currentDetalleId) history.pushState({ order: currentDetalleId }, '', '/orders/' + currentDetalleId);
+  if (currentDetalleId) {
+    document.getElementById('overlay-orden').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    history.pushState({ order: currentDetalleId }, '', '/orders/' + currentDetalleId);
+  }
 }
 
 async function saveOrderEdit() {
@@ -4710,13 +4717,20 @@ function openDuplicarOrden(id, pushURL = true) {
   if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-copy"></i> Confirmar duplicado'; }
   _populateDupSelect();
   renderDuplicarItemsList();
+  // overlay-orden sits behind this sheet in the DOM but shares the same
+  // z-index, so it paints on top and hides the duplicate form unless we hide it.
+  document.getElementById('overlay-orden').classList.add('hidden');
   openSheet('sheet-duplicar');
   if (pushURL) history.pushState({ orderDup: id }, '', '/orders/' + encodeURIComponent(id) + '/duplicate');
 }
 
 function closeDuplicarSheet() {
   closeSheet('sheet-duplicar');
-  if (currentDetalleId) history.pushState({ order: currentDetalleId }, '', '/orders/' + currentDetalleId);
+  if (currentDetalleId) {
+    document.getElementById('overlay-orden').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    history.pushState({ order: currentDetalleId }, '', '/orders/' + currentDetalleId);
+  }
 }
 
 async function confirmarDuplicarOrden() {
