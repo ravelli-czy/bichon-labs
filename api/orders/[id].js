@@ -30,19 +30,24 @@ module.exports = async (req, res) => {
     if (req.method === 'PUT') {
       const {
         status, action, cliente, telefono, dedicatoria, receptor, receptor_telefono,
-        payment_method, sales_channel,
+        payment_method, sales_channel, delivery_update, total,
       } = req.body || {};
 
       // Update customer-facing info fields
       if (action === 'info') {
+        // Shallow-merged into the existing delivery jsonb — delivery_update only
+        // carries keys the user actually edited (method/date/slot/address), so
+        // receptor and anything else already stored is left untouched.
+        const deliveryPatch = { receptor: receptor ?? '', receptor_telefono: receptor_telefono ?? '', ...(delivery_update || {}) };
         const [row] = await sql`
           UPDATE orders SET
             cliente        = ${cliente ?? ''},
             telefono       = ${telefono ?? ''},
             dedicatoria    = ${dedicatoria ?? ''},
-            delivery       = delivery || ${JSON.stringify({ receptor: receptor ?? '', receptor_telefono: receptor_telefono ?? '' })}::jsonb,
+            delivery       = delivery || ${JSON.stringify(deliveryPatch)}::jsonb,
             payment_method = ${payment_method ?? ''},
             sales_channel  = ${sales_channel ?? ''},
+            total          = COALESCE(${total ?? null}, total),
             updated_by     = ${actor},
             updated_at     = NOW()
           WHERE id = ${id} AND tenant_id = ${tenantId}

@@ -891,7 +891,37 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div class="form-group"><div class="form-label">Medio de pago</div><select class="form-input" id="oe-payment-method"></select></div>
         <div class="form-group"><div class="form-label">Canal de venta</div><select class="form-input" id="oe-sales-channel"></select></div>
       </div>
-      <div class="form-label" style="margin-top:4px;margin-bottom:6px"><i class="ti ti-user-check" style="font-size:13px"></i> ¿Quién recibe?</div>
+
+      <div class="section-label" style="margin-top:14px"><i class="ti ti-truck-delivery"></i> Entrega</div>
+      <div class="form-group" id="oe-method-group">
+        <div class="form-label">Forma de entrega</div>
+        <div class="delivery-method-grid" id="oe-method-grid"></div>
+      </div>
+      <div id="oe-date-group" style="display:none">
+        <div class="form-group">
+          <div class="form-label">Selecciona la fecha</div>
+          <div class="venta-date-grid" id="oe-date-grid"></div>
+        </div>
+      </div>
+      <div id="oe-slot-group" style="display:none">
+        <div class="form-label mb-2">Elige el horario</div>
+        <div id="oe-slots-container"></div>
+      </div>
+      <div id="oe-address-group" style="display:none">
+        <div class="section-label" style="margin-top:10px"><i class="ti ti-map-pin"></i> Dirección de entrega</div>
+        <div class="form-group"><div class="form-label">Calle y número</div><input class="form-input" id="oe-addr-street" placeholder="Ej: Av. Providencia 1234"></div>
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Ciudad</div><input class="form-input" id="oe-addr-city" placeholder="Santiago"></div>
+          <div class="form-group"><div class="form-label">Región</div><input class="form-input" id="oe-addr-region" placeholder="RM"></div>
+        </div>
+        <div class="form-group"><div class="form-label">Referencia</div><input class="form-input" id="oe-addr-notes" placeholder="Depto, piso, timbre..."></div>
+      </div>
+      <div class="total-bar mt-3">
+        <span style="font-size:14px;font-weight:800;color:var(--green-dark)">Total de la orden</span>
+        <span style="font-size:20px;font-weight:900;color:var(--green-dark)" id="oe-total">$0</span>
+      </div>
+
+      <div class="form-label" style="margin-top:14px;margin-bottom:6px"><i class="ti ti-user-check" style="font-size:13px"></i> ¿Quién recibe?</div>
       <div class="form-row">
         <div class="form-group"><input class="form-input" id="oe-receptor" placeholder="Ej: María González"></div>
         <div class="form-group"><input class="form-input" id="oe-receptor-tel" placeholder="+56 9..." type="tel"></div>
@@ -4593,11 +4623,204 @@ function openOrderEditSheet(id, pushURL = true) {
   document.getElementById('oe-receptor').value = v.delivery?.receptor || '';
   document.getElementById('oe-receptor-tel').value = v.delivery?.receptor_telefono || '';
   document.getElementById('oe-dedicatoria').value = v.dedicatoria || '';
+  _oePopulateDelivery(v);
   // overlay-orden sits behind this sheet in the DOM but shares the same
   // z-index, so it paints on top and hides the edit form unless we hide it.
   document.getElementById('overlay-orden').classList.add('hidden');
   openSheet('sheet-orden-edit');
   if (pushURL) history.pushState({ orderEdit: id }, '', '/orders/' + encodeURIComponent(id) + '/edit');
+}
+
+// ── EDITAR ORDEN: entrega (forma de entrega / fecha / horario / dirección) ──
+// El pedido no guarda el id de la forma de entrega original, así que se
+// resuelve el local por warehouse_id (o el único local, o el que tenga un
+// método del mismo tipo) para poder mostrar sus métodos/slots configurados.
+function _oeResolveLocale(order) {
+  const locales = getLocalesData() || [];
+  if (!locales.length) return null;
+  if (order.warehouse_id) {
+    const byWh = locales.find(l => (l.warehouses||[]).some(w => w.id === order.warehouse_id));
+    if (byWh) return byWh;
+  }
+  if (locales.length === 1) return locales[0];
+  return locales.find(l => (l.delivery_methods||[]).some(m => m.type === order.delivery?.method_type)) || locales[0];
+}
+
+function _oePopulateDelivery(v) {
+  const d = v.delivery || {};
+  S._oeLocale = _oeResolveLocale(v);
+  S._oeDeliveryTouched = false;
+  const loc = S._oeLocale;
+  const mData = loc?.delivery_methods?.find(m => m.type === d.method_type);
+  S._oeDelivery = {
+    method_type: d.method_type || null,
+    method_id: mData ? mData.id : null,
+    method_label: d.method_label || null,
+    method_base_cost: mData?.base_cost || 0,
+    method_free_above: mData?.free_above || null,
+    date: d.date || null,
+    slot_id: null,
+    slot_from: d.slot_from || null,
+    slot_to: d.slot_to || null,
+    slot_label: d.slot_label || null,
+    slot_cost: 0,
+  };
+  oeRenderMethods();
+  document.getElementById('oe-addr-street').value = d.address_street || '';
+  document.getElementById('oe-addr-city').value   = d.address_city || '';
+  document.getElementById('oe-addr-region').value = d.address_region || '';
+  document.getElementById('oe-addr-notes').value  = d.address_notes || '';
+  const needsAddr = mData ? !!mData.requires_address : d.method_type === 'home_delivery';
+  document.getElementById('oe-address-group').style.display = (d.address_street || needsAddr) ? '' : 'none';
+  document.getElementById('oe-slot-group').style.display = 'none';
+  if (S._oeDelivery.method_type) {
+    document.getElementById('oe-date-group').style.display = '';
+    oeRenderDateGrid();
+  } else {
+    document.getElementById('oe-date-group').style.display = 'none';
+  }
+  document.getElementById('oe-total').textContent = fmt(v.total || 0);
+}
+
+function oeRenderMethods() {
+  const grid = document.getElementById('oe-method-grid');
+  if (!grid) return;
+  const loc = S._oeLocale;
+  const methods = (loc && loc.delivery_methods && loc.delivery_methods.length) ? loc.delivery_methods : null;
+  if (!methods) {
+    grid.innerHTML = DM_DEFAULTS.map(m =>
+      `<div class="method-option${S._oeDelivery.method_type===m.type?' selected':''}" onclick="oeSelectMethod('${m.type}',this)">
+        <div class="method-option-icon"><i class="ti ${DM_ICONS[m.type]||'ti-truck-delivery'}"></i></div>
+        <div class="method-option-body">
+          <div class="method-option-name">${m.label}</div>
+          <div class="method-option-desc">${m.type==='store_pickup'?'Gratis':'Consultar costo'}</div>
+        </div>
+      </div>`).join('');
+    return;
+  }
+  grid.innerHTML = methods.map(m => {
+    const nm = (m.name||'').replace(/'/g,'&#39;');
+    const cost = m.base_cost > 0
+      ? fmt(m.base_cost) + ' de envío' + (m.free_above ? ' · Gratis sobre ' + fmt(m.free_above) : '')
+      : 'Gratis' + (m.free_above ? ' · Gratis sobre ' + fmt(m.free_above) : '');
+    const isSel = S._oeDelivery.method_id ? String(S._oeDelivery.method_id) === String(m.id) : S._oeDelivery.method_type === m.type;
+    return `<div class="method-option${isSel?' selected':''}" onclick="oeSelectMethod('${m.type}',this,'${m.id}','${nm}')">
+      <div class="method-option-icon"><i class="ti ${DM_ICONS[m.type]||'ti-truck-delivery'}"></i></div>
+      <div class="method-option-body">
+        <div class="method-option-name">${m.name}</div>
+        <div class="method-option-desc">${cost}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function oeSelectMethod(type, el, methodId, methodName) {
+  document.querySelectorAll('#oe-method-grid .method-option').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  S._oeDeliveryTouched = true;
+  S._oeDelivery.method_type  = type;
+  S._oeDelivery.method_id    = methodId || null;
+  S._oeDelivery.method_label = methodName || METHOD_LABELS[type];
+  S._oeDelivery.date = null;
+  S._oeDelivery.slot_id = null;
+  S._oeDelivery.slot_cost = 0;
+  const loc = S._oeLocale;
+  const mData = loc?.delivery_methods?.find(m => String(m.id) === String(methodId));
+  S._oeDelivery.method_base_cost  = mData?.base_cost || 0;
+  S._oeDelivery.method_free_above = mData?.free_above || null;
+  oeRenderDateGrid();
+  document.getElementById('oe-date-group').style.display = '';
+  document.getElementById('oe-slot-group').style.display = 'none';
+  const needsAddr = mData ? !!mData.requires_address : type === 'home_delivery';
+  document.getElementById('oe-address-group').style.display = needsAddr ? '' : 'none';
+  oeUpdateTotal();
+}
+
+function oeRenderDateGrid() {
+  const container = document.getElementById('oe-date-grid');
+  if (!container) return;
+  const loc = S._oeLocale;
+  const methodId   = S._oeDelivery.method_id;
+  const methodType = S._oeDelivery.method_type;
+  let methodSlots = [];
+  if (loc && loc.delivery_methods) {
+    const m = methodId
+      ? loc.delivery_methods.find(x => String(x.id) === String(methodId))
+      : loc.delivery_methods.find(x => x.type === methodType);
+    if (m) methodSlots = m.slots || [];
+  }
+  const today = new Date();
+  let html = '';
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(today); d.setDate(today.getDate() + i);
+    const dow     = d.getDay();
+    const dateStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    const hasSlots = methodSlots.length ? methodSlots.some(sl => Number(sl.day_of_week) === dow) : true;
+    const isSel   = S._oeDelivery.date === dateStr;
+    html += `<div class="venta-date-btn ${hasSlots?'has-slots':'no-slots'}${isSel?' selected':''}" ${hasSlots?`onclick="oeSelectDate('${dateStr}',${dow})"`:''}>
+      <div class="date-day">${DOW_SHORT[dow]}</div>
+      <div class="date-num">${d.getDate()}</div>
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+function oeSelectDate(dateStr, dow) {
+  S._oeDeliveryTouched = true;
+  S._oeDelivery.date      = dateStr;
+  S._oeDelivery.slot_id   = null;
+  S._oeDelivery.slot_cost = 0;
+  oeRenderDateGrid();
+  const slots = getConfiguredSlots(S._oeDelivery.method_type, dateStr, S._oeDelivery.method_id, dow);
+  const container = document.getElementById('oe-slots-container');
+  if (!slots.length) {
+    container.innerHTML = '<div style="font-size:12px;color:var(--text3);font-weight:600;padding:8px 0">Sin horarios disponibles para este día</div>';
+    document.getElementById('oe-slot-group').style.display = '';
+    oeUpdateTotal();
+    return;
+  }
+  container.innerHTML = slots.map(s =>
+    `<div class="slot-option" id="oe-slot-${s.id}" onclick="oeSelectSlot('${s.id}','${s.time_from}','${s.time_to}','${(s.label||'').replace(/'/g,"&#39;")}',${s.extra_cost||0})">
+      <div>
+        <div class="slot-time-range">${String(s.time_from).slice(0,5)} – ${String(s.time_to).slice(0,5)}</div>
+        <div class="slot-label-text">${s.label||''}</div>
+      </div>
+      <div class="slot-info-right">
+        ${(s.extra_cost||0)>0
+          ? `<div class="slot-cost-text">+${fmt(s.extra_cost)}</div>`
+          : `<div class="slot-cost-text" style="color:var(--green-dark)">Sin costo extra</div>`}
+        ${s.max_orders ? `<div style="font-size:10px;color:var(--text3);font-weight:600">${s.max_orders} máx</div>` : ''}
+      </div>
+    </div>`).join('');
+  document.getElementById('oe-slot-group').style.display = '';
+  oeUpdateTotal();
+}
+
+function oeSelectSlot(id, from, to, label, extraCost) {
+  S._oeDeliveryTouched = true;
+  document.querySelectorAll('#oe-slots-container .slot-option').forEach(p => p.classList.remove('selected'));
+  const el = document.getElementById('oe-slot-'+id);
+  if (el) el.classList.add('selected');
+  Object.assign(S._oeDelivery, { slot_id:id, slot_from:from, slot_to:to, slot_label:label, slot_cost: extraCost||0 });
+  oeUpdateTotal();
+}
+
+function _oeShippingCost() {
+  const d = S._oeDelivery || {};
+  const v = S.ventas.find(o => o.id === S._editingOrderId);
+  const itemsTotal = v ? (v.items||[]).reduce((s,i)=>s+i.qty*i.price,0) : 0;
+  const baseCost  = d.method_base_cost || 0;
+  const freeAbove = d.method_free_above;
+  const shippingBase = (freeAbove && itemsTotal >= freeAbove) ? 0 : baseCost;
+  return shippingBase + (d.slot_cost || 0);
+}
+
+function oeUpdateTotal() {
+  const el = document.getElementById('oe-total');
+  const v  = S.ventas.find(o => o.id === S._editingOrderId);
+  if (!el || !v) return;
+  const itemsTotal = (v.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
+  el.textContent = fmt(itemsTotal + _oeShippingCost());
 }
 
 function closeOrderEditSheet() {
@@ -4612,6 +4835,13 @@ function closeOrderEditSheet() {
 async function saveOrderEdit() {
   const id = S._editingOrderId;
   if (!id) return;
+  if (S._oeDeliveryTouched) {
+    if (!S._oeDelivery.method_type) { toast('⚠️ Selecciona una forma de entrega'); return; }
+    if (!S._oeDelivery.date)        { toast('⚠️ Selecciona la fecha de entrega'); return; }
+    if (!S._oeDelivery.slot_id)     { toast('⚠️ Selecciona un horario'); return; }
+    const addrVisible = document.getElementById('oe-address-group').style.display !== 'none';
+    if (addrVisible && !document.getElementById('oe-addr-street').value.trim()) { toast('⚠️ Ingresa la dirección de entrega'); return; }
+  }
   const payload = {
     action:            'info',
     cliente:           document.getElementById('oe-cliente').value.trim() || 'Cliente',
@@ -4622,13 +4852,35 @@ async function saveOrderEdit() {
     payment_method:    document.getElementById('oe-payment-method').value || '',
     sales_channel:     document.getElementById('oe-sales-channel').value || '',
   };
+  if (S._oeDeliveryTouched) {
+    const d = S._oeDelivery;
+    payload.delivery_update = {
+      method_type:  d.method_type,
+      method_label: d.method_label,
+      date:         d.date,
+      slot_label:   d.slot_label,
+      slot_from:    d.slot_from,
+      slot_to:      d.slot_to,
+      slot_cost:    _oeShippingCost(),
+    };
+    if (document.getElementById('oe-address-group').style.display !== 'none') {
+      payload.delivery_update.address_street = document.getElementById('oe-addr-street').value.trim();
+      payload.delivery_update.address_city   = document.getElementById('oe-addr-city').value.trim();
+      payload.delivery_update.address_region = document.getElementById('oe-addr-region').value.trim();
+      payload.delivery_update.address_notes  = document.getElementById('oe-addr-notes').value.trim();
+    }
+    const v = S.ventas.find(o => o.id === id);
+    const itemsTotal = v ? (v.items||[]).reduce((s,i)=>s+i.qty*i.price,0) : 0;
+    payload.total = itemsTotal + _oeShippingCost();
+  }
   const applyLocal = (updated) => {
     const idx = S.ventas.findIndex(o => o.id === id);
     if (idx >= 0) S.ventas[idx] = updated || {
       ...S.ventas[idx],
       cliente: payload.cliente, telefono: payload.telefono, dedicatoria: payload.dedicatoria,
       payment_method: payload.payment_method, sales_channel: payload.sales_channel,
-      delivery: { ...(S.ventas[idx].delivery||{}), receptor: payload.receptor, receptor_telefono: payload.receptor_telefono },
+      total: payload.total ?? S.ventas[idx].total,
+      delivery: { ...(S.ventas[idx].delivery||{}), receptor: payload.receptor, receptor_telefono: payload.receptor_telefono, ...(payload.delivery_update||{}) },
     };
   };
   if (S._apiReady) {
