@@ -36,8 +36,8 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;max-
 
 /* HERO CARD */
 .hero{border-radius:var(--r-xl);background:linear-gradient(135deg,#4c3fff 0%,#7c5cff 60%,#a87aff 100%);padding:22px 20px 18px;position:relative;overflow:hidden;box-shadow:0 8px 32px rgba(91,79,255,.35)}
-.hero::before{content:'';position:absolute;top:-40px;right:-40px;width:160px;height:160px;background:rgba(255,255,255,.07);border-radius:50%}
-.hero::after{content:'';position:absolute;bottom:-30px;right:20px;width:100px;height:100px;background:rgba(255,255,255,.05);border-radius:50%}
+.hero::before{content:'';position:absolute;top:-40px;right:-40px;width:160px;height:160px;background:rgba(255,255,255,.07);border-radius:50%;pointer-events:none}
+.hero::after{content:'';position:absolute;bottom:-30px;right:20px;width:100px;height:100px;background:rgba(255,255,255,.05);border-radius:50%;pointer-events:none}
 .hero-greeting{font-size:13px;font-weight:700;color:rgba(255,255,255,.75);margin-bottom:4px;display:flex;align-items:center;gap:5px}
 .hero-date{font-size:12px;color:rgba(255,255,255,.55);font-weight:600;margin-bottom:18px}
 .hero-metrics{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
@@ -252,7 +252,7 @@ body.embedded #modules-section,body.embedded .footer{display:none}
         <div class="hero-chip" id="chip-orders"><i class="ti ti-shopping-bag"></i> <span id="chip-orders-n">0</span> órdenes</div>
         <div class="hero-chip" id="chip-alerts" style="display:none"><i class="ti ti-alert-triangle"></i> <span id="chip-alerts-n">0</span> alertas</div>
       </div>
-      <button onclick="viewSalesKPIs()" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;border:none;font-family:'Nunito',sans-serif;font-size:12px;font-weight:800;cursor:pointer;background:rgba(255,255,255,.92);color:var(--primary);white-space:nowrap">
+      <button onclick="viewSalesKPIs()" style="position:relative;z-index:2;display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;border:none;font-family:'Nunito',sans-serif;font-size:12px;font-weight:800;cursor:pointer;background:rgba(255,255,255,.92);color:var(--primary);white-space:nowrap">
         Ver más <i class="ti ti-arrow-right" style="font-size:13px"></i>
       </button>
     </div>
