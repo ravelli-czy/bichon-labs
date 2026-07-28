@@ -326,9 +326,11 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .meson-catalog-item.dragging{opacity:.4}
 .meson-swatch{width:32px;height:32px;border-radius:9px;flex-shrink:0;background:linear-gradient(160deg,#8b6242,#6b4726);display:flex;align-items:center;justify-content:center}
 .meson-swatch i{color:#fff;font-size:15px}
+.meson-swatch-kit{background:linear-gradient(160deg,var(--amber),var(--amber-dark))}
 .meson-item-info{flex:1;min-width:0}
 .meson-item-name{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .meson-item-sku{font-size:10.5px;color:var(--text3);font-weight:600}
+.meson-kit-badge{display:inline-block;font-size:9px;font-weight:800;color:var(--amber-dark);background:var(--amber-light);padding:1px 5px;border-radius:5px;margin-right:4px;vertical-align:middle}
 .meson-add-btn{width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--amber-dark);font-size:15px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center}
 .meson-add-btn:hover{background:var(--amber);color:#fff;border-color:var(--amber)}
 .stock-tag{font-size:9.5px;font-weight:700;padding:3px 7px;border-radius:20px;white-space:nowrap;flex-shrink:0}
@@ -2836,12 +2838,24 @@ function renderMesonCatalog() {
   if (!el) return;
   const q = (document.getElementById('meson-search')?.value || '').trim().toLowerCase();
   const whs = getWarehouses();
-  const list = S.products.filter(p => !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
-  if (!list.length) {
-    el.innerHTML = `<div class="empty-state"><i class="ti ti-search-off"></i><p>Sin resultados</p></div>`;
-    return;
-  }
-  el.innerHTML = list.map(p => {
+  const masterKits = S.kits.filter(k => (k.warehouse_id || '') === '');
+  const matches = (name, sku) => !q || (name||'').toLowerCase().includes(q) || (sku||'').toLowerCase().includes(q);
+  const kitCards = masterKits.filter(k => matches(k.name, k.sku)).map(k => {
+    const inStock = kitStock(k) > 0;
+    const skuEsc = k.sku.replace(/'/g, "&#39;");
+    const nameEsc = (k.name || '').replace(/'/g, "&#39;").replace(/"/g, '&quot;');
+    return `<div class="meson-catalog-item" draggable="true"
+        ondragstart="mesonDragStart(event,'${skuEsc}','','kit')" ondragend="mesonDragEnd(event)">
+      <div class="meson-swatch meson-swatch-kit"><i class="ti ti-stack-2"></i></div>
+      <div class="meson-item-info">
+        <div class="meson-item-name" title="${nameEsc}"><span class="meson-kit-badge">KIT</span>${k.name}</div>
+        <div class="meson-item-sku">${k.sku}</div>
+      </div>
+      <span class="stock-tag ${inStock ? 'in' : 'out'}">${inStock ? 'En stock' : 'Sin stock'}</span>
+      <button class="meson-add-btn" title="Agregar al mesón" onclick="mesonAddToMeson('${skuEsc}','','kit')"><i class="ti ti-plus"></i></button>
+    </div>`;
+  });
+  const prodCards = S.products.filter(p => matches(p.name, p.sku)).map(p => {
     const wh = whs.find(w => w.id === p.warehouse_id);
     const whLabel = wh ? ` · ${_truncLabel(wh.name, 14)}` : '';
     const inStock = (p.stock || 0) > 0;
@@ -2849,20 +2863,22 @@ function renderMesonCatalog() {
     const widEsc = (p.warehouse_id || '').replace(/'/g, "&#39;");
     const nameEsc = (p.name || '').replace(/'/g, "&#39;").replace(/"/g, '&quot;');
     return `<div class="meson-catalog-item" draggable="true"
-        ondragstart="mesonDragStart(event,'${skuEsc}','${widEsc}')" ondragend="mesonDragEnd(event)">
+        ondragstart="mesonDragStart(event,'${skuEsc}','${widEsc}','')" ondragend="mesonDragEnd(event)">
       <div class="meson-swatch"><i class="ti ti-box"></i></div>
       <div class="meson-item-info">
         <div class="meson-item-name" title="${nameEsc}">${p.name}</div>
         <div class="meson-item-sku">${p.sku}${whLabel}</div>
       </div>
       <span class="stock-tag ${inStock ? 'in' : 'out'}">${inStock ? 'En stock' : 'Sin stock'}</span>
-      <button class="meson-add-btn" title="Agregar al mesón" onclick="mesonAddToMeson('${skuEsc}','${widEsc}')"><i class="ti ti-plus"></i></button>
+      <button class="meson-add-btn" title="Agregar al mesón" onclick="mesonAddToMeson('${skuEsc}','${widEsc}','')"><i class="ti ti-plus"></i></button>
     </div>`;
-  }).join('');
+  });
+  const cards = [...kitCards, ...prodCards];
+  el.innerHTML = cards.length ? cards.join('') : `<div class="empty-state"><i class="ti ti-search-off"></i><p>Sin resultados</p></div>`;
 }
 
-function mesonDragStart(e, sku, warehouseId) {
-  e.dataTransfer.setData('text/plain', JSON.stringify({ sku, wid: warehouseId || '' }));
+function mesonDragStart(e, sku, warehouseId, type) {
+  e.dataTransfer.setData('text/plain', JSON.stringify({ sku, wid: warehouseId || '', type: type || '' }));
   e.currentTarget.classList.add('dragging');
 }
 function mesonDragEnd(e) { e.currentTarget.classList.remove('dragging'); }
@@ -2874,14 +2890,17 @@ function mesonDrop(e) {
   const raw = e.dataTransfer.getData('text/plain');
   if (!raw) return;
   try {
-    const { sku, wid } = JSON.parse(raw);
-    if (sku) mesonAddToMeson(sku, wid || '');
+    const { sku, wid, type } = JSON.parse(raw);
+    if (sku) mesonAddToMeson(sku, wid || '', type || '');
   } catch (err) { /* ignore malformed drop payload */ }
 }
 
-function mesonAddToMeson(sku, warehouseId = '') {
-  const existing = S.mesonItems.find(i => i.sku === sku && (i.warehouse_id || '') === (warehouseId || ''));
+function mesonAddToMeson(sku, warehouseId = '', type = '') {
+  const existing = type === 'kit'
+    ? S.mesonItems.find(i => i.type === 'kit' && i.sku === sku)
+    : S.mesonItems.find(i => !i.type && i.sku === sku && (i.warehouse_id || '') === (warehouseId || ''));
   if (existing) existing.qty++;
+  else if (type === 'kit') S.mesonItems.push({ sku, qty: 1, type: 'kit' });
   else S.mesonItems.push({ sku, qty: 1, warehouse_id: warehouseId || '' });
   renderMesonTiles();
 }
@@ -2906,13 +2925,20 @@ function renderMesonTiles() {
     empty.style.display = 'none';
     tiles.style.display = 'grid';
     tiles.innerHTML = S.mesonItems.map((item, idx) => {
-      const p = S.products.find(x => x.sku === item.sku && (x.warehouse_id || '') === (item.warehouse_id || ''))
-             || S.products.find(x => x.sku === item.sku);
-      const name = p ? p.name : item.sku;
+      let name;
+      if (item.type === 'kit') {
+        const k = S.kits.find(x => x.sku === item.sku && (x.warehouse_id || '') === '');
+        name = k ? k.name : item.sku;
+      } else {
+        const p = S.products.find(x => x.sku === item.sku && (x.warehouse_id || '') === (item.warehouse_id || ''))
+               || S.products.find(x => x.sku === item.sku);
+        name = p ? p.name : item.sku;
+      }
       const nameEsc = String(name).replace(/"/g, '&quot;');
+      const kitBadge = item.type === 'kit' ? '<span class="meson-kit-badge">KIT</span>' : '';
       return `<div class="meson-tile" title="${nameEsc}">
         <div class="meson-tile-remove" onclick="mesonRemoveItem(${idx})">✕</div>
-        <div class="meson-tile-name">${_truncLabel(name, 18)}</div>
+        <div class="meson-tile-name">${kitBadge}${_truncLabel(name, 18)}</div>
         <div class="meson-tile-qty">
           <button onclick="mesonAdjQty(${idx},-1)">−</button>
           <span>${item.qty}</span>
@@ -2984,7 +3010,9 @@ async function mesonConfirmCreate() {
   try {
     const price = parseFloat(document.getElementById('meson-kit-price').value) || 0;
     const customSku = document.getElementById('meson-kit-sku').value.trim() || undefined;
-    const items = S.mesonItems.map(i => ({ sku: i.sku, qty: i.qty, warehouse_id: i.warehouse_id || '' }));
+    const items = S.mesonItems.map(i => i.type === 'kit'
+      ? { sku: i.sku, qty: i.qty, type: 'kit' }
+      : { sku: i.sku, qty: i.qty, warehouse_id: i.warehouse_id || '' });
     const stock_group_ids = (S.mesonGroups || []).slice();
     let newKit;
     if (S._apiReady) {
