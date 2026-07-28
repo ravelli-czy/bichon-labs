@@ -311,7 +311,7 @@ body.embedded .embed-page-header{display:block}
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-header">
-      <div class="sheet-title"><i class="ti ti-building-warehouse" style="color:var(--teal-dark)"></i> Nuevo almacén</div>
+      <div class="sheet-title" id="wh-sheet-title"><i class="ti ti-building-warehouse" style="color:var(--teal-dark)"></i> Nuevo almacén</div>
       <button class="sheet-close" onclick="closeSheet('sheet-wh')"><i class="ti ti-x"></i></button>
     </div>
     <div class="sheet-content">
@@ -465,6 +465,8 @@ const S = {
   locales: [],
   currentLocal: null,
   editingLocalId: null,
+  editingWhLocalId: null,
+  editingWhId: null,
   editingDmLocalId: null,
   editingDmId: null,
   editingSlotMethodId: null,
@@ -561,6 +563,10 @@ function renderConfig() {
             <div class="wh-name">${w.name}</div>
             <div class="wh-desc">${w.description||'Sin descripción'}</div>
           </div>
+          <button class="btn btn-sm" style="background:var(--bg3);color:var(--text2);border:none;width:auto;flex-shrink:0"
+            onclick="editWarehouse('${loc.id}','${w.id}')" title="Editar almacén">
+            <i class="ti ti-pencil"></i>
+          </button>
           <button class="btn btn-sm" style="background:var(--red-light);color:var(--red);border:none;width:auto;flex-shrink:0"
             onclick="deleteWarehouse('${loc.id}','${w.id}')" title="Eliminar almacén">
             <i class="ti ti-trash"></i>
@@ -795,9 +801,25 @@ async function saveLocal() {
 }
 
 function openWHSheet(localId) {
+  S.editingWhLocalId = null;
+  S.editingWhId = null;
+  document.getElementById('wh-sheet-title').innerHTML = '<i class="ti ti-building-warehouse" style="color:var(--teal-dark)"></i> Nuevo almacén';
   document.getElementById('wh-local-id').value = localId;
   document.getElementById('wh-name').value = '';
   document.getElementById('wh-desc').value = '';
+  openSheet('sheet-wh');
+}
+function editWarehouse(localId, whId) {
+  const loc = S.locales.find(l => l.id === localId);
+  if (!loc) return;
+  const w = loc.warehouses.find(x => x.id === whId);
+  if (!w) return;
+  S.editingWhLocalId = localId;
+  S.editingWhId = whId;
+  document.getElementById('wh-sheet-title').innerHTML = '<i class="ti ti-pencil" style="color:var(--teal-dark)"></i> Editar almacén';
+  document.getElementById('wh-local-id').value = localId;
+  document.getElementById('wh-name').value = w.name;
+  document.getElementById('wh-desc').value = w.description || '';
   openSheet('sheet-wh');
 }
 async function saveWarehouse() {
@@ -806,10 +828,28 @@ async function saveWarehouse() {
   const localId = document.getElementById('wh-local-id').value;
   const loc = S.locales.find(l => l.id === localId);
   if (!loc) return;
+  const description = document.getElementById('wh-desc').value;
+  if (S.editingWhId) {
+    try {
+      const updated = await apiFetch(`/api/locales?id=${encodeURIComponent(localId)}&resource=warehouses&whId=${encodeURIComponent(S.editingWhId)}`, {
+        method:'PUT', body: JSON.stringify({ name, description }),
+      });
+      const idx = loc.warehouses.findIndex(w => w.id === S.editingWhId);
+      if (idx >= 0) loc.warehouses[idx] = updated;
+      if (S.currentLocal?.id === localId) S.currentLocal = loc;
+      S.editingWhId = null; S.editingWhLocalId = null;
+      closeSheet('sheet-wh');
+      renderConfig();
+      toast('✅ Almacén actualizado');
+    } catch(e) {
+      toast('❌ Error al actualizar el almacén: ' + e.message);
+    }
+    return;
+  }
   try {
     const wh = await apiFetch(`/api/locales?id=${encodeURIComponent(localId)}&resource=warehouses`, {
       method:'POST',
-      body: JSON.stringify({ name, description: document.getElementById('wh-desc').value }),
+      body: JSON.stringify({ name, description }),
     });
     loc.warehouses.push(wh);
     if (S.currentLocal?.id === localId) S.currentLocal = loc;
