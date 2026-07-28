@@ -278,6 +278,54 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .mhc-name{font-size:14px;font-weight:900}
 .mhc-desc{font-size:11px;color:var(--text3);font-weight:600;line-height:1.4}
 
+/* MESÓN CREATIVO — hub banner (entry point from Catálogo) */
+.meson-hub-banner{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,var(--amber-light),var(--bg2) 70%);border:1.5px solid #fde9c4;border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:14px;text-decoration:none;color:var(--text);box-shadow:var(--shadow);transition:transform .15s}
+.meson-hub-banner:active{transform:scale(.98)}
+.meson-hub-icon{width:44px;height:44px;border-radius:12px;background:var(--amber-light);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.meson-hub-icon i{font-size:22px;color:var(--amber-dark)}
+.meson-hub-text{flex:1;min-width:0}
+.meson-hub-title{font-size:14px;font-weight:900}
+.meson-hub-desc{font-size:11.5px;color:var(--text3);font-weight:600;margin-top:1px}
+.meson-hub-arrow{font-size:18px;color:var(--text3);flex-shrink:0}
+
+/* MESÓN CREATIVO — builder page */
+.meson-layout{display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:900px){.meson-layout{grid-template-columns:1.4fr 1fr;align-items:start}}
+.meson-panel{background:var(--bg2);border-radius:var(--radius-lg);box-shadow:var(--shadow);overflow:hidden}
+.meson-header{padding:14px 16px;border-bottom:1px solid var(--border)}
+.meson-header input{font-size:16px;font-weight:800}
+.meson-surface{position:relative;min-height:220px;padding:16px;background:linear-gradient(160deg,#8b6242,#6b4726 60%,#5c3b1f);transition:box-shadow .15s ease}
+.meson-surface.drag-over{box-shadow:inset 0 0 0 3px var(--green)}
+.meson-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:190px;color:rgba(255,255,255,.8);font-size:13px;text-align:center;border:2px dashed rgba(255,255,255,.35);border-radius:14px;padding:20px}
+.meson-empty strong{display:block;font-size:14px;margin-bottom:4px;color:#fff}
+.meson-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px}
+.meson-tile{position:relative;background:#f7efdf;border:1px solid #e3d3ae;border-radius:14px;padding:12px 10px 10px;box-shadow:0 3px 6px rgba(0,0,0,.18);text-align:center}
+.meson-tile-remove{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:#3a342b;color:#fff;font-size:11px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.meson-tile-remove:hover{background:var(--red)}
+.meson-tile-name{font-size:11.5px;font-weight:700;line-height:1.25;min-height:28px;display:flex;align-items:center;justify-content:center;color:#3a342b}
+.meson-tile-qty{margin-top:8px;display:flex;align-items:center;justify-content:center;gap:6px}
+.meson-tile-qty button{width:20px;height:20px;border-radius:6px;border:1px solid #e3d3ae;background:#fff;cursor:pointer;font-size:12px;line-height:1;color:#5c3b1f}
+.meson-tile-qty span{font-size:12px;font-weight:800;min-width:14px;color:#3a342b}
+.meson-footer{padding:14px 16px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:14px}
+.meson-count{font-size:12px;color:var(--text3);font-weight:700}
+.meson-create-btn{width:auto;flex-shrink:0;padding:11px 20px}
+.meson-advanced{padding:14px 16px;background:var(--green-light)}
+.meson-catalog{background:var(--bg2);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:14px}
+.meson-catalog-list{display:flex;flex-direction:column;gap:8px;max-height:520px;overflow-y:auto;padding-right:2px}
+.meson-catalog-item{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:12px;padding:9px 10px;cursor:grab;background:var(--bg2);transition:border-color .12s ease,background .12s ease}
+.meson-catalog-item:hover{border-color:var(--amber);background:var(--amber-light)}
+.meson-catalog-item.dragging{opacity:.4}
+.meson-swatch{width:32px;height:32px;border-radius:9px;flex-shrink:0;background:linear-gradient(160deg,#8b6242,#6b4726);display:flex;align-items:center;justify-content:center}
+.meson-swatch i{color:#fff;font-size:15px}
+.meson-item-info{flex:1;min-width:0}
+.meson-item-name{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meson-item-sku{font-size:10.5px;color:var(--text3);font-weight:600}
+.meson-add-btn{width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--amber-dark);font-size:15px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.meson-add-btn:hover{background:var(--amber);color:#fff;border-color:var(--amber)}
+.stock-tag{font-size:9.5px;font-weight:700;padding:3px 7px;border-radius:20px;white-space:nowrap;flex-shrink:0}
+.stock-tag.in{background:var(--green-light);color:var(--green-dark)}
+.stock-tag.out{background:var(--bg3);color:var(--text3)}
+
 /* OVERLAY PAGE */
 .overlay-page{position:fixed;inset:0;background:var(--bg);z-index:150;display:flex;flex-direction:column;overflow:hidden;max-width:480px;margin:0 auto}
 .overlay-page.hidden{display:none}
@@ -553,6 +601,14 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <div class="page" id="page-catalogo">
     <div class="section-title">Catálogo</div>
     <div class="section-sub">Categorías, marcas y maestro de productos</div>
+    <a href="javascript:void(0)" class="meson-hub-banner" onclick="showPage('meson', navTabEl('meson'), true)">
+      <div class="meson-hub-icon"><i class="ti ti-hammer"></i></div>
+      <div class="meson-hub-text">
+        <div class="meson-hub-title">🔨 Mesón Creativo</div>
+        <div class="meson-hub-desc">Arma un nuevo KIT arrastrando SKUs existentes</div>
+      </div>
+      <i class="ti ti-chevron-right meson-hub-arrow"></i>
+    </a>
     <div class="tabs">
       <div class="tab active" id="ctab-categorias" onclick="switchCatTab('categorias',this)">Categorías</div>
       <div class="tab" id="ctab-marcas" onclick="switchCatTab('marcas',this)">Marcas</div>
@@ -563,6 +619,50 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="tab" id="ctab-canales" onclick="switchCatTab('canales',this)">Canales</div>
     </div>
     <div id="cat-content" style="margin-top:10px"></div>
+  </div>
+
+  <!-- MESÓN CREATIVO -->
+  <div class="page" id="page-meson">
+    <div class="section-title">🔨 Mesón Creativo</div>
+    <div class="section-sub">Arma un nuevo producto combinando SKUs existentes — arrástralos al mesón o toca "+".</div>
+    <div class="meson-layout">
+      <section class="meson-panel">
+        <div class="meson-header">
+          <input class="form-input" id="meson-kit-name" placeholder="Nombre del nuevo producto o kit…" oninput="mesonUpdateCreateBtn()">
+        </div>
+        <div class="meson-surface" id="meson-surface" ondragover="mesonDragOver(event)" ondragleave="mesonDragLeave(event)" ondrop="mesonDrop(event)">
+          <div class="meson-empty" id="meson-empty">
+            <strong>Tu mesón está vacío</strong>
+            Arrastra productos del catálogo hacia acá para armar el kit (o toca "+" en la lista)
+          </div>
+          <div class="meson-tiles" id="meson-tiles" style="display:none"></div>
+        </div>
+        <div class="meson-footer">
+          <span class="meson-count" id="meson-count">0 productos en el mesón</span>
+          <button class="btn btn-primary meson-create-btn" id="meson-create-btn" disabled onclick="mesonToggleAdvanced()"><i class="ti ti-check"></i> Crear nuevo kit</button>
+        </div>
+        <div class="meson-advanced" id="meson-advanced" style="display:none">
+          <div class="form-label mb-2">Datos para completar la creación del KIT</div>
+          <div class="form-row">
+            <div class="form-group"><div class="form-label">Precio de venta</div><input class="form-input" type="number" id="meson-kit-price" placeholder="$0"></div>
+            <div class="form-group"><div class="form-label">SKU (opcional)</div><input class="form-input" id="meson-kit-sku" placeholder="KIT-001"></div>
+          </div>
+          <div class="form-group">
+            <div class="form-label">Grupos que determinan stock/disponibilidad <span style="font-weight:600;color:var(--text3)">(opcional)</span></div>
+            <div id="meson-groups-wrap" class="chip-group-wrap"></div>
+          </div>
+          <button class="btn btn-green mt-2" onclick="mesonConfirmCreate()"><i class="ti ti-check"></i> Confirmar creación del KIT</button>
+        </div>
+      </section>
+      <aside class="meson-catalog">
+        <div class="form-label mb-2">Catálogo de SKUs</div>
+        <div class="search-bar">
+          <i class="ti ti-search" style="color:var(--text3);font-size:20px"></i>
+          <input type="text" id="meson-search" placeholder="Buscar por nombre o código…" oninput="renderMesonCatalog()">
+        </div>
+        <div class="meson-catalog-list" id="meson-catalog-list"></div>
+      </aside>
+    </div>
   </div>
 
 </div>
@@ -1161,6 +1261,8 @@ const S = {
   tempProdGroups: [],
   tempKitGroups: [],
   tempKitItems: [],
+  mesonItems: [],
+  mesonGroups: [],
   _addKitSkuMode: false,
   _addKitSkuData: null,
   _editingOrderId: null,
@@ -1488,7 +1590,7 @@ function sellable() {
 }
 
 // URL map for nav tabs
-const PAGE_URLS = { home:'/', inventory:'/inventory', catalogo:'/catalog', ventas:'/orders', locales:'/locales', delivery:'/delivery-hub' };
+const PAGE_URLS = { home:'/', inventory:'/inventory', catalogo:'/catalog', ventas:'/orders', locales:'/locales', delivery:'/delivery-hub', meson:'/meson-creativo' };
 
 function showPage(id, el, pushURL = true) {
   // Close order detail overlay when navigating to any tab
@@ -1529,6 +1631,7 @@ function showPage(id, el, pushURL = true) {
   }
   if (id==='ventas')    renderVentas();
   if (id==='catalogo')  renderCatalogo();
+  if (id==='meson')     { renderMesonCatalog(); renderMesonTiles(); }
   // Lazy-load iframe pages
   if (id === 'locales') {
     const ifr = document.getElementById('iframe-locales');
@@ -2673,6 +2776,165 @@ async function deleteKitSku(kitSku, warehouseId) {
   renderKits(); renderHome();
   if (S.currentPage==='catalogo') renderCatalogo();
   toast('🗑️ SKU de KIT eliminado');
+}
+
+// ── MESÓN CREATIVO — armar KIT por drag & drop ─
+// Reutiliza el mismo endpoint/validaciones de creación de KIT (POST /api/kits)
+// que usa el formulario tradicional (sheet-kit / saveKit).
+function renderMesonCatalog() {
+  const el = document.getElementById('meson-catalog-list');
+  if (!el) return;
+  const q = (document.getElementById('meson-search')?.value || '').trim().toLowerCase();
+  const whs = getWarehouses();
+  const list = S.products.filter(p => !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state"><i class="ti ti-search-off"></i><p>Sin resultados</p></div>`;
+    return;
+  }
+  el.innerHTML = list.map(p => {
+    const wh = whs.find(w => w.id === p.warehouse_id);
+    const whLabel = wh ? ` · ${_truncLabel(wh.name, 14)}` : '';
+    const inStock = (p.stock || 0) > 0;
+    const skuEsc = p.sku.replace(/'/g, "&#39;");
+    const widEsc = (p.warehouse_id || '').replace(/'/g, "&#39;");
+    const nameEsc = (p.name || '').replace(/'/g, "&#39;").replace(/"/g, '&quot;');
+    return `<div class="meson-catalog-item" draggable="true"
+        ondragstart="mesonDragStart(event,'${skuEsc}','${widEsc}')" ondragend="mesonDragEnd(event)">
+      <div class="meson-swatch"><i class="ti ti-box"></i></div>
+      <div class="meson-item-info">
+        <div class="meson-item-name" title="${nameEsc}">${p.name}</div>
+        <div class="meson-item-sku">${p.sku}${whLabel}</div>
+      </div>
+      <span class="stock-tag ${inStock ? 'in' : 'out'}">${inStock ? 'En stock' : 'Sin stock'}</span>
+      <button class="meson-add-btn" title="Agregar al mesón" onclick="mesonAddToMeson('${skuEsc}','${widEsc}')"><i class="ti ti-plus"></i></button>
+    </div>`;
+  }).join('');
+}
+
+function mesonDragStart(e, sku, warehouseId) {
+  e.dataTransfer.setData('text/plain', JSON.stringify({ sku, wid: warehouseId || '' }));
+  e.currentTarget.classList.add('dragging');
+}
+function mesonDragEnd(e) { e.currentTarget.classList.remove('dragging'); }
+function mesonDragOver(e) { e.preventDefault(); document.getElementById('meson-surface')?.classList.add('drag-over'); }
+function mesonDragLeave() { document.getElementById('meson-surface')?.classList.remove('drag-over'); }
+function mesonDrop(e) {
+  e.preventDefault();
+  document.getElementById('meson-surface')?.classList.remove('drag-over');
+  const raw = e.dataTransfer.getData('text/plain');
+  if (!raw) return;
+  try {
+    const { sku, wid } = JSON.parse(raw);
+    if (sku) mesonAddToMeson(sku, wid || '');
+  } catch (err) { /* ignore malformed drop payload */ }
+}
+
+function mesonAddToMeson(sku, warehouseId = '') {
+  const existing = S.mesonItems.find(i => i.sku === sku && (i.warehouse_id || '') === (warehouseId || ''));
+  if (existing) existing.qty++;
+  else S.mesonItems.push({ sku, qty: 1, warehouse_id: warehouseId || '' });
+  renderMesonTiles();
+}
+function mesonRemoveItem(idx) { S.mesonItems.splice(idx, 1); renderMesonTiles(); }
+function mesonAdjQty(idx, delta) {
+  const item = S.mesonItems[idx];
+  if (!item) return;
+  item.qty += delta;
+  if (item.qty <= 0) { mesonRemoveItem(idx); return; }
+  renderMesonTiles();
+}
+
+function renderMesonTiles() {
+  const empty = document.getElementById('meson-empty');
+  const tiles = document.getElementById('meson-tiles');
+  const count = document.getElementById('meson-count');
+  if (!empty || !tiles) return;
+  if (!S.mesonItems.length) {
+    empty.style.display = 'flex';
+    tiles.style.display = 'none';
+  } else {
+    empty.style.display = 'none';
+    tiles.style.display = 'grid';
+    tiles.innerHTML = S.mesonItems.map((item, idx) => {
+      const p = S.products.find(x => x.sku === item.sku && (x.warehouse_id || '') === (item.warehouse_id || ''))
+             || S.products.find(x => x.sku === item.sku);
+      const name = p ? p.name : item.sku;
+      const nameEsc = String(name).replace(/"/g, '&quot;');
+      return `<div class="meson-tile" title="${nameEsc}">
+        <div class="meson-tile-remove" onclick="mesonRemoveItem(${idx})">✕</div>
+        <div class="meson-tile-name">${_truncLabel(name, 18)}</div>
+        <div class="meson-tile-qty">
+          <button onclick="mesonAdjQty(${idx},-1)">−</button>
+          <span>${item.qty}</span>
+          <button onclick="mesonAdjQty(${idx},1)">+</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  if (count) count.textContent = `${S.mesonItems.length} producto${S.mesonItems.length === 1 ? '' : 's'} en el mesón`;
+  mesonUpdateCreateBtn();
+}
+
+function mesonUpdateCreateBtn() {
+  const btn = document.getElementById('meson-create-btn');
+  if (!btn) return;
+  const name = document.getElementById('meson-kit-name')?.value.trim();
+  btn.disabled = !(name && S.mesonItems.length > 0);
+}
+
+function mesonToggleAdvanced() {
+  const panel = document.getElementById('meson-advanced');
+  if (!panel) return;
+  const opening = panel.style.display === 'none';
+  panel.style.display = opening ? '' : 'none';
+  if (opening) renderGroupChips('meson-groups-wrap', S.mesonGroups, 'toggleMesonGroup');
+}
+function toggleMesonGroup(id, el) {
+  const i = S.mesonGroups.indexOf(id);
+  if (i === -1) S.mesonGroups.push(id); else S.mesonGroups.splice(i, 1);
+  el.classList.toggle('selected');
+}
+
+async function mesonConfirmCreate() {
+  const btn = document.querySelector('#meson-advanced .btn-green');
+  if (btn?.disabled) return;
+  const name = document.getElementById('meson-kit-name').value.trim();
+  if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
+  if (!S.mesonItems.length) { toast('⚠️ Agrega al menos un SKU al mesón'); return; }
+  if (btn) btn.disabled = true;
+  try {
+    const price = parseFloat(document.getElementById('meson-kit-price').value) || 0;
+    const customSku = document.getElementById('meson-kit-sku').value.trim() || undefined;
+    const items = S.mesonItems.map(i => ({ sku: i.sku, qty: i.qty, warehouse_id: i.warehouse_id || '' }));
+    const stock_group_ids = (S.mesonGroups || []).slice();
+    let newKit;
+    if (S._apiReady) {
+      newKit = await apiFetch('/api/kits', { method: 'POST', body: JSON.stringify({ name, price, items, sku: customSku, stock_group_ids }) });
+    } else {
+      const masterCount = S.kits.filter(k => (k.warehouse_id || '') === '').length;
+      const sku = customSku || 'KIT-' + String(masterCount + 1).padStart(3, '0');
+      newKit = { sku, name, price, items, warehouse_id: '', stock_group_ids };
+    }
+    S.kits.push(newKit);
+    mesonReset();
+    toast('✅ KIT creado — stock calculado automáticamente');
+    renderHome();
+    if (S.currentPage === 'inventory' && S.invTab === 'kits') renderKits();
+    if (S.currentPage === 'catalogo') renderCatalogo();
+  } catch (e) {
+    toast('❌ ' + (e.message || 'No se pudo crear el KIT'));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+function mesonReset() {
+  S.mesonItems = [];
+  S.mesonGroups = [];
+  document.getElementById('meson-kit-name').value = '';
+  document.getElementById('meson-kit-price').value = '';
+  document.getElementById('meson-kit-sku').value = '';
+  document.getElementById('meson-advanced').style.display = 'none';
+  renderMesonTiles();
 }
 
 // ── FORM: VENTA ───────────────────────────────
@@ -5275,6 +5537,7 @@ function applyRoute() {
 
   if (path === '/inventory')    { showPage('inventory',    navTabEl('inventory'),  false); return; }
   if (path === '/catalog')      { showPage('catalogo',     navTabEl('catalogo'),   false); return; }
+  if (path === '/meson-creativo') { showPage('meson',      navTabEl('meson'),      false); return; }
   if (path === '/ventas' || path === '/orders') {
                                   showPage('ventas',        navTabEl('ventas'),     false); return; }
   if (path === '/locales')      { showPage('locales',       navTabEl('locales'),    false); return; }
