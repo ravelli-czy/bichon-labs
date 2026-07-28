@@ -5290,6 +5290,31 @@ function _heatColorForValue(t) {
   return stops[stops.length-1].c;
 }
 
+// Proyección Web Mercator (coordenadas de mundo en píxeles, base 256px/tile)
+// — necesaria para que los puntos calcen con los tiles reales de OSM.
+function _mercWorldX(lng, zoom) { return (lng+180)/360 * Math.pow(2,zoom) * 256; }
+function _mercWorldY(lat, zoom) {
+  const latRad = lat * Math.PI/180;
+  return (1 - Math.log(Math.tan(Math.PI/4 + latRad/2))/Math.PI)/2 * Math.pow(2,zoom) * 256;
+}
+// Zoom más alto que deja el bbox (con margen) dentro del canvas.
+function _pickHeatmapZoom(minLat, maxLat, minLng, maxLng, w, h) {
+  for (let z = 16; z >= 2; z--) {
+    const bw = _mercWorldX(maxLng,z) - _mercWorldX(minLng,z);
+    const bh = _mercWorldY(minLat,z) - _mercWorldY(maxLat,z);
+    if (bw <= w*0.92 && bh <= h*0.92) return z;
+  }
+  return 2;
+}
+function _loadTileImage(z, x, y) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload  = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+  });
+}
+
 async function _renderSalesHeatmap() {
   const statusEl = document.getElementById('rpt-heatmap-status');
   const canvas = document.getElementById('rpt-heatmap-canvas');
@@ -5373,47 +5398,60 @@ async function _renderSalesHeatmap() {
   const lats = points.map(p=>p.lat), lngs = points.map(p=>p.lng);
   let minLat = Math.min(...lats), maxLat = Math.max(...lats);
   let minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-  const padLat = Math.max((maxLat-minLat)*0.15, 0.02);
-  const padLng = Math.max((maxLng-minLng)*0.15, 0.02);
+  const padLat = Math.max((maxLat-minLat)*0.3, 0.03);
+  const padLng = Math.max((maxLng-minLng)*0.3, 0.03);
   minLat -= padLat; maxLat += padLat; minLng -= padLng; maxLng += padLng;
-  const project = (lat,lng) => ({
-    x: (lng-minLng)/((maxLng-minLng)||1) * w,
-    y: (1-(lat-minLat)/((maxLat-minLat)||1)) * h,
-  });
 
-  const heatCanvas = document.createElement('canvas');
-  heatCanvas.width = w; heatCanvas.height = h;
-  const hctx = heatCanvas.getContext('2d');
+  const zoom = _pickHeatmapZoom(minLat, maxLat, minLng, maxLng, w, h);
+  const centerWX = (_mercWorldX(minLng,zoom) + _mercWorldX(maxLng,zoom)) / 2;
+  const centerWY = (_mercWorldY(maxLat,zoom) + _mercWorldY(minLat,zoom)) / 2;
+  const originWX = centerWX - w/2, originWY = centerWY - h/2;
+  const project = (lat,lng) => ({ x: _mercWorldX(lng,zoom)-originWX, y: _mercWorldY(lat,zoom)-originWY });
+
+  // Cargar y dibujar los tiles de OpenStreetMap que cubren el canvas
+  const n = Math.pow(2, zoom);
+  const tileMinX = Math.floor(originWX/256),   tileMaxX = Math.floor((originWX+w)/256);
+  const tileMinY = Math.floor(originWY/256),   tileMaxY = Math.floor((originWY+h)/256);
+  const tileJobs = [];
+  let tileCount = 0;
+  for (let tx = tileMinX; tx <= tileMaxX; tx++) {
+    for (let ty = tileMinY; ty <= tileMaxY; ty++) {
+      if (tx < 0 || ty < 0 || tx >= n || ty >= n) continue;
+      if (++tileCount > 64) continue; // límite razonable de tiles por carga
+      const px = tx*256 - originWX, py = ty*256 - originWY;
+      tileJobs.push(
+        _loadTileImage(zoom, tx, ty).then(img => { if (img) ctx.drawImage(img, px, py, 256, 256); })
+      );
+    }
+  }
+  await Promise.all(tileJobs);
+
+  // Halos de calor — gradientes directos (sin leer píxeles del canvas, así
+  // no importa si las imágenes de los tiles permiten o no acceso por CORS)
   const maxWeight = Math.max(...points.map(p=>p.weight));
   points.forEach(p => {
     const {x,y} = project(p.lat,p.lng);
     const radius = 28 + Math.min(p.weight,10)*6;
-    const intensity = 0.35 + 0.5*(p.weight/maxWeight);
-    const grad = hctx.createRadialGradient(x,y,0,x,y,radius);
-    grad.addColorStop(0, `rgba(0,0,0,${intensity})`);
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    hctx.fillStyle = grad;
-    hctx.beginPath(); hctx.arc(x,y,radius,0,Math.PI*2); hctx.fill();
+    const t = 0.35 + 0.5*(p.weight/maxWeight);
+    const [r,g,b,a] = _heatColorForValue(t);
+    const grad = ctx.createRadialGradient(x,y,0,x,y,radius);
+    grad.addColorStop(0, `rgba(${r},${g},${b},${(a/255).toFixed(2)})`);
+    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2); ctx.fill();
   });
-
-  const heatData = hctx.getImageData(0,0,w,h);
-  const out = ctx.getImageData(0,0,w,h);
-  for (let i = 0; i < heatData.data.length; i += 4) {
-    const density = heatData.data[i+3] / 255;
-    if (density < 0.02) continue;
-    const [r,g,b,a] = _heatColorForValue(Math.min(density,1));
-    const f = a/255;
-    out.data[i]   = Math.round(r*f + out.data[i]  *(1-f));
-    out.data[i+1] = Math.round(g*f + out.data[i+1]*(1-f));
-    out.data[i+2] = Math.round(b*f + out.data[i+2]*(1-f));
-  }
-  ctx.putImageData(out, 0, 0);
 
   [...points].sort((a,b)=>b.weight-a.weight).slice(0,5).forEach(p => {
     const {x,y} = project(p.lat,p.lng);
     ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
   });
+
+  // Atribución obligatoria por los términos de uso de los tiles de OSM
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  ctx.fillRect(0, h-16, 150, 16);
+  ctx.fillStyle = '#5a5b7a'; ctx.font = '10px Nunito, sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('© OpenStreetMap contributors', 4, h-5);
 }
 
 // ── URL ROUTER ────────────────────────────────
