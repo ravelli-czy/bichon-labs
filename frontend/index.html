@@ -4790,8 +4790,10 @@ window.addEventListener('message', async (e) => {
 
 // ── REPORTES DE VENTAS ────────────────────────
 function openReportesPage(pushURL = true) {
-  renderReportesPage();
+  // Mostrar el overlay ANTES de renderizar: Chart.js necesita que el canvas
+  // ya tenga tamaño real (display:none = 0×0 mientras estuvo con .hidden).
   openSheet('page-reportes');
+  renderReportesPage();
   if (pushURL) history.pushState({ reportes: true }, '', '/reportes');
 }
 function closeReportesPage() {
@@ -4986,8 +4988,10 @@ function renderReportesPage() {
         <canvas id="rpt-heatmap-canvas" style="width:100%;height:100%;display:block"></canvas>
       </div>
     </div>`;
-  _renderReportesCharts(data);
-  _renderSalesHeatmap();
+  // Los KPI tiles ya quedaron visibles arriba pase lo que pase; un error en
+  // los charts o en el mapa no debe dejar la página entera en blanco.
+  try { _renderReportesCharts(data); } catch(e) { console.warn('[Reportes] charts failed:', e.message); }
+  try { _renderSalesHeatmap(); } catch(e) { console.warn('[Reportes] heatmap failed:', e.message); }
 }
 
 // ── HEATMAP DE VENTAS POR UBICACIÓN ───────────
