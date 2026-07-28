@@ -562,12 +562,15 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <i class="ti ti-search" style="color:var(--text3);font-size:20px"></i>
       <input type="text" id="ventas-search-input" placeholder="Buscar por cliente, ID, ítem..." oninput="S.ventasQ=this.value;renderVentas()">
     </div>
-    <div class="tabs" style="margin-bottom:12px" id="ventas-status-tabs">
-      <div class="tab active" onclick="setVentasFilter(null,this)">Todas</div>
-      <div class="tab" onclick="setVentasFilter('por_hacer',this)">Por hacer</div>
-      <div class="tab" onclick="setVentasFilter('en_preparacion',this)">En prep.</div>
-      <div class="tab" onclick="setVentasFilter('lista_para_enviar',this)">P/ enviar</div>
-      <div class="tab" onclick="setVentasFilter('entregada',this)">Entregadas</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <div class="tabs" style="margin-bottom:0;flex:1" id="ventas-status-tabs">
+        <div class="tab active" onclick="setVentasFilter(null,this)">Todas</div>
+        <div class="tab" onclick="setVentasFilter('por_hacer',this)">Por hacer</div>
+        <div class="tab" onclick="setVentasFilter('en_preparacion',this)">En prep.</div>
+        <div class="tab" onclick="setVentasFilter('lista_para_enviar',this)">P/ enviar</div>
+        <div class="tab" onclick="setVentasFilter('entregada',this)">Entregadas</div>
+      </div>
+      <button id="ventas-sort-btn" class="icon-btn" onclick="toggleVentasSort()" style="flex-shrink:0"><i class="ti ti-sort-descending"></i></button>
     </div>
     <div id="ventas-content"></div>
     <!-- floating batch-print bar -->
@@ -1302,6 +1305,7 @@ const S = {
   invQ: '',
   ventasQ: '',
   ventasFilter: null,
+  ventasSort: 'desc', // 'desc' = más nuevas primero (default), 'asc' = más antiguas primero
   _ventasSelectMode: false,
   _selectedOrders: new Set(),
   currentPage: 'home',
@@ -2045,6 +2049,25 @@ function setVentasFilter(status, el) {
   renderVentas();
 }
 
+// Orden cronológico de una venta — usa created_at si está disponible (API),
+// y cae al número de correlativo del ID (ORD-0001 → 1) si no (datos offline).
+function _ventaSortKey(v) {
+  if (v.created_at) return new Date(v.created_at).getTime();
+  const m = String(v.id || '').match(/(\d+)$/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+function toggleVentasSort() {
+  S.ventasSort = S.ventasSort === 'asc' ? 'desc' : 'asc';
+  renderVentas();
+}
+function _updateVentasSortBtn() {
+  const btn = document.getElementById('ventas-sort-btn');
+  if (!btn) return;
+  const desc = S.ventasSort !== 'asc';
+  btn.innerHTML = `<i class="ti ${desc ? 'ti-sort-descending' : 'ti-sort-ascending'}"></i>`;
+  btn.title = desc ? 'Más nuevas primero — clic para invertir' : 'Más antiguas primero — clic para invertir';
+}
+
 function renderVentas() {
   const el = document.getElementById('ventas-content');
   const { prods, kits } = sellable();
@@ -2052,8 +2075,11 @@ function renderVentas() {
 
   let html = `<div class="info-box green"><i class="ti ti-info-circle"></i> Disponibles para venta: <strong>${totalSellable} ítems</strong> (${kits.length} KIT${kits.length!==1?'s':''} + ${prods.length} producto${prods.length!==1?'s':''}). Los ${S.products.filter(p=>p.tipo==='insumo').length} insumos no aparecen aquí.</div>`;
 
-  // Fix #23: apply search and status filter
-  let ventas = [...S.ventas].reverse();
+  _updateVentasSortBtn();
+  let ventas = [...S.ventas].sort((a, b) => {
+    const ka = _ventaSortKey(a), kb = _ventaSortKey(b);
+    return S.ventasSort === 'asc' ? ka - kb : kb - ka;
+  });
   if (S.ventasFilter) ventas = ventas.filter(v => (v.status||'por_hacer') === S.ventasFilter);
   if (S.ventasQ) {
     const q = S.ventasQ.toLowerCase();
@@ -3838,7 +3864,7 @@ const DELIVERY_SLOTS = {
 
 function openSheetVenta(pushURL = true) {
   S.tempVentaItems = [];
-  S.tempVentaDelivery = { method_type:null, method_id:null, method_label:null, date:null, slot_id:null, slot_from:null, slot_to:null, slot_label:null, slot_cost:0 };
+  S.tempVentaDelivery = { method_type:null, method_id:null, method_label:null, method_base_cost:0, method_free_above:null, date:null, slot_id:null, slot_from:null, slot_to:null, slot_label:null, slot_cost:0 };
 
   const sel = document.getElementById('venta-add-item');
   sel.innerHTML = '<option value="">Agregar producto o KIT...</option>';
@@ -3902,6 +3928,23 @@ function selectDeliveryMethod(type, el, methodId, methodName) {
   const mData  = locale?.delivery_methods?.find(m => String(m.id) === String(methodId));
   const needsAddr = mData ? !!mData.requires_address : type === 'home_delivery';
   document.getElementById('venta-address-group').style.display = needsAddr ? '' : 'none';
+  // Base shipping cost of the method itself (e.g. "$2.000 de envío"), separate
+  // from any per-slot extra cost — both must be reflected in the total.
+  S.tempVentaDelivery.method_base_cost   = mData?.base_cost || 0;
+  S.tempVentaDelivery.method_free_above  = mData?.free_above || null;
+  renderVentaItemsList();
+}
+
+// Shipping cost for the venta being built: the delivery method's base cost
+// (waived once the item subtotal reaches free_above, if configured) plus any
+// extra cost from the selected time slot.
+function ventaShippingCost() {
+  const d = S.tempVentaDelivery;
+  const itemsTotal = S.tempVentaItems.reduce((s,i) => s + i.qty*i.price, 0);
+  const baseCost  = d.method_base_cost || 0;
+  const freeAbove = d.method_free_above;
+  const shippingBase = (freeAbove && itemsTotal >= freeAbove) ? 0 : baseCost;
+  return shippingBase + (d.slot_cost || 0);
 }
 
 const DOW_SHORT = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
@@ -3942,6 +3985,7 @@ function selectVentaDate(dateStr, dow) {
   S.tempVentaDelivery.slot_id   = null;
   S.tempVentaDelivery.slot_cost = 0;
   renderVentaDateGrid(); // update highlight
+  renderVentaItemsList(); // refresh total (slot extra cost just reset)
   const slots = getConfiguredSlots(S.tempVentaDelivery.method_type, dateStr, S.tempVentaDelivery.method_id, dow);
   const container = document.getElementById('venta-slots-container');
   if (!slots.length) {
@@ -4050,12 +4094,12 @@ function addVentaItem() {
 }
 function renderVentaItemsList() {
   const itemsTotal = S.tempVentaItems.reduce((s,i) => s+i.qty*i.price, 0);
-  const slotCost   = S.tempVentaDelivery.slot_cost || 0;
-  const total      = itemsTotal + slotCost;
+  const shipping   = ventaShippingCost();
+  const total      = itemsTotal + shipping;
   document.getElementById('venta-total').textContent = fmt(total);
   const shippingEl = document.getElementById('venta-shipping-line');
-  if (shippingEl) shippingEl.style.display = slotCost > 0 ? '' : 'none';
-  if (shippingEl && slotCost > 0) shippingEl.textContent = 'incl. ' + fmt(slotCost) + ' envío';
+  if (shippingEl) shippingEl.style.display = shipping > 0 ? '' : 'none';
+  if (shippingEl && shipping > 0) shippingEl.textContent = 'incl. ' + fmt(shipping) + ' envío';
   document.getElementById('venta-items-list').innerHTML = S.tempVentaItems.map((item,idx) => `
     <div class="venta-item-row">
       ${tipoBadge(item.tipo)}
@@ -4321,7 +4365,8 @@ async function saveVenta() {
     if (!document.getElementById('venta-addr-city').value.trim())   { toast('⚠️ Ingresa la ciudad'); return; }
   }
 
-  const total = S.tempVentaItems.reduce((s,i) => s+i.qty*i.price, 0) + (S.tempVentaDelivery.slot_cost || 0);
+  const shipping = ventaShippingCost();
+  const total = S.tempVentaItems.reduce((s,i) => s+i.qty*i.price, 0) + shipping;
   const delivery = {
     method_type:  d.method_type,
     method_label: d.method_label || METHOD_LABELS[d.method_type],
@@ -4329,7 +4374,7 @@ async function saveVenta() {
     slot_label:   d.slot_label,
     slot_from:    d.slot_from,
     slot_to:      d.slot_to,
-    slot_cost:    d.slot_cost || 0,
+    slot_cost:    shipping,
     receptor:          document.getElementById('venta-receptor').value.trim(),
     receptor_telefono: document.getElementById('venta-receptor-tel').value.trim(),
   };
