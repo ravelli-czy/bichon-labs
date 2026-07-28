@@ -288,6 +288,8 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .overlay-scroll{flex:1;overflow-y:auto;padding:16px;padding-bottom:32px}
 .overlay-topbar{background:var(--bg2);padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);box-shadow:var(--shadow);flex-shrink:0}
 .overlay-topbar-title{font-weight:900;font-size:17px;flex:1}
+.page-form-wrap{max-width:640px;margin:0 auto}
+.overlay-page .sheet-footer{flex-shrink:0}
 
 /* ═══════════════════════════════════════════════
    RESPONSIVE — Desktop ≥ 768 px
@@ -575,14 +577,13 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 </nav>
 
 <!-- SHEET: NUEVO PRODUCTO -->
-<div class="sheet-overlay hidden" id="sheet-prod">
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-      <div class="sheet-title" id="prod-sheet-title"><i class="ti ti-box" style="color:var(--primary)"></i> Nuevo producto</div>
-      <button class="sheet-close" onclick="closeProdSheet()"><i class="ti ti-x"></i></button>
-    </div>
-    <div class="sheet-content">
+<div class="overlay-page hidden" id="sheet-prod">
+  <div class="overlay-topbar">
+    <button class="icon-btn" onclick="closeProdSheet()" title="Volver"><i class="ti ti-arrow-left"></i></button>
+    <div class="overlay-topbar-title sheet-title" id="prod-sheet-title"><i class="ti ti-box" style="color:var(--primary)"></i> Nuevo producto</div>
+  </div>
+  <div class="overlay-scroll">
+    <div class="page-form-wrap">
       <div class="form-group" id="p-warehouse-group" style="display:none">
         <div class="form-label">Almacén / Bodega <span style="color:var(--red)">*</span></div>
         <select class="form-input" id="p-warehouse"></select>
@@ -679,25 +680,24 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
           </div>
         </div>
       </div>
+      <div id="prod-meta" style="display:none"></div>
     </div>
-    <div id="prod-meta" style="display:none"></div>
-    <div class="sheet-footer">
-      <button class="btn btn-outline" onclick="closeProdSheet()" style="flex:1;width:auto">Cancelar</button>
-      <button class="btn btn-outline" id="prod-dup-btn" onclick="duplicateProd()" style="flex:1;width:auto;display:none"><i class="ti ti-copy"></i> Duplicar</button>
-      <button class="btn btn-primary" id="prod-save-btn" onclick="saveProd()" style="flex:2"><i class="ti ti-check"></i> Guardar</button>
-    </div>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-outline" onclick="closeProdSheet()" style="flex:1;width:auto">Cancelar</button>
+    <button class="btn btn-outline" id="prod-dup-btn" onclick="duplicateProd()" style="flex:1;width:auto;display:none"><i class="ti ti-copy"></i> Duplicar</button>
+    <button class="btn btn-primary" id="prod-save-btn" onclick="saveProd()" style="flex:2"><i class="ti ti-check"></i> Guardar</button>
   </div>
 </div>
 
 <!-- SHEET: NUEVO KIT -->
-<div class="sheet-overlay hidden" id="sheet-kit">
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-      <div class="sheet-title"><i class="ti ti-stack-2" style="color:var(--amber-dark)"></i> Nuevo KIT</div>
-      <button class="sheet-close" onclick="closeSheet('sheet-kit')"><i class="ti ti-x"></i></button>
-    </div>
-    <div class="sheet-content">
+<div class="overlay-page hidden" id="sheet-kit">
+  <div class="overlay-topbar">
+    <button class="icon-btn" onclick="closeKitSheet()" title="Volver"><i class="ti ti-arrow-left"></i></button>
+    <div class="overlay-topbar-title sheet-title"><i class="ti ti-stack-2" style="color:var(--amber-dark)"></i> Nuevo KIT</div>
+  </div>
+  <div class="overlay-scroll">
+    <div class="page-form-wrap">
       <div id="kit-main-fields">
         <div class="form-group"><div class="form-label">Nombre del KIT *</div><input class="form-input" id="kit-name" placeholder="Ej: Desayuno Ejecutivo"></div>
         <div class="form-row">
@@ -725,24 +725,23 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
           <select class="form-input" id="kit-sku-warehouse"></select>
         </div>
       </div>
+      <div id="kit-meta" style="display:none"></div>
     </div>
-    <div id="kit-meta" style="display:none"></div>
-    <div class="sheet-footer">
-      <button class="btn btn-outline" onclick="closeSheet('sheet-kit')" style="flex:1;width:auto">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveKit()" style="flex:2"><i class="ti ti-check"></i> Crear KIT</button>
-    </div>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-outline" onclick="closeKitSheet()" style="flex:1;width:auto">Cancelar</button>
+    <button class="btn btn-primary" onclick="saveKit()" style="flex:2"><i class="ti ti-check"></i> Crear KIT</button>
   </div>
 </div>
 
 <!-- SHEET: EDITAR ORDEN -->
-<div class="sheet-overlay hidden" id="sheet-orden-edit">
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-      <div class="sheet-title"><i class="ti ti-pencil" style="color:var(--primary)"></i> Editar orden</div>
-      <button class="sheet-close" onclick="closeSheet('sheet-orden-edit')"><i class="ti ti-x"></i></button>
-    </div>
-    <div class="sheet-content">
+<div class="overlay-page hidden" id="sheet-orden-edit">
+  <div class="overlay-topbar">
+    <button class="icon-btn" onclick="closeOrderEditSheet()" title="Volver"><i class="ti ti-arrow-left"></i></button>
+    <div class="overlay-topbar-title sheet-title"><i class="ti ti-pencil" style="color:var(--primary)"></i> Editar orden</div>
+  </div>
+  <div class="overlay-scroll">
+    <div class="page-form-wrap">
       <div class="form-row">
         <div class="form-group"><div class="form-label">Cliente</div><input class="form-input" id="oe-cliente" placeholder="Nombre"></div>
         <div class="form-group"><div class="form-label">Teléfono</div><input class="form-input" id="oe-telefono" placeholder="+56 9..." type="tel"></div>
@@ -757,10 +756,10 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <textarea class="form-input" id="oe-dedicatoria" placeholder="Ej: Para mamá con todo nuestro cariño..." rows="3" style="resize:none"></textarea>
       </div>
     </div>
-    <div class="sheet-footer">
-      <button class="btn btn-outline" onclick="closeSheet('sheet-orden-edit')" style="flex:1;width:auto">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveOrderEdit()" style="flex:2"><i class="ti ti-check"></i> Guardar cambios</button>
-    </div>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-outline" onclick="closeOrderEditSheet()" style="flex:1;width:auto">Cancelar</button>
+    <button class="btn btn-primary" onclick="saveOrderEdit()" style="flex:2"><i class="ti ti-check"></i> Guardar cambios</button>
   </div>
 </div>
 
@@ -787,14 +786,13 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 </div>
 
 <!-- SHEET: CONFIRMAR DUPLICAR ORDEN -->
-<div class="sheet-overlay hidden" id="sheet-duplicar">
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-      <div class="sheet-title"><i class="ti ti-copy" style="color:var(--primary)"></i> Duplicar orden</div>
-      <button class="sheet-close" onclick="closeSheet('sheet-duplicar')"><i class="ti ti-x"></i></button>
-    </div>
-    <div class="sheet-content">
+<div class="overlay-page hidden" id="sheet-duplicar">
+  <div class="overlay-topbar">
+    <button class="icon-btn" onclick="closeDuplicarSheet()" title="Volver"><i class="ti ti-arrow-left"></i></button>
+    <div class="overlay-topbar-title sheet-title"><i class="ti ti-copy" style="color:var(--primary)"></i> Duplicar orden</div>
+  </div>
+  <div class="overlay-scroll">
+    <div class="page-form-wrap">
       <div style="background:var(--primary-light);border:1.5px solid var(--primary);border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;font-size:13px;font-weight:600;color:var(--text);display:flex;gap:10px;align-items:flex-start">
         <i class="ti ti-info-circle" style="font-size:18px;color:var(--primary);flex-shrink:0;margin-top:1px"></i>
         <span>Edita los productos si es necesario. La nueva orden comenzará en estado <strong>Por hacer</strong> con los datos de cliente y entrega de la orden original.</span>
@@ -813,22 +811,21 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <span style="font-size:20px;font-weight:900;color:var(--green-dark)" id="dup-total">$0</span>
       </div>
     </div>
-    <div class="sheet-footer">
-      <button class="btn btn-outline" onclick="closeSheet('sheet-duplicar')" style="flex:1;width:auto">Cancelar</button>
-      <button class="btn btn-primary" id="btn-confirmar-duplicar" onclick="confirmarDuplicarOrden()" style="flex:2"><i class="ti ti-copy"></i> Confirmar duplicado</button>
-    </div>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-outline" onclick="closeDuplicarSheet()" style="flex:1;width:auto">Cancelar</button>
+    <button class="btn btn-primary" id="btn-confirmar-duplicar" onclick="confirmarDuplicarOrden()" style="flex:2"><i class="ti ti-copy"></i> Confirmar duplicado</button>
   </div>
 </div>
 
 <!-- SHEET: NUEVA VENTA -->
-<div class="sheet-overlay hidden" id="sheet-venta">
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-      <div class="sheet-title"><i class="ti ti-shopping-bag" style="color:var(--green-dark)"></i> Nueva venta</div>
-      <button class="sheet-close" onclick="closeSheet('sheet-venta')"><i class="ti ti-x"></i></button>
-    </div>
-    <div class="sheet-content">
+<div class="overlay-page hidden" id="sheet-venta">
+  <div class="overlay-topbar">
+    <button class="icon-btn" onclick="closeVentaSheet()" title="Volver"><i class="ti ti-arrow-left"></i></button>
+    <div class="overlay-topbar-title sheet-title"><i class="ti ti-shopping-bag" style="color:var(--green-dark)"></i> Nueva venta</div>
+  </div>
+  <div class="overlay-scroll">
+    <div class="page-form-wrap">
 
       <!-- WHATSAPP PARSER -->
       <div id="venta-wa-section" style="margin-bottom:10px">
@@ -924,10 +921,10 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <span style="font-size:22px;font-weight:900;color:var(--green-dark)" id="venta-total">$0</span>
       </div>
     </div>
-    <div class="sheet-footer">
-      <button class="btn btn-outline" onclick="closeSheet('sheet-venta')" style="flex:1;width:auto">Cancelar</button>
-      <button class="btn btn-green" onclick="saveVenta()" style="flex:2"><i class="ti ti-check"></i> Registrar venta</button>
-    </div>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-outline" onclick="closeVentaSheet()" style="flex:1;width:auto">Cancelar</button>
+    <button class="btn btn-green" onclick="saveVenta()" style="flex:2"><i class="ti ti-check"></i> Registrar venta</button>
   </div>
 </div>
 
@@ -2049,7 +2046,12 @@ function openAddSkuSheet(prodSku) {
   openSheet('sheet-prod');
 }
 
-function openSheetProd() {
+// Prefijo de URL para las páginas de edición de producto/KIT: refleja
+// desde qué sección se abrieron (catálogo vs inventario) para que el botón
+// "Volver" regrese al lugar correcto.
+function _editPagePrefix() { return S.currentPage === 'catalogo' ? 'catalog' : 'inventory'; }
+
+function openSheetProd(pushURL = true) {
   S.editingProdSku = null;
   S.editingProdWarehouseId = '';
   S._catalogMode = false;
@@ -2072,9 +2074,10 @@ function openSheetProd() {
   S.tempProdGroups = [];
   renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
   openSheet('sheet-prod');
+  if (pushURL) history.pushState({ prodNew: true }, '', '/' + _editPagePrefix() + '/sku/new');
 }
 
-function openSheetProdCatalog() {
+function openSheetProdCatalog(pushURL = true) {
   S.editingProdSku = null;
   S.editingProdWarehouseId = '';
   S._catalogMode = true;
@@ -2105,6 +2108,7 @@ function openSheetProdCatalog() {
   S.tempProdGroups = [];
   renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
   openSheet('sheet-prod');
+  if (pushURL) history.pushState({ prodNew: true }, '', '/catalog/sku/new');
 }
 
 function toggleProdGroup(id, el) {
@@ -2127,7 +2131,7 @@ function _setCatalogSkuToggle(on) {
   if (flds) { flds.style.display = on ? '' : 'none'; }
 }
 function onCreateSkuToggle() { _setCatalogSkuToggle(!_skuToggleOn); }
-function editProd(sku, warehouseId) {
+function editProd(sku, warehouseId, pushURL = true) {
   const wid = warehouseId || '';
   const p = S.products.find(x => x.sku === sku && (x.warehouse_id || '') === wid);
   if (!p) return;
@@ -2170,6 +2174,10 @@ function editProd(sku, warehouseId) {
   }
   _populateCatalogLists();
   openSheet('sheet-prod');
+  if (pushURL) {
+    const url = '/' + _editPagePrefix() + '/sku/' + encodeURIComponent(sku) + '/edit' + (wid ? ('?warehouse=' + encodeURIComponent(wid)) : '');
+    history.pushState({ prodSku: sku, warehouseId: wid }, '', url);
+  }
 }
 async function deleteProd(sku, warehouseId) {
   const wid = warehouseId || '';
@@ -2193,6 +2201,9 @@ function closeProdSheet() {
   const whSel = document.getElementById('p-warehouse');
   if (whSel) whSel.disabled = false;
   closeSheet('sheet-prod');
+  if (location.pathname.startsWith('/catalog/sku/') || location.pathname.startsWith('/inventory/sku/')) {
+    history.pushState({ page: S.currentPage }, '', PAGE_URLS[S.currentPage] || '/');
+  }
 }
 function _dupeNextName(name) {
   const base = name.replace(/\s+Copia \d+$/, '');
@@ -2328,7 +2339,7 @@ async function _saveProdImpl() {
     S.editingProdWarehouseId = '';
     _resetAddSkuState();
     if (whSel) whSel.disabled = false;
-    closeSheet('sheet-prod');
+    closeProdSheet();
     toast('✅ Producto actualizado');
   } else {
     // Pre-save duplicate check for add-SKU mode
@@ -2360,7 +2371,7 @@ async function _saveProdImpl() {
     }
     const skuLabel = isAddSku ? `SKU en "${getWarehouses().find(w=>w.id===warehouse_id)?.name||warehouse_id}"` : ('como "' + tipoMeta[selectedTipo].label + '"');
     _resetAddSkuState();
-    closeSheet('sheet-prod');
+    closeProdSheet();
     toast('✅ Guardado ' + skuLabel);
   }
   renderHome();
@@ -2370,7 +2381,7 @@ async function _saveProdImpl() {
 }
 
 // ── FORM: KIT ─────────────────────────────────
-function openSheetKit() {
+function openSheetKit(pushURL = true) {
   S.editingKitSku = null;
   S._addKitSkuMode = false; S._addKitSkuData = null;
   document.querySelector('#sheet-kit .sheet-title').innerHTML = '<i class="ti ti-stack-2" style="color:var(--amber-dark)"></i> Nuevo KIT';
@@ -2388,8 +2399,9 @@ function openSheetKit() {
   S.tempKitGroups = [];
   renderGroupChips('kit-groups-wrap', S.tempKitGroups, 'toggleKitGroup');
   openSheet('sheet-kit');
+  if (pushURL) history.pushState({ kitNew: true }, '', '/' + _editPagePrefix() + '/kit/new');
 }
-function editKit(sku) {
+function editKit(sku, pushURL = true) {
   const kit = S.kits.find(k => k.sku === sku && (k.warehouse_id||'') === '');
   if (!kit) return;
   S.editingKitSku = sku;
@@ -2414,6 +2426,7 @@ function editKit(sku) {
   metaEl.innerHTML  = metaHtml;
   metaEl.style.display = metaHtml ? '' : 'none';
   openSheet('sheet-kit');
+  if (pushURL) history.pushState({ kitSku: sku }, '', '/' + _editPagePrefix() + '/kit/' + encodeURIComponent(sku) + '/edit');
 }
 function _populateKitCompSelect(excludeSku) {
   const sel = document.getElementById('kit-add-prod');
@@ -2488,6 +2501,14 @@ function renderKitItemsList() {
 }
 function adjKQ(idx,d){ S.tempKitItems[idx].qty=Math.max(1,S.tempKitItems[idx].qty+d); renderKitItemsList(); }
 // Mismo blindaje anti doble-submit que saveProd().
+function closeKitSheet() {
+  S.editingKitSku = null;
+  S._addKitSkuMode = false; S._addKitSkuData = null;
+  closeSheet('sheet-kit');
+  if (location.pathname.startsWith('/catalog/kit/') || location.pathname.startsWith('/inventory/kit/')) {
+    history.pushState({ page: S.currentPage }, '', PAGE_URLS[S.currentPage] || '/');
+  }
+}
 async function saveKit() {
   const btn = document.querySelector('#sheet-kit .btn-primary');
   if (btn?.disabled) return;
@@ -2516,7 +2537,7 @@ async function _saveKitImpl() {
       S.kits.push({ ...data });
     }
     S._addKitSkuMode = false; S._addKitSkuData = null;
-    closeSheet('sheet-kit');
+    closeKitSheet();
     toast('✅ SKU de KIT creado');
     renderKits(); renderHome();
     if (S.currentPage==='catalogo') renderCatalogo();
@@ -2544,7 +2565,7 @@ async function _saveKitImpl() {
       S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name, price, items, stock_group_ids } : k);
     }
     S.editingKitSku = null;
-    closeSheet('sheet-kit');
+    closeKitSheet();
     toast('✅ KIT actualizado');
   } else {
     const customSku = document.getElementById('kit-sku-input').value || undefined;
@@ -2561,7 +2582,7 @@ async function _saveKitImpl() {
       const sku = customSku || 'KIT-'+String(masterCount+1).padStart(3,'0');
       S.kits.push({ sku, name, price, items, warehouse_id: '', stock_group_ids });
     }
-    closeSheet('sheet-kit');
+    closeKitSheet();
     toast('✅ KIT creado — stock calculado automáticamente');
   }
   renderKits(); renderHome();
@@ -3387,7 +3408,7 @@ const DELIVERY_SLOTS = {
   ],
 };
 
-function openSheetVenta() {
+function openSheetVenta(pushURL = true) {
   S.tempVentaItems = [];
   S.tempVentaDelivery = { method_type:null, method_id:null, method_label:null, date:null, slot_id:null, slot_from:null, slot_to:null, slot_label:null, slot_cost:0 };
 
@@ -3431,6 +3452,7 @@ function openSheetVenta() {
   document.getElementById('wa-chevron').className = 'ti ti-chevron-down';
   initVentaLocales();
   openSheet('sheet-venta');
+  if (pushURL) history.pushState({ ventaNew: true }, '', '/orders/new');
 }
 
 function selectDeliveryMethod(type, el, methodId, methodName) {
@@ -3853,6 +3875,10 @@ function processWhatsapp() {
 
 const METHOD_LABELS = { store_pickup:'Retiro en tienda', home_delivery:'Despacho a domicilio', pickup_point:'Punto de retiro', express:'Express' };
 
+function closeVentaSheet() {
+  closeSheet('sheet-venta');
+  if (location.pathname === '/orders/new') history.pushState({ page: 'ventas' }, '', '/orders');
+}
 async function saveVenta() {
   if (!S.tempVentaItems.length)          { toast('⚠️ Agrega al menos un ítem'); return; }
   const d = S.tempVentaDelivery;
@@ -4077,7 +4103,7 @@ function closeOrdenDetalle() {
   history.pushState({ page: 'ventas' }, '', '/orders');
 }
 
-function openOrderEditSheet(id) {
+function openOrderEditSheet(id, pushURL = true) {
   const v = S.ventas.find(o => o.id === id);
   if (!v) return;
   S._editingOrderId = id;
@@ -4087,6 +4113,12 @@ function openOrderEditSheet(id) {
   document.getElementById('oe-receptor-tel').value = v.delivery?.receptor_telefono || '';
   document.getElementById('oe-dedicatoria').value = v.dedicatoria || '';
   openSheet('sheet-orden-edit');
+  if (pushURL) history.pushState({ orderEdit: id }, '', '/orders/' + encodeURIComponent(id) + '/edit');
+}
+
+function closeOrderEditSheet() {
+  closeSheet('sheet-orden-edit');
+  if (currentDetalleId) history.pushState({ order: currentDetalleId }, '', '/orders/' + currentDetalleId);
 }
 
 async function saveOrderEdit() {
@@ -4119,7 +4151,7 @@ async function saveOrderEdit() {
     applyLocal(null);
   }
   S._editingOrderId = null;
-  closeSheet('sheet-orden-edit');
+  closeOrderEditSheet();
   toast('✅ Orden actualizada');
   openOrdenDetalle(id);
   renderVentas();
@@ -4257,7 +4289,7 @@ function addDuplicarItem() {
   renderDuplicarItemsList();
 }
 
-function openDuplicarOrden(id) {
+function openDuplicarOrden(id, pushURL = true) {
   const v = S.ventas.find(x => x.id === id);
   if (!v) return;
   S._duplicarOrdenId = id;
@@ -4270,6 +4302,12 @@ function openDuplicarOrden(id) {
   _populateDupSelect();
   renderDuplicarItemsList();
   openSheet('sheet-duplicar');
+  if (pushURL) history.pushState({ orderDup: id }, '', '/orders/' + encodeURIComponent(id) + '/duplicate');
+}
+
+function closeDuplicarSheet() {
+  closeSheet('sheet-duplicar');
+  if (currentDetalleId) history.pushState({ order: currentDetalleId }, '', '/orders/' + currentDetalleId);
 }
 
 async function confirmarDuplicarOrden() {
@@ -4302,7 +4340,7 @@ async function confirmarDuplicarOrden() {
       S._duplicarOrdenId = null;
       S._duplicating = false;
       S._tempDuplicarItems = [];
-      closeSheet('sheet-duplicar');
+      closeDuplicarSheet();
       renderVentas();
       toast('✅ Orden duplicada: ' + order.id);
       openOrdenDetalle(order.id);
@@ -4685,16 +4723,93 @@ function navTabEl(pageId) {
     .find(t => t.getAttribute('onclick')?.includes(`'${pageId}'`)) || null;
 }
 
+// Cierra las 5 páginas de edición (producto, KIT, editar/duplicar orden, nueva
+// venta) al navegar. applyRoute() la llama siempre al inicio y las rutas que
+// correspondan vuelven a abrir la página correcta justo después.
+function _closeEditPages() {
+  ['sheet-prod','sheet-kit','sheet-orden-edit','sheet-duplicar','sheet-venta'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
+  if (!currentDetalleId) document.body.style.overflow = '';
+}
+
 function applyRoute() {
   const path = location.pathname;
+  _closeEditPages();
+
+  const showParentPage = (pageId) => {
+    if (!document.getElementById('page-'+pageId).classList.contains('active')) {
+      showPage(pageId, navTabEl(pageId), false);
+    }
+  };
+
+  // /catalog/sku/new · /inventory/sku/new — nuevo producto
+  let m = path.match(/^\/(catalog|inventory)\/sku\/new$/);
+  if (m) {
+    showParentPage(m[1] === 'catalog' ? 'catalogo' : 'inventory');
+    if (m[1] === 'catalog') openSheetProdCatalog(false); else openSheetProd(false);
+    return;
+  }
+  // /catalog/sku/:sku/edit · /inventory/sku/:sku/edit — editar producto/SKU
+  m = path.match(/^\/(catalog|inventory)\/sku\/([^\/]+)\/edit$/);
+  if (m) {
+    showParentPage(m[1] === 'catalog' ? 'catalogo' : 'inventory');
+    const sku = decodeURIComponent(m[2]);
+    const warehouseId = new URLSearchParams(location.search).get('warehouse') || '';
+    editProd(sku, warehouseId, false);
+    return;
+  }
+  // /catalog/kit/new · /inventory/kit/new — nuevo KIT
+  m = path.match(/^\/(catalog|inventory)\/kit\/new$/);
+  if (m) {
+    showParentPage(m[1] === 'catalog' ? 'catalogo' : 'inventory');
+    openSheetKit(false);
+    return;
+  }
+  // /catalog/kit/:sku/edit · /inventory/kit/:sku/edit — editar KIT
+  m = path.match(/^\/(catalog|inventory)\/kit\/([^\/]+)\/edit$/);
+  if (m) {
+    showParentPage(m[1] === 'catalog' ? 'catalogo' : 'inventory');
+    editKit(decodeURIComponent(m[2]), false);
+    return;
+  }
+  // /orders/new — nueva venta
+  if (path === '/orders/new') {
+    showParentPage('ventas');
+    openSheetVenta(false);
+    return;
+  }
+  // /orders/:id/edit — editar info de la orden
+  m = path.match(/^\/orders\/([^\/]+)\/edit$/);
+  if (m) {
+    const id = decodeURIComponent(m[1]);
+    showParentPage('ventas');
+    const v = S.ventas.find(x => x.id === id);
+    if (v) {
+      if (currentDetalleId !== id) openOrdenDetalle(id, false);
+      openOrderEditSheet(id, false);
+    }
+    return;
+  }
+  // /orders/:id/duplicate — duplicar orden
+  m = path.match(/^\/orders\/([^\/]+)\/duplicate$/);
+  if (m) {
+    const id = decodeURIComponent(m[1]);
+    showParentPage('ventas');
+    const v = S.ventas.find(x => x.id === id);
+    if (v) {
+      if (currentDetalleId !== id) openOrdenDetalle(id, false);
+      openDuplicarOrden(id, false);
+    }
+    return;
+  }
 
   // /orders/ORD-001 — order detail deep link
   const orderMatch = path.match(/^\/orders\/(.+)$/);
   if (orderMatch) {
     const id = decodeURIComponent(orderMatch[1]);
-    if (!document.getElementById('page-ventas').classList.contains('active')) {
-      showPage('ventas', navTabEl('ventas'), false);
-    }
+    showParentPage('ventas');
     const v = S.ventas.find(x => x.id === id);
     if (v) {
       // Close any other open detail first (no URL push since we're already at the right URL)

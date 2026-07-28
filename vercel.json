@@ -21,13 +21,25 @@
     { "source": "/api/v1/:slug/IAM/users",             "destination": "/api/users" },
     { "source": "/api/v1/:slug/IAM/logs",              "destination": "/api/users?action=logs" },
 
-    { "source": "/orders",        "destination": "/" },
-    { "source": "/orders/:id",    "destination": "/" },
-    { "source": "/ventas",        "destination": "/" },
-    { "source": "/inventory",     "destination": "/" },
-    { "source": "/locales",       "destination": "/" },
-    { "source": "/delivery-hub",  "destination": "/" },
-    { "source": "/shipments",     "destination": "/delivery" },
-    { "source": "/shipments/:id", "destination": "/delivery" }
+    { "source": "/orders",                    "destination": "/" },
+    { "source": "/orders/new",                "destination": "/" },
+    { "source": "/orders/:id",                "destination": "/" },
+    { "source": "/orders/:id/edit",           "destination": "/" },
+    { "source": "/orders/:id/duplicate",      "destination": "/" },
+    { "source": "/ventas",                    "destination": "/" },
+    { "source": "/inventory",                 "destination": "/" },
+    { "source": "/inventory/sku/new",         "destination": "/" },
+    { "source": "/inventory/sku/:sku/edit",   "destination": "/" },
+    { "source": "/inventory/kit/new",         "destination": "/" },
+    { "source": "/inventory/kit/:sku/edit",   "destination": "/" },
+    { "source": "/catalog",                   "destination": "/" },
+    { "source": "/catalog/sku/new",           "destination": "/" },
+    { "source": "/catalog/sku/:sku/edit",     "destination": "/" },
+    { "source": "/catalog/kit/new",           "destination": "/" },
+    { "source": "/catalog/kit/:sku/edit",     "destination": "/" },
+    { "source": "/locales",                   "destination": "/" },
+    { "source": "/delivery-hub",              "destination": "/" },
+    { "source": "/shipments",                 "destination": "/delivery" },
+    { "source": "/shipments/:id",             "destination": "/delivery" }
   ]
 }
