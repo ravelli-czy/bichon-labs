@@ -245,11 +245,16 @@ body.embedded #modules-section,body.embedded .footer{display:none}
       <div class="sparkline-labels" id="spark-labels"></div>
     </div>
     <div class="hero-divider" style="margin-top:12px"></div>
-    <div class="hero-chips">
-      <div class="hero-chip"><i class="ti ti-box"></i> <span id="chip-prods">0</span> productos</div>
-      <div class="hero-chip"><i class="ti ti-stack-2"></i> <span id="chip-kits">0</span> KITs</div>
-      <div class="hero-chip" id="chip-orders"><i class="ti ti-shopping-bag"></i> <span id="chip-orders-n">0</span> órdenes</div>
-      <div class="hero-chip" id="chip-alerts" style="display:none"><i class="ti ti-alert-triangle"></i> <span id="chip-alerts-n">0</span> alertas</div>
+    <div class="hero-chips" style="justify-content:space-between">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div class="hero-chip"><i class="ti ti-box"></i> <span id="chip-prods">0</span> productos</div>
+        <div class="hero-chip"><i class="ti ti-stack-2"></i> <span id="chip-kits">0</span> KITs</div>
+        <div class="hero-chip" id="chip-orders"><i class="ti ti-shopping-bag"></i> <span id="chip-orders-n">0</span> órdenes</div>
+        <div class="hero-chip" id="chip-alerts" style="display:none"><i class="ti ti-alert-triangle"></i> <span id="chip-alerts-n">0</span> alertas</div>
+      </div>
+      <button onclick="viewSalesKPIs()" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;border:none;font-family:'Nunito',sans-serif;font-size:12px;font-weight:800;cursor:pointer;background:rgba(255,255,255,.92);color:var(--primary);white-space:nowrap">
+        Ver más <i class="ti ti-arrow-right" style="font-size:13px"></i>
+      </button>
     </div>
   </div>
 
@@ -293,6 +298,13 @@ function newVentaFromDash() {
     window.parent.postMessage({ type: 'sf_create_order', payload: {} }, '*');
   } else {
     location.href = '/orders';
+  }
+}
+function viewSalesKPIs() {
+  if (IS_EMBED && window.parent !== window) {
+    window.parent.postMessage({ type: 'sf_navigate', page: 'reportes' }, '*');
+  } else {
+    location.href = '/reportes';
   }
 }
 

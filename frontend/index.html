@@ -291,6 +291,21 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .page-form-wrap{max-width:640px;margin:0 auto}
 .overlay-page .sheet-footer{flex-shrink:0}
 
+/* REPORTES DE VENTAS */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.kpi-tile{background:var(--bg2);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow)}
+.kpi-tile-label{font-size:12px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px}
+.kpi-tile-value{font-size:24px;font-weight:900;color:var(--text)}
+.kpi-tile-value.green{color:var(--green-dark)}
+.chart-card{background:var(--bg2);border-radius:var(--radius-lg);padding:16px;margin-bottom:16px;box-shadow:var(--shadow)}
+.chart-card-title{font-size:14px;font-weight:800;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.chart-canvas-wrap{position:relative;height:260px}
+.reportes-charts-grid{display:grid;grid-template-columns:1fr;gap:0}
+@media(min-width:900px){
+  .reportes-charts-grid{grid-template-columns:1fr 1fr;gap:16px}
+  .reportes-charts-grid .chart-card{margin-bottom:0}
+}
+
 /* ═══════════════════════════════════════════════
    RESPONSIVE — Desktop ≥ 768 px
 ═══════════════════════════════════════════════ */
@@ -968,6 +983,17 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <div class="overlay-scroll" id="overlay-orden-content"></div>
 </div>
 
+<!-- OVERLAY: REPORTES DE VENTAS -->
+<div class="overlay-page hidden" id="page-reportes">
+  <div class="overlay-topbar">
+    <button class="icon-btn" onclick="closeReportesPage()" title="Volver"><i class="ti ti-arrow-left"></i></button>
+    <div class="overlay-topbar-title"><i class="ti ti-chart-bar" style="color:var(--primary)"></i> Reportes de ventas</div>
+  </div>
+  <div class="overlay-scroll">
+    <div class="page-form-wrap" id="reportes-content"></div>
+  </div>
+</div>
+
 <!-- SHEET: PREFERENCIAS -->
 <div class="sheet-overlay hidden" id="sheet-prefs" onclick="if(event.target===this)closeSheet('sheet-prefs')">
   <div class="sheet">
@@ -1008,6 +1034,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
 // ── TENANT BRANDING ───────────────────────────────
 (function applyTenantBranding(){
@@ -4705,6 +4732,7 @@ window.addEventListener('message', async (e) => {
   if (e.data.type === 'sf_navigate') {
     const page = e.data.page;
     if (!page) return;
+    if (page === 'reportes') { openReportesPage(); return; }
     showPage(page, navTabEl(page), true);
     return;
   }
@@ -4760,17 +4788,364 @@ window.addEventListener('message', async (e) => {
   }
 });
 
+// ── REPORTES DE VENTAS ────────────────────────
+function openReportesPage(pushURL = true) {
+  renderReportesPage();
+  openSheet('page-reportes');
+  if (pushURL) history.pushState({ reportes: true }, '', '/reportes');
+}
+function closeReportesPage() {
+  closeSheet('page-reportes');
+  history.pushState({ page: S.currentPage }, '', PAGE_URLS[S.currentPage] || '/');
+}
+
+function _orderDate(v) {
+  if (v.created_at) { const d = new Date(v.created_at); if (!isNaN(d)) return d; }
+  if (v.fecha) {
+    const parts = v.fecha.split('-').map(Number);
+    if (parts.length === 3 && parts[2] > 31) { // DD-MM-YYYY
+      const d = new Date(parts[2], parts[1]-1, parts[0]);
+      if (!isNaN(d)) return d;
+    }
+  }
+  return null;
+}
+
+// Costo aproximado de una orden: usa el costo ACTUAL de cada producto (no el
+// costo histórico al momento de la venta, que no se guarda), expandiendo KITs
+// en sus componentes.
+function _orderCost(v) {
+  let cost = 0;
+  (v.items || []).forEach(item => {
+    if (item.type === 'kit') {
+      const kit = S.kits.find(k => k.sku === item.sku && (k.warehouse_id||'') === '');
+      if (kit) kit.items.forEach(comp => {
+        const p = S.products.find(x => x.sku === comp.sku);
+        if (p) cost += (p.cost || 0) * comp.qty * item.qty;
+      });
+    } else {
+      const p = S.products.find(x => x.sku === item.sku && (x.warehouse_id||'') === (item.warehouse_id||''))
+             || S.products.find(x => x.sku === item.sku);
+      if (p) cost += (p.cost || 0) * item.qty;
+    }
+  });
+  return cost;
+}
+
+function _reportesComputeData() {
+  const ventas = S.ventas || [];
+  const totalVentas = ventas.reduce((s,v) => s + (v.total||0), 0);
+  const totalCosto  = ventas.reduce((s,v) => s + _orderCost(v), 0);
+  const margenD     = totalVentas - totalCosto;
+  const margenPct   = totalVentas > 0 ? Math.round(margenD/totalVentas*100) : 0;
+
+  // Ventas mensuales — últimos 12 meses
+  const now = new Date();
+  const months = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    months.push({ key: d.getFullYear()+'-'+d.getMonth(), label: d.toLocaleDateString('es-CL',{month:'short'}), total:0 });
+  }
+  ventas.forEach(v => {
+    const d = _orderDate(v);
+    if (!d) return;
+    const m = months.find(x => x.key === d.getFullYear()+'-'+d.getMonth());
+    if (m) m.total += (v.total||0);
+  });
+
+  // Ventas por producto — top 8 por ingresos
+  const byProduct = {};
+  ventas.forEach(v => (v.items||[]).forEach(item => {
+    byProduct[item.name] = (byProduct[item.name]||0) + (item.qty||0)*(item.price||0);
+  }));
+  const topProducts = Object.entries(byProduct).sort((a,b) => b[1]-a[1]).slice(0,8);
+
+  // Ventas diarias — últimos 30 días
+  const dateKey = d => d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate()-i);
+    days.push({ key: dateKey(d), label: String(d.getDate()), total:0 });
+  }
+  ventas.forEach(v => {
+    const d = _orderDate(v);
+    if (!d) return;
+    const day = days.find(x => x.key === dateKey(d));
+    if (day) day.total += (v.total||0);
+  });
+
+  // Medios de pago / canal de venta
+  const byPayment = {}, byChannel = {};
+  ventas.forEach(v => {
+    const pm = v.payment_method || 'Sin especificar';
+    const sc = v.sales_channel  || 'Sin especificar';
+    byPayment[pm] = (byPayment[pm]||0) + (v.total||0);
+    byChannel[sc] = (byChannel[sc]||0) + (v.total||0);
+  });
+
+  return { totalVentas, margenD, margenPct, months, topProducts, days, byPayment, byChannel };
+}
+
+let _rptCharts = {};
+function _destroyRptCharts() {
+  Object.values(_rptCharts).forEach(c => c && c.destroy());
+  _rptCharts = {};
+}
+
+function _rptBarOptions() {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display:false }, tooltip: { callbacks: { label: ctx => fmt(ctx.parsed.y) } } },
+    scales: {
+      x: { grid: { display:false }, ticks: { color:'#9a9bb8', font:{ family:'Nunito', weight:'700', size:11 } } },
+      y: { grid: { color:'#e4e5f0' }, ticks: { color:'#9a9bb8', font:{ family:'Nunito', size:11 }, callback: v => fmt(v) } },
+    },
+  };
+}
+function _rptHBarOptions() {
+  return {
+    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+    plugins: { legend: { display:false }, tooltip: { callbacks: { label: ctx => fmt(ctx.parsed.x) } } },
+    scales: {
+      x: { grid: { color:'#e4e5f0' }, ticks: { color:'#9a9bb8', font:{ family:'Nunito', size:11 }, callback: v => fmt(v) } },
+      y: { grid: { display:false }, ticks: { color:'#9a9bb8', font:{ family:'Nunito', weight:'700', size:11 } } },
+    },
+  };
+}
+function _rptDonutOptions() {
+  return {
+    responsive: true, maintainAspectRatio: false, cutout: '62%',
+    plugins: {
+      legend: { position:'bottom', labels:{ color:'#5a5b7a', font:{family:'Nunito',weight:'700',size:11}, padding:12, boxWidth:10, boxHeight:10 } },
+      tooltip: { callbacks: { label: ctx => `${ctx.label}: ${fmt(ctx.parsed)}` } },
+    },
+  };
+}
+function _rptDonutColors(n) {
+  const base = ['#5b4fff','#16c98d','#f59e0b','#3b82f6','#ff4d6d','#0da070','#4035cc','#d97706'];
+  return Array.from({length:n}, (_,i) => base[i % base.length]);
+}
+
+function _renderReportesCharts(data) {
+  if (!window.Chart) return; // CDN failed to load — charts skipped, KPI tiles still show
+  _destroyRptCharts();
+
+  _rptCharts.mensual = new Chart(document.getElementById('rpt-mensual'), {
+    type: 'bar',
+    data: { labels: data.months.map(m=>m.label), datasets:[{ data: data.months.map(m=>m.total), backgroundColor:'#5b4fff', borderRadius:6, maxBarThickness:28 }] },
+    options: _rptBarOptions(),
+  });
+
+  _rptCharts.producto = new Chart(document.getElementById('rpt-producto'), {
+    type: 'bar',
+    data: { labels: data.topProducts.map(p=>_truncLabel(p[0],18)), datasets:[{ data: data.topProducts.map(p=>p[1]), backgroundColor:'#3b82f6', borderRadius:6 }] },
+    options: _rptHBarOptions(),
+  });
+
+  _rptCharts.diario = new Chart(document.getElementById('rpt-diario'), {
+    type: 'line',
+    data: { labels: data.days.map(d=>d.label), datasets:[{ data: data.days.map(d=>d.total), borderColor:'#16c98d', backgroundColor:'rgba(22,201,141,.15)', fill:true, tension:.3, pointRadius:0, borderWidth:2 }] },
+    options: _rptBarOptions(),
+  });
+
+  const paymentEntries = Object.entries(data.byPayment);
+  _rptCharts.pagos = new Chart(document.getElementById('rpt-pagos'), {
+    type: 'doughnut',
+    data: { labels: paymentEntries.map(e=>e[0]), datasets:[{ data: paymentEntries.map(e=>e[1]), backgroundColor:_rptDonutColors(paymentEntries.length), borderWidth:2, borderColor:'#fff' }] },
+    options: _rptDonutOptions(),
+  });
+
+  const channelEntries = Object.entries(data.byChannel);
+  _rptCharts.canales = new Chart(document.getElementById('rpt-canales'), {
+    type: 'doughnut',
+    data: { labels: channelEntries.map(e=>e[0]), datasets:[{ data: channelEntries.map(e=>e[1]), backgroundColor:_rptDonutColors(channelEntries.length), borderWidth:2, borderColor:'#fff' }] },
+    options: _rptDonutOptions(),
+  });
+}
+
+function renderReportesPage() {
+  const el = document.getElementById('reportes-content');
+  const data = _reportesComputeData();
+  el.innerHTML = `
+    <div class="kpi-row">
+      <div class="kpi-tile"><div class="kpi-tile-label">Ventas totales</div><div class="kpi-tile-value">${fmt(data.totalVentas)}</div></div>
+      <div class="kpi-tile"><div class="kpi-tile-label">Margen $</div><div class="kpi-tile-value green">${fmt(data.margenD)}</div></div>
+      <div class="kpi-tile"><div class="kpi-tile-label">Margen %</div><div class="kpi-tile-value green">${data.margenPct}%</div></div>
+    </div>
+    <div class="reportes-charts-grid">
+      <div class="chart-card"><div class="chart-card-title"><i class="ti ti-chart-bar"></i> Ventas mensuales</div><div class="chart-canvas-wrap"><canvas id="rpt-mensual"></canvas></div></div>
+      <div class="chart-card"><div class="chart-card-title"><i class="ti ti-chart-bar"></i> Ventas por producto</div><div class="chart-canvas-wrap"><canvas id="rpt-producto"></canvas></div></div>
+      <div class="chart-card"><div class="chart-card-title"><i class="ti ti-chart-area-line"></i> Ventas diarias (últimos 30 días)</div><div class="chart-canvas-wrap"><canvas id="rpt-diario"></canvas></div></div>
+      <div class="chart-card"><div class="chart-card-title"><i class="ti ti-credit-card"></i> Medios de pago</div><div class="chart-canvas-wrap"><canvas id="rpt-pagos"></canvas></div></div>
+      <div class="chart-card"><div class="chart-card-title"><i class="ti ti-broadcast"></i> Canal de venta</div><div class="chart-canvas-wrap"><canvas id="rpt-canales"></canvas></div></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title"><i class="ti ti-map-2"></i> Concentración de ventas por ubicación</div>
+      <div id="rpt-heatmap-status" style="font-size:12px;color:var(--text3);font-weight:600;margin-bottom:8px">Cargando...</div>
+      <div style="position:relative;width:100%;aspect-ratio:4/3;border-radius:var(--radius);overflow:hidden;background:#e8edf3">
+        <canvas id="rpt-heatmap-canvas" style="width:100%;height:100%;display:block"></canvas>
+      </div>
+    </div>`;
+  _renderReportesCharts(data);
+  _renderSalesHeatmap();
+}
+
+// ── HEATMAP DE VENTAS POR UBICACIÓN ───────────
+// Mismo mecanismo de geocodificación gratuita (Nominatim/OSM, sin API key)
+// que /routes — y el mismo localStorage cache, así se comparte entre ambos.
+function _geoCacheKey() { return `sf_geocache_${localStorage.getItem('sf_tenant_id') || 'default'}`; }
+function _getGeoCached(q) {
+  try { return (JSON.parse(localStorage.getItem(_geoCacheKey()) || '{}'))[q] || null; }
+  catch { return null; }
+}
+function _setGeoCached(q, coords) {
+  try {
+    const c = JSON.parse(localStorage.getItem(_geoCacheKey()) || '{}');
+    c[q] = coords;
+    localStorage.setItem(_geoCacheKey(), JSON.stringify(c));
+  } catch {}
+}
+
+// Rampa secuencial (un solo tono, claro→oscuro) para el mapa de calor.
+function _heatColorForValue(t) {
+  const stops = [
+    { t:0,    c:[91,79,255,0]   },
+    { t:0.35, c:[91,79,255,140] },
+    { t:0.7,  c:[124,58,237,210]},
+    { t:1,    c:[255,77,109,255]},
+  ];
+  for (let i = 0; i < stops.length-1; i++) {
+    const a = stops[i], b = stops[i+1];
+    if (t >= a.t && t <= b.t) {
+      const f = (t-a.t)/((b.t-a.t)||1);
+      return [0,1,2,3].map(k => Math.round(a.c[k] + (b.c[k]-a.c[k])*f));
+    }
+  }
+  return stops[stops.length-1].c;
+}
+
+async function _renderSalesHeatmap() {
+  const statusEl = document.getElementById('rpt-heatmap-status');
+  const canvas = document.getElementById('rpt-heatmap-canvas');
+  if (!canvas) return;
+  const wrap = canvas.parentElement;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  ctx.fillStyle = '#e8edf3'; ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+  for (let x=0; x<w; x+=32) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+  for (let y=0; y<h; y+=32) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+
+  // Agrupar órdenes con despacho a domicilio por dirección
+  const addrMap = new Map();
+  (S.ventas || []).forEach(v => {
+    const d = v.delivery || {};
+    if (!d.address_street || !d.address_city) return;
+    const key = [d.address_street, d.address_city, d.address_region].filter(Boolean).join(', ');
+    if (!addrMap.has(key)) addrMap.set(key, { street:d.address_street, city:d.address_city, region:d.address_region||'', weight:0 });
+    addrMap.get(key).weight += 1;
+  });
+
+  if (!addrMap.size) {
+    if (statusEl) statusEl.textContent = 'No hay direcciones de despacho registradas todavía.';
+    ctx.fillStyle = '#8888a0'; ctx.font = '13px Nunito, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Sin datos de ubicación', w/2, h/2);
+    return;
+  }
+
+  const entries = [...addrMap.values()];
+  const MAX_POINTS = 60; // límite razonable frente al rate-limit de Nominatim (1 req/s)
+  const toGeocode = entries.slice(0, MAX_POINTS);
+  const points = [];
+  for (let i = 0; i < toGeocode.length; i++) {
+    if (statusEl) statusEl.textContent = `Geocodificando direcciones... ${i+1}/${toGeocode.length}`;
+    const addr = toGeocode[i];
+    const q = [addr.street, addr.city, addr.region, 'Chile'].filter(Boolean).join(', ');
+    let coords = _getGeoCached(q);
+    if (!coords) {
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=cl`,
+          { headers: { 'Accept-Language': 'es' } });
+        const results = await r.json();
+        if (results && results[0]) {
+          coords = { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
+          _setGeoCached(q, coords);
+        }
+      } catch(e) { console.warn('[Heatmap] geocode failed:', q, e.message); }
+      await new Promise(res => setTimeout(res, 1100)); // no golpear Nominatim más rápido que 1 req/s
+    }
+    if (coords) points.push({ ...coords, weight: addr.weight });
+  }
+
+  if (!points.length) {
+    if (statusEl) statusEl.textContent = 'No se pudieron ubicar las direcciones registradas.';
+    return;
+  }
+  if (statusEl) {
+    statusEl.textContent = `${points.length} ubicación${points.length!==1?'es':''} de entrega` +
+      (entries.length > MAX_POINTS ? ` · mostrando las primeras ${MAX_POINTS}` : '');
+  }
+
+  const lats = points.map(p=>p.lat), lngs = points.map(p=>p.lng);
+  let minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  let minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  const padLat = Math.max((maxLat-minLat)*0.15, 0.02);
+  const padLng = Math.max((maxLng-minLng)*0.15, 0.02);
+  minLat -= padLat; maxLat += padLat; minLng -= padLng; maxLng += padLng;
+  const project = (lat,lng) => ({
+    x: (lng-minLng)/((maxLng-minLng)||1) * w,
+    y: (1-(lat-minLat)/((maxLat-minLat)||1)) * h,
+  });
+
+  const heatCanvas = document.createElement('canvas');
+  heatCanvas.width = w; heatCanvas.height = h;
+  const hctx = heatCanvas.getContext('2d');
+  const maxWeight = Math.max(...points.map(p=>p.weight));
+  points.forEach(p => {
+    const {x,y} = project(p.lat,p.lng);
+    const radius = 28 + Math.min(p.weight,10)*6;
+    const intensity = 0.35 + 0.5*(p.weight/maxWeight);
+    const grad = hctx.createRadialGradient(x,y,0,x,y,radius);
+    grad.addColorStop(0, `rgba(0,0,0,${intensity})`);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    hctx.fillStyle = grad;
+    hctx.beginPath(); hctx.arc(x,y,radius,0,Math.PI*2); hctx.fill();
+  });
+
+  const heatData = hctx.getImageData(0,0,w,h);
+  const out = ctx.getImageData(0,0,w,h);
+  for (let i = 0; i < heatData.data.length; i += 4) {
+    const density = heatData.data[i+3] / 255;
+    if (density < 0.02) continue;
+    const [r,g,b,a] = _heatColorForValue(Math.min(density,1));
+    const f = a/255;
+    out.data[i]   = Math.round(r*f + out.data[i]  *(1-f));
+    out.data[i+1] = Math.round(g*f + out.data[i+1]*(1-f));
+    out.data[i+2] = Math.round(b*f + out.data[i+2]*(1-f));
+  }
+  ctx.putImageData(out, 0, 0);
+
+  [...points].sort((a,b)=>b.weight-a.weight).slice(0,5).forEach(p => {
+    const {x,y} = project(p.lat,p.lng);
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
+  });
+}
+
 // ── URL ROUTER ────────────────────────────────
 function navTabEl(pageId) {
   return Array.from(document.querySelectorAll('.nav-tab'))
     .find(t => t.getAttribute('onclick')?.includes(`'${pageId}'`)) || null;
 }
 
-// Cierra las 5 páginas de edición (producto, KIT, editar/duplicar orden, nueva
-// venta) al navegar. applyRoute() la llama siempre al inicio y las rutas que
-// correspondan vuelven a abrir la página correcta justo después.
+// Cierra las páginas de edición (producto, KIT, editar/duplicar orden, nueva
+// venta, reportes) al navegar. applyRoute() la llama siempre al inicio y las
+// rutas que correspondan vuelven a abrir la página correcta justo después.
 function _closeEditPages() {
-  ['sheet-prod','sheet-kit','sheet-orden-edit','sheet-duplicar','sheet-venta'].forEach(id => {
+  ['sheet-prod','sheet-kit','sheet-orden-edit','sheet-duplicar','sheet-venta','page-reportes'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.add('hidden');
   });
@@ -4786,6 +5161,13 @@ function applyRoute() {
       showPage(pageId, navTabEl(pageId), false);
     }
   };
+
+  // /reportes — reportes de ventas (KPIs + mapa de calor)
+  if (path === '/reportes') {
+    showParentPage('home');
+    openReportesPage(false);
+    return;
+  }
 
   // /catalog/sku/new · /inventory/sku/new — nuevo producto
   let m = path.match(/^\/(catalog|inventory)\/sku\/new$/);

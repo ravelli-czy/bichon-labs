@@ -37,6 +37,7 @@
     { "source": "/catalog/sku/:sku/edit",     "destination": "/" },
     { "source": "/catalog/kit/new",           "destination": "/" },
     { "source": "/catalog/kit/:sku/edit",     "destination": "/" },
+    { "source": "/reportes",                  "destination": "/" },
     { "source": "/locales",                   "destination": "/" },
     { "source": "/delivery-hub",              "destination": "/" },
     { "source": "/shipments",                 "destination": "/delivery" },
