@@ -258,6 +258,18 @@ body.embedded #modules-section,body.embedded .footer{display:none}
     </div>
   </div>
 
+  <!-- MESÓN CREATIVO — visible in both embedded (Home tab) and standalone dashboard -->
+  <a href="javascript:void(0)" onclick="navTo('meson')" class="card" style="display:flex;align-items:center;gap:14px;text-decoration:none;color:var(--text);cursor:pointer">
+    <div style="width:44px;height:44px;border-radius:13px;background:#fffbeb;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <i class="ti ti-hammer" style="font-size:22px;color:#d97706"></i>
+    </div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:14px;font-weight:900">🔨 Mesón Creativo</div>
+      <div style="font-size:11.5px;color:var(--text3);font-weight:600;margin-top:2px">Arma un nuevo KIT arrastrando SKUs existentes</div>
+    </div>
+    <i class="ti ti-chevron-right" style="color:var(--text3);font-size:18px"></i>
+  </a>
+
   <!-- STOCK ALERTS + SUPPLIER INSIGHTS (side by side on desktop) -->
   <div class="desktop-split">
     <div id="alerts-section"></div>
@@ -285,7 +297,7 @@ if (IS_EMBED) document.body.classList.add('embedded');
 const fmt = n => '$' + Math.round(n).toLocaleString('es-CL');
 
 // Navigate to an app section — postMessage to parent when embedded, direct href otherwise
-const PAGE_URLS_DASH = { inventory:'/inventory', ventas:'/orders', locales:'/locales', delivery:'/delivery-hub' };
+const PAGE_URLS_DASH = { inventory:'/inventory', ventas:'/orders', locales:'/locales', delivery:'/delivery-hub', meson:'/meson-creativo' };
 function navTo(page) {
   if (IS_EMBED && window.parent !== window) {
     window.parent.postMessage({ type: 'sf_navigate', page }, '*');
@@ -451,6 +463,7 @@ function renderModules() {
     { page:'inventory', icon:'ti-box', iconBg:'#e6faf4', iconColor:'#0da070', name:'Inventario', desc:'Productos, KITs, stock y movimientos',
       badge: alertas.length ? {text:alertas.length+' alertas',cls:'alert'} : {text:PRODUCTS.length+' ítems',cls:'ok'},
       stat:`<i class="ti ti-packages"></i>${PRODUCTS.length} productos · ${KITS_LIST.length} KITs` },
+    { page:'meson', icon:'ti-hammer', iconBg:'#fffbeb', iconColor:'#d97706', name:'Mesón Creativo', desc:'Arma un nuevo KIT arrastrando SKUs', badge:{text:'Nuevo',cls:'new'}, stat:`<i class="ti ti-drag-drop"></i>Drag &amp; drop` },
     { page:'ventas', icon:'ti-shopping-bag', iconBg:'#ede9ff', iconColor:'#5b4fff', name:'Ventas', desc:'Órdenes, delivery y seguimiento',
       badge: VENTAS.length ? {text:VENTAS.length+' órdenes',cls:'ok'} : null,
       stat:`<i class="ti ti-coin"></i>${fmt(totalVentas)} total` },
