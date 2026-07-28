@@ -335,6 +335,8 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   .fab{right:32px;bottom:32px}
   #toast{bottom:32px}
   .overlay-page{left:var(--sidebar-cw);right:0;max-width:none;margin:0;transition:left .22s ease}
+  .overlay-scroll{padding:24px 32px 40px}
+  .page-form-wrap{max-width:1100px}
   .page-iframe-wrap{margin:-24px -32px 0}
   .page-iframe-wrap iframe{height:calc(100vh - var(--topbar-h))}
 
@@ -1458,6 +1460,9 @@ function showPage(id, el, pushURL = true) {
     document.body.style.overflow = '';
     currentDetalleId = null;
   }
+  // Close any open edit page (producto/KIT/orden/venta) — clicking a nav
+  // tab while one is open must actually navigate, not sit hidden behind it.
+  _closeEditPages();
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
