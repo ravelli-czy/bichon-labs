@@ -5043,17 +5043,33 @@ async function _renderSalesHeatmap() {
   for (let x=0; x<w; x+=32) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
   for (let y=0; y<h; y+=32) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
 
-  // Agrupar órdenes con despacho a domicilio por dirección
-  const addrMap = new Map();
+  // Las órdenes con despacho a domicilio ya suelen tener coordenadas reales
+  // guardadas en su envío (quedan grabadas al geocodificar en /routes) —
+  // usar esas directo, sin re-geocodificar. Solo lo que falte se geocodifica.
+  let shipmentsByOrder = {};
+  if (S._apiReady) {
+    try {
+      const shipments = await apiFetch('/api/shipments');
+      (shipments || []).forEach(s => { if (s.order_id) shipmentsByOrder[s.order_id] = s; });
+    } catch(e) { console.warn('[Heatmap] no se pudo cargar envíos:', e.message); }
+  }
+
+  const points = [];       // { lat, lng, weight } ya resueltos (desde shipments)
+  const addrMap = new Map(); // direcciones sin coordenadas guardadas — hay que geocodificar
   (S.ventas || []).forEach(v => {
     const d = v.delivery || {};
     if (!d.address_street || !d.address_city) return;
+    const shp = shipmentsByOrder[v.id];
+    if (shp && shp.lat != null && shp.lng != null) {
+      points.push({ lat: Number(shp.lat), lng: Number(shp.lng), weight: 1 });
+      return;
+    }
     const key = [d.address_street, d.address_city, d.address_region].filter(Boolean).join(', ');
     if (!addrMap.has(key)) addrMap.set(key, { street:d.address_street, city:d.address_city, region:d.address_region||'', weight:0 });
     addrMap.get(key).weight += 1;
   });
 
-  if (!addrMap.size) {
+  if (!points.length && !addrMap.size) {
     if (statusEl) statusEl.textContent = 'No hay direcciones de despacho registradas todavía.';
     ctx.fillStyle = '#8888a0'; ctx.font = '13px Nunito, sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('Sin datos de ubicación', w/2, h/2);
@@ -5061,11 +5077,10 @@ async function _renderSalesHeatmap() {
   }
 
   const entries = [...addrMap.values()];
-  const MAX_POINTS = 60; // límite razonable frente al rate-limit de Nominatim (1 req/s)
+  const MAX_POINTS = 60; // límite razonable frente al rate-limit de Nominatim (1 req/s) — solo aplica a lo que falta geocodificar
   const toGeocode = entries.slice(0, MAX_POINTS);
-  const points = [];
   for (let i = 0; i < toGeocode.length; i++) {
-    if (statusEl) statusEl.textContent = `Geocodificando direcciones... ${i+1}/${toGeocode.length}`;
+    if (statusEl) statusEl.textContent = `Ubicando ${points.length} de ${points.length + entries.length}... geocodificando ${i+1}/${toGeocode.length}`;
     const addr = toGeocode[i];
     const q = [addr.street, addr.city, addr.region, 'Chile'].filter(Boolean).join(', ');
     let coords = _getGeoCached(q);
@@ -5089,8 +5104,8 @@ async function _renderSalesHeatmap() {
     return;
   }
   if (statusEl) {
-    statusEl.textContent = `${points.length} ubicación${points.length!==1?'es':''} de entrega` +
-      (entries.length > MAX_POINTS ? ` · mostrando las primeras ${MAX_POINTS}` : '');
+    statusEl.textContent = `${points.length} ${points.length!==1?'ubicaciones':'ubicación'} de entrega` +
+      (entries.length > MAX_POINTS ? ` · ${entries.length - MAX_POINTS} sin geocodificar aún` : '');
   }
 
   const lats = points.map(p=>p.lat), lngs = points.map(p=>p.lng);
