@@ -458,6 +458,7 @@ function enterTenant(t) {
   localStorage.setItem('sf_tenant_id',        t.id);
   localStorage.setItem('sf_tenant_name',      t.name);
   localStorage.setItem('sf_tenant_color',     t.color || '#5b4fff');
+  localStorage.setItem('sf_tenant_color2',    t.color2 || '#16c98d');
   localStorage.setItem('sf_tenant_logo_text', t.logo_text || t.name.slice(0,2).toUpperCase());
   localStorage.setItem('sf_tenant_logo_url',  t.logo_url || '');
   location.replace('/');

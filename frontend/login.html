@@ -266,6 +266,7 @@ async function doLogin() {
     localStorage.removeItem('sf_tenant_id');
     localStorage.removeItem('sf_tenant_name');
     localStorage.removeItem('sf_tenant_color');
+    localStorage.removeItem('sf_tenant_color2');
     localStorage.removeItem('sf_tenant_logo_text');
     localStorage.removeItem('sf_tenant_logo_url');
     // Superadmin → /admin, regular users → /
@@ -277,6 +278,7 @@ async function doLogin() {
         localStorage.setItem('sf_tenant_id',        data.tenant.id);
         localStorage.setItem('sf_tenant_name',      data.tenant.name);
         localStorage.setItem('sf_tenant_color',     data.tenant.color || '#5b4fff');
+        localStorage.setItem('sf_tenant_color2',    data.tenant.color2 || '#16c98d');
         localStorage.setItem('sf_tenant_logo_text', data.tenant.logo_text || '');
         localStorage.setItem('sf_tenant_logo_url',  data.tenant.logo_url || '');
       }

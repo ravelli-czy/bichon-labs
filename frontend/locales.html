@@ -20,6 +20,17 @@
   --r:12px;--r-lg:16px;--r-xl:20px;
   --sh:0 2px 12px rgba(91,79,255,.08);--sh-md:0 4px 20px rgba(91,79,255,.13);
 }
+body.dark-mode{
+  --bg:#14141f;--bg2:#1c1c2b;--bg3:#242438;
+  --text:#f0f0f5;--text2:#b8b8cc;--text3:#7d7d99;--border:#34344a;
+  --primary-light:#26224a;
+  --green-light:#12332a;
+  --red-light:#3a1620;
+  --amber-light:#3a2c10;
+  --blue-light:#122642;
+  --teal-light:#0e2e2a;
+  --sh:0 2px 14px rgba(0,0,0,.4);--sh-md:0 4px 20px rgba(0,0,0,.45);
+}
 body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;max-width:520px;margin:0 auto}
 
 .topbar{background:var(--bg2);padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:var(--sh)}
@@ -420,6 +431,15 @@ body.embedded .embed-page-header{display:block}
 <script>
 // Embed mode: hide topbar when loaded inside app iframe
 if (new URLSearchParams(location.search).has('embed')) document.body.classList.add('embedded');
+
+// Dark mode — same-origin, shares localStorage with the parent app/index.html
+(function applyDarkMode(){
+  try {
+    const key = 'sf_prefs_' + (localStorage.getItem('sf_tenant_id') || 'default');
+    const prefs = JSON.parse(localStorage.getItem(key) || '{}');
+    document.body.classList.toggle('dark-mode', !!prefs.darkMode);
+  } catch (e) {}
+})();
 
 // ── AUTH GUARD ──────────────────────────────────
 (function(){
