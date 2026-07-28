@@ -475,16 +475,11 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 
   <!-- VENTAS -->
   <div class="page" id="page-ventas">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-      <div>
-        <div class="section-title" style="margin-bottom:0">Ventas</div>
-        <div class="section-sub">Solo ítems vendibles disponibles</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-        <button id="btn-select-ventas" onclick="toggleVentasSelectMode()" style="background:none;color:var(--text2);font-size:13px;font-weight:800;padding:8px 14px;border-radius:12px;display:flex;align-items:center;gap:6px;border:1.5px solid var(--border);cursor:pointer;white-space:nowrap"><i class="ti ti-checkbox"></i> Seleccionar</button>
-        <button onclick="printReceptores()" style="background:none;color:var(--primary);font-size:13px;font-weight:800;padding:8px 14px;border-radius:12px;display:flex;align-items:center;gap:6px;border:1.5px solid var(--primary);cursor:pointer;white-space:nowrap"><i class="ti ti-printer"></i> Imprimir Receptor</button>
-        <button onclick="openSheetVenta()" style="background:var(--red);color:#fff;font-size:13px;font-weight:800;padding:9px 16px;border-radius:12px;display:flex;align-items:center;gap:6px;border:none;cursor:pointer;white-space:nowrap"><i class="ti ti-shopping-bag"></i> Nueva venta</button>
-      </div>
+    <div class="section-title">Ventas</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button id="btn-select-ventas" onclick="toggleVentasSelectMode()" style="background:none;color:var(--text2);font-size:13px;font-weight:800;padding:8px 14px;border-radius:12px;display:flex;align-items:center;gap:6px;border:1.5px solid var(--border);cursor:pointer;white-space:nowrap"><i class="ti ti-checkbox"></i> Seleccionar</button>
+      <button onclick="printReceptores()" style="background:none;color:var(--primary);font-size:13px;font-weight:800;padding:8px 14px;border-radius:12px;display:flex;align-items:center;gap:6px;border:1.5px solid var(--primary);cursor:pointer;white-space:nowrap"><i class="ti ti-printer"></i> Receptor</button>
+      <button onclick="openSheetVenta()" style="background:var(--red);color:#fff;font-size:13px;font-weight:800;padding:9px 16px;border-radius:12px;display:flex;align-items:center;gap:6px;border:none;cursor:pointer;white-space:nowrap"><i class="ti ti-shopping-bag"></i> Nueva venta</button>
     </div>
     <!-- search + status filter for ventas -->
     <div class="search-bar" style="margin-bottom:10px">
