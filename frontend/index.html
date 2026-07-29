@@ -643,22 +643,24 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 
   <!-- CATÁLOGO -->
   <div class="page" id="page-catalogo">
-    <div class="section-title">Catálogo</div>
-    <div class="section-sub">Categorías, marcas y maestro de productos</div>
-    <a href="javascript:void(0)" class="meson-hub-banner" onclick="showPage('meson', navTabEl('meson'), true)">
-      <div class="meson-hub-icon"><i class="ti ti-hammer"></i></div>
-      <div class="meson-hub-text">
-        <div class="meson-hub-title">🔨 Mesón Creativo</div>
-        <div class="meson-hub-desc">Arma un nuevo KIT arrastrando SKUs existentes</div>
+    <div class="section-title" id="cat-page-title">Catálogo</div>
+    <div class="section-sub" id="cat-page-sub">Categorías, marcas y maestro de productos</div>
+    <div id="cat-tabs-section">
+      <a href="javascript:void(0)" class="meson-hub-banner" onclick="showPage('meson', navTabEl('meson'), true)">
+        <div class="meson-hub-icon"><i class="ti ti-hammer"></i></div>
+        <div class="meson-hub-text">
+          <div class="meson-hub-title">🔨 Mesón Creativo</div>
+          <div class="meson-hub-desc">Arma un nuevo KIT arrastrando SKUs existentes</div>
+        </div>
+        <i class="ti ti-chevron-right meson-hub-arrow"></i>
+      </a>
+      <div class="tabs">
+        <div class="tab active" id="ctab-categorias" onclick="switchCatTab('categorias',this)">Categorías</div>
+        <div class="tab" id="ctab-marcas" onclick="switchCatTab('marcas',this)">Marcas</div>
+        <div class="tab" id="ctab-grupos" onclick="switchCatTab('grupos',this)">Grupos</div>
+        <div class="tab" id="ctab-productos" onclick="switchCatTab('productos',this)">Productos</div>
+        <div class="tab" id="ctab-skus" onclick="switchCatTab('skus',this)">SKUs</div>
       </div>
-      <i class="ti ti-chevron-right meson-hub-arrow"></i>
-    </a>
-    <div class="tabs">
-      <div class="tab active" id="ctab-categorias" onclick="switchCatTab('categorias',this)">Categorías</div>
-      <div class="tab" id="ctab-marcas" onclick="switchCatTab('marcas',this)">Marcas</div>
-      <div class="tab" id="ctab-grupos" onclick="switchCatTab('grupos',this)">Grupos</div>
-      <div class="tab" id="ctab-productos" onclick="switchCatTab('productos',this)">Productos</div>
-      <div class="tab" id="ctab-skus" onclick="switchCatTab('skus',this)">SKUs</div>
     </div>
     <div id="cat-content" style="margin-top:10px"></div>
   </div>
@@ -3402,6 +3404,19 @@ function renderCatalogo() {
   document.querySelectorAll('#page-catalogo .tab').forEach(t => t.classList.remove('active'));
   const activeEl = document.getElementById('ctab-' + tab);
   if (activeEl) activeEl.classList.add('active');
+
+  // Pagos/Canales live outside the tab bar now (sidebar/hamburger only) —
+  // show them as their own standalone section instead of "Catálogo".
+  const isStandalone = tab === 'pagos' || tab === 'canales';
+  const titleEl = document.getElementById('cat-page-title');
+  const subEl   = document.getElementById('cat-page-sub');
+  const tabsSec = document.getElementById('cat-tabs-section');
+  if (tabsSec) tabsSec.style.display = isStandalone ? 'none' : '';
+  if (titleEl) titleEl.textContent = tab === 'pagos' ? 'Medios de pago' : tab === 'canales' ? 'Canales de Venta' : 'Catálogo';
+  if (subEl)   subEl.textContent   = tab === 'pagos' ? 'Formas de pago disponibles para tus ventas'
+                                    : tab === 'canales' ? 'Canales por los que llegan tus ventas'
+                                    : 'Categorías, marcas y maestro de productos';
+
   const el = document.getElementById('cat-content');
   if (!el) return;
   if      (tab === 'categorias') renderCategoryTreeView(el);
