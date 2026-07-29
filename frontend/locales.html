@@ -441,6 +441,34 @@ if (new URLSearchParams(location.search).has('embed')) document.body.classList.a
   } catch (e) {}
 })();
 
+// Tenant brand colors — same-origin, shares localStorage with index.html
+function shadeColor(hex, pct) {
+  try {
+    const n = parseInt(hex.replace('#',''), 16);
+    let r = (n>>16) & 0xff, g = (n>>8) & 0xff, b = n & 0xff;
+    if (pct < 0) { const f = 1 + pct/100; r*=f; g*=f; b*=f; }
+    else { r += (255-r)*pct/100; g += (255-g)*pct/100; b += (255-b)*pct/100; }
+    r = Math.min(255,Math.max(0,Math.round(r)));
+    g = Math.min(255,Math.max(0,Math.round(g)));
+    b = Math.min(255,Math.max(0,Math.round(b)));
+    return `#${((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1)}`;
+  } catch { return hex; }
+}
+(function applyTenantColors(){
+  const color  = localStorage.getItem('sf_tenant_color');
+  const color2 = localStorage.getItem('sf_tenant_color2');
+  if (color) {
+    document.documentElement.style.setProperty('--primary', color);
+    document.documentElement.style.setProperty('--primary-dark', shadeColor(color, -20));
+    document.documentElement.style.setProperty('--primary-light', shadeColor(color, 85));
+  }
+  if (color2) {
+    document.documentElement.style.setProperty('--green', color2);
+    document.documentElement.style.setProperty('--green-dark', shadeColor(color2, -20));
+    document.documentElement.style.setProperty('--green-light', shadeColor(color2, 85));
+  }
+})();
+
 // ── AUTH GUARD ──────────────────────────────────
 (function(){
   const token = localStorage.getItem('sf_token');

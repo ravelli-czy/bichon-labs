@@ -40,6 +40,19 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .icon-btn{width:38px;height:38px;border-radius:10px;background:var(--bg3);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;color:var(--text2)}
 .icon-btn i{font-size:20px}
 .notif-badge{position:absolute;top:3px;right:3px;background:var(--red);color:#fff;font-size:9px;font-weight:900;border-radius:10px;padding:1px 5px;border:2px solid var(--bg2);min-width:16px;text-align:center;line-height:14px}
+/* Narrow phones: the topbar can carry up to 6 icon buttons (admin role) —
+   tighten spacing so they never force horizontal overflow on the page. */
+@media(max-width:420px){
+  .topbar{padding:12px 10px}
+  .topbar-logo{gap:6px}
+  .logo-icon{width:32px;height:32px}
+  .logo-icon i{font-size:17px}
+  .logo-title{font-size:15px}
+  .logo-sub{display:none}
+  .topbar-right{gap:4px}
+  .icon-btn{width:32px;height:32px}
+  .icon-btn i{font-size:17px}
+}
 
 .bottom-nav{background:var(--bg2);border-top:1px solid var(--border);display:flex;padding:8px 4px 12px;position:fixed;bottom:0;left:0;right:0;z-index:100;box-shadow:0 -4px 20px rgba(0,0,0,.06);max-width:480px;margin:0 auto}
 .nav-tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 2px;border-radius:10px;cursor:pointer;border:none;background:none;font-family:'Nunito',sans-serif;color:var(--text3)}
@@ -130,10 +143,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .pref-opt i{font-size:20px}
 .pref-opt.active{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
 .pref-hint{font-size:11px;color:var(--text3);font-weight:600}
-.dm-switch{width:46px;height:26px;border-radius:20px;background:var(--border);border:none;position:relative;cursor:pointer;flex-shrink:0;transition:background .15s ease;padding:0}
-.dm-switch.active{background:var(--primary)}
-.dm-switch-thumb{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .15s ease;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-.dm-switch.active .dm-switch-thumb{transform:translateX(20px)}
 .color-input{width:100%;height:44px;border-radius:var(--radius);border:2px solid var(--border);background:var(--bg3);cursor:pointer;padding:4px}
 .kit-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
 .kit-name{font-size:15px;font-weight:800;margin-top:3px}
@@ -304,9 +313,9 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .meson-hub-arrow{font-size:18px;color:var(--text3);flex-shrink:0}
 
 /* MESÓN CREATIVO — builder page */
-.meson-layout{display:grid;grid-template-columns:1fr;gap:14px}
-@media(min-width:900px){.meson-layout{grid-template-columns:1.4fr 1fr;align-items:start}}
-.meson-panel{background:var(--bg2);border-radius:var(--radius-lg);box-shadow:var(--shadow);overflow:hidden}
+.meson-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+@media(min-width:900px){.meson-layout{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);align-items:start}}
+.meson-panel{background:var(--bg2);border-radius:var(--radius-lg);box-shadow:var(--shadow);overflow:hidden;min-width:0}
 .meson-header{padding:14px 16px;border-bottom:1px solid var(--border)}
 .meson-header input{font-size:16px;font-weight:800}
 .meson-surface{position:relative;min-height:220px;padding:16px;background:linear-gradient(160deg,#8b6242,#6b4726 60%,#5c3b1f);transition:box-shadow .15s ease}
@@ -321,12 +330,14 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .meson-tile-qty{margin-top:8px;display:flex;align-items:center;justify-content:center;gap:6px}
 .meson-tile-qty button{width:20px;height:20px;border-radius:6px;border:1px solid #e3d3ae;background:#fff;cursor:pointer;font-size:12px;line-height:1;color:#5c3b1f}
 .meson-tile-qty span{font-size:12px;font-weight:800;min-width:14px;color:#3a342b}
-.meson-footer{padding:14px 16px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.meson-footer{padding:14px 16px;border-top:1px solid var(--border);display:flex;flex-direction:column;align-items:stretch;gap:10px}
+@media(min-width:640px){.meson-footer{flex-direction:row;align-items:center;justify-content:space-between}}
 .meson-footer-info{display:flex;flex-direction:column;gap:5px;min-width:0}
 .meson-count{font-size:12px;color:var(--text3);font-weight:700}
 .meson-cost-badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;color:var(--amber-dark);background:var(--amber-light);padding:4px 10px;border-radius:20px;width:fit-content}
 .meson-cost-badge i{font-size:13px}
-.meson-create-btn{width:auto;flex-shrink:0;padding:11px 20px}
+.meson-create-btn{width:100%;padding:11px 20px}
+@media(min-width:640px){.meson-create-btn{width:auto;flex-shrink:0}}
 .meson-advanced{padding:14px 16px;background:var(--green-light)}
 .kit-price-summary{background:var(--bg2);border:1.5px solid #a7f3d0;border-radius:var(--radius);padding:10px 14px;margin-bottom:14px}
 .kit-price-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;font-size:13px;color:var(--text2);font-weight:700}
@@ -334,7 +345,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .kit-price-row strong{font-size:14px;color:var(--text)}
 .kit-price-profit strong{color:var(--green-dark)}
 .kit-price-profit strong.negative{color:var(--red)}
-.meson-catalog{background:var(--bg2);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:14px}
+.meson-catalog{background:var(--bg2);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:14px;min-width:0}
 .meson-catalog-list{display:flex;flex-direction:column;gap:8px;max-height:520px;overflow-y:auto;padding-right:2px}
 .meson-catalog-item{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:12px;padding:9px 10px;cursor:grab;background:var(--bg2);transition:border-color .12s ease,background .12s ease}
 .meson-catalog-item:hover{border-color:var(--amber);background:var(--amber-light)}
@@ -510,6 +521,9 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div><div class="logo-title">StockFlow</div><div class="logo-sub">OMS · WMS</div></div>
   </div>
   <div class="topbar-right">
+    <button class="icon-btn" id="dark-mode-btn" onclick="toggleDarkMode()" title="Modo oscuro">
+      <i class="ti ti-moon" id="dark-mode-icon"></i>
+    </button>
     <button class="icon-btn" id="sidebar-toggle" onclick="toggleSidebar()" title="Expandir/Colapsar menú">
       <i class="ti ti-layout-sidebar"></i>
     </button>
@@ -1192,18 +1206,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div class="pref-hint">Se aplica al iniciar la app o abrir Inventario.</div>
       </div>
       <div class="pref-group" style="margin-top:18px">
-        <div class="pref-group-title">Apariencia</div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0">
-          <div>
-            <div class="pref-label" style="margin-bottom:2px">Modo oscuro</div>
-            <div class="pref-hint">Cambia el tema de toda la app.</div>
-          </div>
-          <button id="dark-mode-toggle" class="dm-switch" onclick="toggleDarkMode(this)" role="switch" aria-checked="false" title="Modo oscuro">
-            <span class="dm-switch-thumb"></span>
-          </button>
-        </div>
-      </div>
-      <div class="pref-group" style="margin-top:18px">
         <div class="pref-group-title">Personalización de marca</div>
         <div class="pref-label">Nombre visible de la cuenta</div>
         <input class="form-input" id="brand-name" placeholder="Ej: Harmony" style="margin-bottom:12px">
@@ -1316,6 +1318,32 @@ function shadeColor(hex, pct) {
     .then(user => {
       if (!user) { localStorage.removeItem('sf_token'); localStorage.removeItem('sf_role'); location.replace('/login'); return; }
       localStorage.setItem('sf_role', user.role || 'staff');
+      // Keep branding in sync with the tenant's current settings on every
+      // load — otherwise a change made by one admin only ever shows up on
+      // the browser that made it, since branding was only ever cached at
+      // login time. (Platform users impersonating a tenant via /admin have
+      // no tenant of their own here — user.tenant is null — so this leaves
+      // whatever enterTenant() already cached for them untouched.)
+      if (user.tenant) {
+        localStorage.setItem('sf_tenant_id',        user.tenant.id);
+        localStorage.setItem('sf_tenant_name',      user.tenant.name);
+        localStorage.setItem('sf_tenant_color',     user.tenant.color || '#5b4fff');
+        localStorage.setItem('sf_tenant_color2',    user.tenant.color2 || '#16c98d');
+        localStorage.setItem('sf_tenant_logo_text', user.tenant.logo_text || '');
+        localStorage.setItem('sf_tenant_logo_url',  user.tenant.logo_url || '');
+        applyTenantBranding();
+      }
+      // Re-sync this user's own dark-mode preference (per-user, not
+      // per-tenant) so it follows them across devices/sessions.
+      fetch('/api/users?action=my-settings', { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(r => r.ok ? r.json() : null)
+        .then(settings => {
+          if (settings && typeof settings.darkMode === 'boolean') {
+            savePref('darkMode', settings.darkMode);
+            applyDarkMode();
+          }
+        })
+        .catch(() => {});
       // Platform-level users with no tenant context → /admin
       if ((user.role === 'superadmin' || user.role === 'master') && !localStorage.getItem('sf_tenant_id')) {
         location.replace('/admin'); return;
@@ -1367,22 +1395,35 @@ function getPrefs() { try { return JSON.parse(localStorage.getItem(_prefsKey()) 
 function savePref(key, val) { try { const p = getPrefs(); p[key] = val; localStorage.setItem(_prefsKey(), JSON.stringify(p)); } catch {} }
 const _initPrefs = getPrefs();
 
-// ── Dark mode ──────────────────────────────────────────────────────────────
+// ── Dark mode — personal, per-user preference (default: light) ─────────────
+// Applied instantly from the local cache to avoid a flash of the wrong
+// theme; the auth guard re-syncs it from the user's own saved settings
+// right after, the same way tenant branding gets re-synced (see below),
+// so the choice follows a user across devices/sessions.
 function applyDarkMode() {
-  document.body.classList.toggle('dark-mode', !!getPrefs().darkMode);
+  const on = !!getPrefs().darkMode;
+  document.body.classList.toggle('dark-mode', on);
+  const icon = document.getElementById('dark-mode-icon');
+  const btn  = document.getElementById('dark-mode-btn');
+  if (icon) icon.className = on ? 'ti ti-sun' : 'ti ti-moon';
+  if (btn)  btn.title = on ? 'Modo claro' : 'Modo oscuro';
+  return on;
 }
 applyDarkMode();
-function toggleDarkMode(el) {
+function toggleDarkMode() {
   const on = !document.body.classList.contains('dark-mode');
-  document.body.classList.toggle('dark-mode', on);
   savePref('darkMode', on);
-  if (el) { el.classList.toggle('active', on); el.setAttribute('aria-checked', on); }
+  applyDarkMode();
   // Same-origin embedded pages (Home/Locales) keep their own copy of the
   // toggle — flip it live instead of reloading and losing their state.
   ['iframe-home', 'iframe-locales'].forEach(id => {
     const ifr = document.getElementById(id);
     try { ifr?.contentDocument?.body.classList.toggle('dark-mode', on); } catch (e) {}
   });
+  if (S._apiReady) {
+    apiFetch('/api/users?action=my-settings', { method: 'PUT', body: JSON.stringify({ settings: { darkMode: on } }) })
+      .catch(e => console.warn('[dark-mode] save failed:', e.message));
+  }
 }
 
 const S = {
@@ -1763,6 +1804,12 @@ async function saveBrandSettings() {
     if (payload.logo_url) localStorage.setItem('sf_tenant_logo_url', payload.logo_url);
     applyTenantBranding();
     S._brandLogoDataUrl = null;
+    // Embedded Home/Locales pages read the brand colors from localStorage
+    // only once on their own load — reload them so the new colors show up.
+    const homeIfr = document.getElementById('iframe-home');
+    if (homeIfr?.getAttribute('src')) homeIfr.src = homeIfr.src;
+    const locIfr = document.getElementById('iframe-locales');
+    if (locIfr?.getAttribute('src')) locIfr.src = locIfr.src;
     toast('✅ Personalización guardada');
   } catch (e) {
     toast('❌ ' + (e.message || 'No se pudo guardar la personalización'));

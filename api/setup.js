@@ -256,6 +256,7 @@ module.exports = async (req, res) => {
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT DEFAULT ''`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS status     TEXT NOT NULL DEFAULT 'active'`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id  TEXT NOT NULL DEFAULT ''`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS settings   JSONB DEFAULT '{}'`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS sessions (
