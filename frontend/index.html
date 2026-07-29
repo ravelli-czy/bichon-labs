@@ -730,12 +730,14 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <button class="nav-tab" onclick="showPage('inventory',this)"><i class="ti ti-box"></i><span>Inventario</span></button>
   <button class="nav-tab" onclick="showPage('catalogo',this)"><i class="ti ti-tag"></i><span>Catálogo</span></button>
   <button class="nav-tab" onclick="showPage('ventas',this)"><i class="ti ti-shopping-bag"></i><span>Ventas</span></button>
-  <button class="nav-tab" onclick="showPage('locales',this)"><i class="ti ti-building-store"></i><span>Locales</span></button>
   <button class="nav-tab" onclick="showPage('delivery',this)"><i class="ti ti-truck-delivery"></i><span>Delivery</span></button>
-  <!-- Mobile-only: opens the "more" sheet with the 4 items below. On desktop
+  <!-- Mobile-only: opens the "more" sheet with the items below. On desktop
        these show inline in the sidebar instead and this stays hidden. -->
   <button class="nav-tab" id="mobile-more-btn" onclick="openSheet('sheet-mobile-more')">
     <i class="ti ti-menu-2"></i><span>Más</span>
+  </button>
+  <button class="nav-tab sidebar-only-item" onclick="showPage('locales',this)" title="Locales">
+    <i class="ti ti-building-store"></i><span>Locales</span>
   </button>
   <button class="nav-tab sidebar-only-item" onclick="openCatalogTab('pagos')" title="Medios de pago">
     <i class="ti ti-credit-card"></i><span>Pagos</span>
@@ -767,6 +769,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-content" style="padding:16px 20px 28px;display:flex;flex-direction:column;gap:10px">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('locales',navTabEl('locales'))"><i class="ti ti-building-store"></i> Locales</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('pagos')"><i class="ti ti-credit-card"></i> Pagos</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('canales')"><i class="ti ti-broadcast"></i> Canales</button>
       <a href="/users" class="btn btn-outline" id="admin-users-btn-mobile" style="display:none;text-decoration:none"><i class="ti ti-users"></i> Perfiles y Usuarios</a>
