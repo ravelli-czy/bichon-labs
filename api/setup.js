@@ -202,6 +202,20 @@ module.exports = async (req, res) => {
     await sql`CREATE INDEX IF NOT EXISTS orders_tenant_delivered_idx ON orders (tenant_id, delivered_at)`;
     await sql`CREATE INDEX IF NOT EXISTS orders_location_idx         ON orders (location_id)`;
 
+    // Backfill: órdenes que YA estaban en 'entregada' antes de que existiera
+    // esta columna nunca dispararon el código que la setea (sólo corre en
+    // transiciones nuevas hacia 'entregada', ver api/orders/[id].js), así que
+    // quedarían con delivered_at NULL para siempre y serían invisibles en
+    // Finanzas (que filtra por delivered_at IS NOT NULL). No existe una fecha
+    // de entrega histórica real que rescatar, así que se usa `updated_at`
+    // como mejor estimación disponible (se actualiza en cada cambio de
+    // estado, incluida la transición a 'entregada') — es una aproximación,
+    // no un dato inventado. Idempotente: sólo toca filas con delivered_at NULL.
+    await sql`
+      UPDATE orders SET delivered_at = updated_at
+      WHERE status = 'entregada' AND delivered_at IS NULL
+    `;
+
     // ── Finanzas: categorías de gasto ──────────────────────────────────────
     await sql`
       CREATE TABLE IF NOT EXISTS expense_categories (
