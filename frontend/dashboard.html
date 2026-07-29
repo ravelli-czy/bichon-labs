@@ -451,6 +451,9 @@ function _sumVentasCosto(orders) {
   const costo = orders.reduce((s,v) => {
     if (!Array.isArray(v.items)) return s;
     return s + v.items.reduce((is, item) => {
+      // Prefer the cost snapshotted on the item at time of sale (or by the
+      // cost backfill for older orders) over today's product cost.
+      if (item.cost != null) return is + (item.cost || 0) * item.qty;
       if (item.type === 'kit') {
         const kit = KITS_LIST.find(k => k.sku === item.sku);
         if (!kit || !Array.isArray(kit.items)) return is;
