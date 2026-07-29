@@ -49,7 +49,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;max-
 .hero{border-radius:var(--r-xl);background:linear-gradient(135deg,var(--hero-1) 0%,var(--hero-2) 60%,var(--hero-3) 100%);padding:22px 20px 18px;position:relative;overflow:hidden;box-shadow:0 8px 32px rgba(91,79,255,.35)}
 .hero::before{content:'';position:absolute;top:-40px;right:-40px;width:160px;height:160px;background:rgba(255,255,255,.07);border-radius:50%;pointer-events:none}
 .hero::after{content:'';position:absolute;bottom:-30px;right:20px;width:100px;height:100px;background:rgba(255,255,255,.05);border-radius:50%;pointer-events:none}
-.hero-greeting{font-size:13px;font-weight:700;color:rgba(255,255,255,.75);margin-bottom:4px;display:flex;align-items:center;gap:5px}
+.hero-greeting{font-size:13px;font-weight:700;color:rgba(255,255,255,.75);margin-top:32px;margin-bottom:4px;display:flex;align-items:center;gap:5px}
 .hero-date{font-size:12px;color:rgba(255,255,255,.55);font-weight:600;margin-bottom:18px}
 .hero-metrics{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
 .hero-metric{}
@@ -65,14 +65,14 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;max-
 .hero-chip.red{background:rgba(255,77,109,.3)}
 .hero-chip.amber{background:rgba(245,158,11,.3)}
 
-/* PERIOD TOGGLE */
-.hero-period-toggle{position:absolute;top:14px;right:14px;display:flex;gap:4px;z-index:2}
+/* PERIOD TOGGLE — controls both the hero totals AND the sparkline below */
+.hero-period-toggle{position:absolute;top:14px;right:14px;display:flex;gap:4px;z-index:2;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 28px)}
 .period-btn{padding:5px 10px;border-radius:20px;border:none;font-family:'Nunito',sans-serif;font-size:11px;font-weight:800;cursor:pointer;transition:all .15s;background:rgba(255,255,255,.18);color:rgba(255,255,255,.75);white-space:nowrap}
 .period-btn.active{background:rgba(255,255,255,.92);color:var(--primary)}
-
-/* HERO TOTALS RANGE TOGGLE — controls which period the two big numbers sum */
-.hero-range-toggle{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;margin-bottom:10px}
 .period-btn:hover:not(.active){background:rgba(255,255,255,.28)}
+@media(max-width:340px){
+  .hero-period-toggle .period-btn{padding:4px 7px;font-size:9.5px}
+}
 
 /* MINI BARS (sparkline) */
 .sparkline-wrap{margin-top:10px}
@@ -194,6 +194,9 @@ body.embedded #modules-section,body.embedded .footer{display:none}
   /* Hero: wider metrics */
   .hero{padding:28px 28px 22px}
   .hero-metric-val{font-size:28px}
+  /* Plenty of horizontal room here for the top-right period toggle to sit
+     beside the greeting without overlapping it — undo the mobile clearance. */
+  .hero-greeting{margin-top:0}
 
   /* Alerts + suppliers side by side */
   .desktop-split{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
@@ -236,17 +239,14 @@ body.embedded #modules-section,body.embedded .footer{display:none}
 
   <!-- HERO -->
   <div class="hero" id="hero-card">
-    <div class="hero-period-toggle">
-      <button class="period-btn active" id="btn-days" onclick="setSparkPeriod('days')">Últ. 7 días</button>
-      <button class="period-btn" id="btn-weeks" onclick="setSparkPeriod('weeks')">Últ. 7 semanas</button>
+    <div class="hero-period-toggle" id="hero-range-toggle">
+      <button class="period-btn" data-range="today" onclick="setHeroRange('today')">Hoy</button>
+      <button class="period-btn" data-range="week" onclick="setHeroRange('week')">Última Semana</button>
+      <button class="period-btn active" data-range="month" onclick="setHeroRange('month')">Mes Actual</button>
+      <button class="period-btn" data-range="full" onclick="setHeroRange('full')">Full</button>
     </div>
     <div class="hero-greeting"><i class="ti ti-wave-sine"></i> <span id="greeting">Buenos días</span></div>
     <div class="hero-date" id="hero-date">—</div>
-    <div class="hero-range-toggle" id="hero-range-toggle">
-      <button class="period-btn" data-range="full" onclick="setHeroRange('full')">Full</button>
-      <button class="period-btn active" data-range="month" onclick="setHeroRange('month')">Mes Actual</button>
-      <button class="period-btn" data-range="week" onclick="setHeroRange('week')">Última Semana</button>
-    </div>
     <div class="hero-metrics">
       <div class="hero-metric">
         <div class="hero-metric-val" id="hero-ventas">$0</div>
@@ -416,7 +416,7 @@ function renderHero() {
   } else { chipAl.style.display = 'none'; }
   const varEl = document.getElementById('hero-ventas-var');
   if (heroRange !== 'full' && varPct !== 0) {
-    const prevLabel = heroRange === 'week' ? 'sem. ant.' : 'mes ant.';
+    const prevLabel = heroRange === 'today' ? 'ayer' : heroRange === 'week' ? 'sem. ant.' : 'mes ant.';
     varEl.style.display = '';
     varEl.innerHTML = `<i class="ti ti-trending-${varPct>0?'up':'down'}" style="font-size:11px"></i> ${varPct>0?'+':''}${varPct}% vs ${prevLabel}`;
     varEl.className = 'hero-metric-sub ' + (varPct > 0 ? 'up' : 'down');
@@ -426,8 +426,8 @@ function renderHero() {
 }
 
 // ── HERO TOTALS RANGE (Full / Mes Actual / Última Semana) ─────────────
-let heroRange = 'month'; // 'full' | 'month' | 'week'
-const HERO_RANGE_LABELS = { full: 'Ventas totales', month: 'Ventas del mes', week: 'Ventas última semana' };
+let heroRange = 'month'; // 'today' | 'week' | 'month' | 'full'
+const HERO_RANGE_LABELS = { today: 'Ventas de hoy', week: 'Ventas última semana', month: 'Ventas del mes', full: 'Ventas totales' };
 
 function _orderDateObj(v) {
   if (v.created_at) { const d = new Date(v.created_at); if (!isNaN(d)) return d; }
@@ -475,7 +475,12 @@ function _sumVentasCosto(orders) {
 function computeHeroStats() {
   const now = new Date();
   let current, previous;
-  if (heroRange === 'week') {
+  if (heroRange === 'today') {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const prevStart = new Date(start); prevStart.setDate(start.getDate() - 1);
+    current  = _ordersInRange(VENTAS, start, null);
+    previous = _ordersInRange(VENTAS, prevStart, start);
+  } else if (heroRange === 'week') {
     const start = new Date(now); start.setHours(0,0,0,0); start.setDate(start.getDate() - 6);
     const prevStart = new Date(start); prevStart.setDate(start.getDate() - 7);
     current  = _ordersInRange(VENTAS, start, null);
@@ -507,41 +512,84 @@ function setHeroRange(range) {
   document.querySelectorAll('#hero-range-toggle .period-btn').forEach(b => b.classList.toggle('active', b.dataset.range === range));
   computeHeroStats();
   renderHero();
+  renderSparkline(range);
 }
 
-// ── SPARKLINE + PERIOD TOGGLE ──────────────────
+// ── SPARKLINE — driven by the same range as the hero totals ───────────
+// Bucketing depends on how wide the selected range is: hourly for "hoy",
+// daily for "última semana", weekly for "mes actual", monthly for "full".
 const DOW_SHORT = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-const SPARK = {
-  days: {
-    values: [45000, 62000, 35000, 218000, 79000, 127500, 19300],
-    getLabels() {
-      const today = new Date();
-      return Array.from({length:7}, (_,i) => {
-        const d = new Date(today); d.setDate(today.getDate() - (6 - i));
-        return i === 6 ? 'Hoy' : DOW_SHORT[d.getDay()];
-      });
-    }
-  },
-  weeks: {
-    values: [320000, 485000, 562000, 498000, 720000, 641000, 586800],
-    getLabels() { return ['S-6','S-5','S-4','S-3','S-2','S-1','Esta']; }
+const MONTHS_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+function computeSparklineBuckets(range) {
+  const now = new Date();
+  if (range === 'today') {
+    const bucketHours = 4, nBuckets = 24 / bucketHours;
+    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const values = new Array(nBuckets).fill(0);
+    const labels = Array.from({length:nBuckets}, (_,i) => String(i*bucketHours).padStart(2,'0') + 'h');
+    VENTAS.forEach(v => {
+      const d = _orderDateObj(v);
+      if (!d || d < dayStart) return;
+      const idx = Math.min(nBuckets-1, Math.floor((d - dayStart) / 3600000 / bucketHours));
+      values[idx] += (v.total||0);
+    });
+    return { values, labels, todayIndex: Math.min(nBuckets-1, Math.floor(now.getHours() / bucketHours)) };
   }
-};
-function setSparkPeriod(period) {
-  const d = SPARK[period];
-  const max = Math.max(...d.values);
-  const labels = d.getLabels();
-  document.getElementById('sparkline').innerHTML = d.values.map((v,i) => {
+  if (range === 'week') {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()); start.setDate(start.getDate() - 6);
+    const values = new Array(7).fill(0);
+    const labels = Array.from({length:7}, (_,i) => {
+      const d = new Date(start); d.setDate(start.getDate()+i);
+      return i === 6 ? 'Hoy' : DOW_SHORT[d.getDay()];
+    });
+    VENTAS.forEach(v => {
+      const d = _orderDateObj(v);
+      if (!d || d < start) return;
+      const idx = Math.floor((new Date(d.getFullYear(),d.getMonth(),d.getDate()) - start) / 86400000);
+      if (idx >= 0 && idx < 7) values[idx] += (v.total||0);
+    });
+    return { values, labels, todayIndex: 6 };
+  }
+  if (range === 'month') {
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd   = new Date(now.getFullYear(), now.getMonth()+1, 1);
+    const nBuckets = Math.ceil(Math.round((monthEnd - monthStart) / 86400000) / 7);
+    const values = new Array(nBuckets).fill(0);
+    const labels = Array.from({length:nBuckets}, (_,i) => `Sem ${i+1}`);
+    VENTAS.forEach(v => {
+      const d = _orderDateObj(v);
+      if (!d || d < monthStart || d >= monthEnd) return;
+      const dayOfMonth = Math.floor((new Date(d.getFullYear(),d.getMonth(),d.getDate()) - monthStart) / 86400000);
+      values[Math.min(nBuckets-1, Math.floor(dayOfMonth / 7))] += (v.total||0);
+    });
+    const todayDayOfMonth = Math.floor((new Date(now.getFullYear(),now.getMonth(),now.getDate()) - monthStart) / 86400000);
+    return { values, labels, todayIndex: Math.min(nBuckets-1, Math.floor(todayDayOfMonth / 7)) };
+  }
+  // 'full' — trailing 12 months
+  const nBuckets = 12;
+  const bucketStart = new Date(now.getFullYear(), now.getMonth() - (nBuckets-1), 1);
+  const values = new Array(nBuckets).fill(0);
+  const labels = Array.from({length:nBuckets}, (_,i) => MONTHS_SHORT[(bucketStart.getMonth()+i) % 12]);
+  VENTAS.forEach(v => {
+    const d = _orderDateObj(v);
+    if (!d) return;
+    const idx = (d.getFullYear() - bucketStart.getFullYear())*12 + (d.getMonth() - bucketStart.getMonth());
+    if (idx >= 0 && idx < nBuckets) values[idx] += (v.total||0);
+  });
+  return { values, labels, todayIndex: nBuckets-1 };
+}
+function renderSparkline(range) {
+  const { values, labels, todayIndex } = computeSparklineBuckets(range);
+  const max = Math.max(1, ...values);
+  document.getElementById('sparkline').innerHTML = values.map((v,i) => {
     const pct = Math.max(Math.round(v / max * 100), 5);
-    return `<div class="spark-bar${i===6?' today':''}" style="height:${pct}%" title="${labels[i]}: ${fmt(v)}"></div>`;
+    return `<div class="spark-bar${i===todayIndex?' today':''}" style="height:${pct}%" title="${labels[i]}: ${fmt(v)}"></div>`;
   }).join('');
   document.getElementById('spark-labels').innerHTML = labels.map((l,i) =>
-    `<span class="spark-lbl${i===6?' today':''}">${l}</span>`
+    `<span class="spark-lbl${i===todayIndex?' today':''}">${l}</span>`
   ).join('');
-  document.getElementById('btn-days').classList.toggle('active', period === 'days');
-  document.getElementById('btn-weeks').classList.toggle('active', period === 'weeks');
 }
-setSparkPeriod('days');
 
 function renderAlerts() {
   if (!alertas.length) { document.getElementById('alerts-section').innerHTML = ''; return; }
@@ -672,6 +720,7 @@ function renderModules() {
 
   // Render all sections
   renderHero();
+  renderSparkline(heroRange);
   renderAlerts();
   renderSuppliers();
   renderOrders();
