@@ -19,6 +19,50 @@ async function _deductKit(sql, kitSku, qty, wid, tenantId) {
   }
 }
 
+// ── Cost snapshotting ────────────────────────────────────────────────────
+// An order item's cost at time of sale isn't tracked automatically (products'
+// cost can change later), so we snapshot it into item.cost. These helpers
+// resolve a product/KIT's current cost, recursing into nested KITs (a KIT
+// built from other KITs via Mesón Creativo) to full depth.
+async function _loadCostMaps(sql, tenantId) {
+  const products = await sql`SELECT sku, warehouse_id, cost FROM products WHERE tenant_id = ${tenantId}`;
+  const kits     = await sql`SELECT sku, items FROM kits WHERE tenant_id = ${tenantId} AND warehouse_id = ''`;
+  const productsBySkuWh = new Map(); // "sku|warehouse_id" -> cost
+  const productsBySku   = new Map(); // sku -> cost (first match, any warehouse)
+  for (const p of products) {
+    productsBySkuWh.set(`${p.sku}|${p.warehouse_id || ''}`, p.cost || 0);
+    if (!productsBySku.has(p.sku)) productsBySku.set(p.sku, p.cost || 0);
+  }
+  const kitsBySku = new Map();
+  for (const k of kits) kitsBySku.set(k.sku, k.items || []);
+  return { productsBySkuWh, productsBySku, kitsBySku };
+}
+function _productCost({ productsBySkuWh, productsBySku }, sku, warehouseId) {
+  const key = `${sku}|${warehouseId || ''}`;
+  if (productsBySkuWh.has(key)) return productsBySkuWh.get(key);
+  return productsBySku.get(sku) || 0;
+}
+function _kitUnitCost(maps, kitSku, depth = 0, seen = new Set()) {
+  if (depth > 8 || seen.has(kitSku)) return 0;
+  seen = new Set(seen); seen.add(kitSku);
+  const items = maps.kitsBySku.get(kitSku);
+  if (!items) return 0;
+  return items.reduce((sum, comp) => {
+    const compCost = comp.type === 'kit'
+      ? _kitUnitCost(maps, comp.sku, depth + 1, seen)
+      : _productCost(maps, comp.sku, comp.warehouse_id);
+    return sum + compCost * comp.qty;
+  }, 0);
+}
+function _itemUnitCost(maps, item) {
+  return item.type === 'kit'
+    ? _kitUnitCost(maps, item.sku)
+    : _productCost(maps, item.sku, item.warehouse_id);
+}
+function _withCostSnapshot(items, maps) {
+  return (items || []).map(item => ({ ...item, cost: _itemUnitCost(maps, item) }));
+}
+
 module.exports = async (req, res) => {
   if (cors(req, res)) return;
 
@@ -38,15 +82,49 @@ module.exports = async (req, res) => {
       return res.json(rows);
     }
 
+    // ── POST ?action=backfill-costs — one-time snapshot of item.cost onto
+    // every existing order, using each product/KIT's CURRENT cost. Historical
+    // orders never recorded a cost snapshot, so downstream cost/margin
+    // calculations were always using today's cost instead of the cost at the
+    // time of sale — this backfills a starting point. Admin-only.
+    if (req.method === 'POST' && req.query?.action === 'backfill-costs') {
+      if (!['admin','superadmin','master'].includes(session.role)) {
+        return res.status(403).json({ error: 'No autorizado' });
+      }
+      const maps = await _loadCostMaps(sql, tenantId);
+      const orders = await sql`SELECT id, items FROM orders WHERE tenant_id = ${tenantId}`;
+      let ordersUpdated = 0, itemsUpdated = 0;
+      for (const order of orders) {
+        const items = Array.isArray(order.items) ? order.items : [];
+        if (!items.length) continue;
+        const newItems = _withCostSnapshot(items, maps);
+        await sql`UPDATE orders SET items = ${JSON.stringify(newItems)}::jsonb WHERE id = ${order.id} AND tenant_id = ${tenantId}`;
+        ordersUpdated++;
+        itemsUpdated += newItems.length;
+      }
+      await writeLog(sql, {
+        tenant_id:   tenantId,
+        actor,
+        action:      'ordenes.costos_recalculados',
+        entity_type: 'orden',
+        entity_id:   'bulk',
+        entity_name: `${ordersUpdated} órdenes`,
+        details:     { ordersUpdated, itemsUpdated },
+      });
+      return res.json({ ok: true, ordersUpdated, itemsUpdated });
+    }
+
     // ── POST — create order + decrement stock + create shipment ───────────
     if (req.method === 'POST') {
       const {
         cliente = 'Cliente', telefono = '', dedicatoria = '',
-        total = 0, items = [], delivery = {}, warehouse_id: orderWarehouseId = '',
+        total = 0, items: rawItems = [], delivery = {}, warehouse_id: orderWarehouseId = '',
         payment_method = '', sales_channel = '',
       } = req.body || {};
 
-      if (!items.length) return res.status(400).json({ error: 'items is required' });
+      if (!rawItems.length) return res.status(400).json({ error: 'items is required' });
+      // Snapshot each item's current cost so it survives future cost changes
+      const items = _withCostSnapshot(rawItems, await _loadCostMaps(sql, tenantId));
 
       // ID must be globally unique (orders.id is a plain PK shared across tenants)
       const [{ max_num }] = await sql`
