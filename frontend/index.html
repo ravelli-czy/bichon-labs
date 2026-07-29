@@ -943,6 +943,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   </div>
   <div class="sheet-footer">
     <button class="btn btn-outline" onclick="closeKitSheet()" style="flex:1;width:auto">Cancelar</button>
+    <button class="btn btn-outline" id="kit-dup-btn" onclick="duplicateKit()" style="flex:1;width:auto;display:none"><i class="ti ti-copy"></i> Duplicar</button>
     <button class="btn btn-primary" onclick="saveKit()" style="flex:2"><i class="ti ti-check"></i> Crear KIT</button>
   </div>
 </div>
@@ -2862,6 +2863,7 @@ function openSheetKit(pushURL = true) {
   S._addKitSkuMode = false; S._addKitSkuData = null;
   document.querySelector('#sheet-kit .sheet-title').innerHTML = '<i class="ti ti-stack-2" style="color:var(--amber-dark)"></i> Nuevo KIT';
   document.querySelector('#sheet-kit .btn-primary').innerHTML = '<i class="ti ti-check"></i> Crear KIT';
+  document.getElementById('kit-dup-btn').style.display = 'none';
   S.tempKitItems = [];
   ['kit-name','kit-price','kit-sku-input'].forEach(id => document.getElementById(id).value = '');
   const kitSkuInputNew = document.getElementById('kit-sku-input');
@@ -2884,6 +2886,7 @@ function editKit(sku, pushURL = true) {
   S._addKitSkuMode = false; S._addKitSkuData = null;
   document.querySelector('#sheet-kit .sheet-title').innerHTML = '<i class="ti ti-pencil" style="color:var(--amber-dark)"></i> Editar KIT';
   document.querySelector('#sheet-kit .btn-primary').innerHTML = '<i class="ti ti-check"></i> Guardar cambios';
+  document.getElementById('kit-dup-btn').style.display = '';
   document.getElementById('kit-name').value  = kit.name;
   document.getElementById('kit-price').value = kit.price;
   const skuInput = document.getElementById('kit-sku-input');
@@ -2903,6 +2906,35 @@ function editKit(sku, pushURL = true) {
   metaEl.style.display = metaHtml ? '' : 'none';
   openSheet('sheet-kit');
   if (pushURL) history.pushState({ kitSku: sku }, '', '/' + _editPagePrefix() + '/kit/' + encodeURIComponent(sku) + '/edit');
+}
+function _dupeNextKitName(name) {
+  const base = name.replace(/\s+Copia \d+$/, '');
+  const existing = new Set(S.kits.filter(k => (k.warehouse_id||'')==='').map(k => k.name.toLowerCase().trim()));
+  for (let n = 1; n <= 99; n++) {
+    const candidate = `${base} Copia ${n}`;
+    if (!existing.has(candidate.toLowerCase())) return candidate;
+  }
+  return `${base} Copia ${Date.now()}`;
+}
+function duplicateKit() {
+  const sku = S.editingKitSku;
+  if (!sku) return;
+  const kit = S.kits.find(k => k.sku === sku && (k.warehouse_id||'') === '');
+  if (!kit) return;
+  const newName = _dupeNextKitName(kit.name);
+
+  // Abrir formulario de creación para mostrar TODOS los campos
+  openSheetKit();
+
+  // Pre-llenar con datos del original (sin SKU: se autogenera al crear)
+  document.getElementById('kit-name').value  = newName;
+  document.getElementById('kit-price').value = kit.price || '';
+  S.tempKitItems = kit.items.map(i => ({...i}));
+  _populateKitCompSelect(null);
+  renderKitItemsList();
+  S.tempKitGroups = Array.isArray(kit.stock_group_ids) ? [...kit.stock_group_ids] : [];
+  renderGroupChips('kit-groups-wrap', S.tempKitGroups, 'toggleKitGroup');
+  document.querySelector('#sheet-kit .sheet-title').innerHTML = '<i class="ti ti-copy" style="color:var(--amber-dark)"></i> Duplicar KIT';
 }
 // Trunca nombres largos en las opciones de <select> — un <select> nativo
 // ensancha su control según el option más largo, lo que provoca scroll
@@ -3113,6 +3145,7 @@ function openAddKitSkuSheet(kitSku) {
   S.editingKitSku = null;
   document.querySelector('#sheet-kit .sheet-title').innerHTML = '<i class="ti ti-barcode" style="color:var(--amber-dark)"></i> Agregar SKU de KIT';
   document.querySelector('#sheet-kit .btn-primary').innerHTML = '<i class="ti ti-check"></i> Crear SKU';
+  document.getElementById('kit-dup-btn').style.display = 'none';
   document.getElementById('kit-main-fields').style.display = 'none';
   const modeFields = document.getElementById('kit-sku-mode-fields');
   modeFields.style.display = '';
