@@ -281,6 +281,10 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .venta-date-btn .date-day{font-size:9px;font-weight:700;opacity:.7;text-transform:uppercase}
 .venta-date-btn .date-num{font-size:15px;font-weight:900;line-height:1;margin-top:1px}
 .venta-date-btn.selected .date-day,.venta-date-btn.selected .date-num{color:#fff;opacity:1}
+.date-period-nav{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:6px}
+.date-period-btn{width:28px;height:28px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg2);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.date-period-btn:hover{background:var(--bg3)}
+.date-period-label{font-size:13px;font-weight:800;color:var(--text2);min-width:110px;text-align:center;text-transform:capitalize}
 
 /* SLOT OPTION CARDS (rich style) */
 .slot-option{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-radius:var(--radius);border:2px solid var(--border);cursor:pointer;transition:all .15s;background:var(--bg3);margin-bottom:7px}
@@ -968,6 +972,11 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div id="oe-date-group" style="display:none">
         <div class="form-group">
           <div class="form-label">Selecciona la fecha</div>
+          <div class="date-period-nav">
+            <button type="button" class="date-period-btn" onclick="oeShiftDatePeriod(-1)" title="Período anterior"><i class="ti ti-chevron-left"></i></button>
+            <span class="date-period-label" id="oe-date-period-label"></span>
+            <button type="button" class="date-period-btn" onclick="oeShiftDatePeriod(1)" title="Período siguiente"><i class="ti ti-chevron-right"></i></button>
+          </div>
           <div class="venta-date-grid" id="oe-date-grid"></div>
         </div>
       </div>
@@ -4972,6 +4981,17 @@ function _oePopulateDelivery(v) {
     slot_label: d.slot_label || null,
     slot_cost: 0,
   };
+  // Jump the date-picker window to whichever period already contains this
+  // order's delivery date — important when editing a past/delivered order,
+  // otherwise its date would be invisible behind the "today onward" default.
+  if (d.date) {
+    const target = new Date(d.date + 'T00:00:00');
+    const today = new Date(); today.setHours(0,0,0,0);
+    const diffDays = Math.round((target - today) / 86400000);
+    S._oeDateOffset = Math.floor(diffDays / 14) * 14;
+  } else {
+    S._oeDateOffset = 0;
+  }
   oeRenderMethods();
   document.getElementById('oe-addr-street').value = d.address_street || '';
   document.getElementById('oe-addr-city').value   = d.address_city || '';
@@ -5031,6 +5051,7 @@ function oeSelectMethod(type, el, methodId, methodName) {
   S._oeDelivery.date = null;
   S._oeDelivery.slot_id = null;
   S._oeDelivery.slot_cost = 0;
+  S._oeDateOffset = 0;
   const loc = S._oeLocale;
   const mData = loc?.delivery_methods?.find(m => String(m.id) === String(methodId));
   S._oeDelivery.method_base_cost  = mData?.base_cost || 0;
@@ -5041,6 +5062,17 @@ function oeSelectMethod(type, el, methodId, methodName) {
   const needsAddr = mData ? !!mData.requires_address : type === 'home_delivery';
   document.getElementById('oe-address-group').style.display = needsAddr ? '' : 'none';
   oeUpdateTotal();
+}
+
+const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+// Shifts the 14-day window shown in the order-edit date picker by one full
+// period (back or forward) — needed to reach delivery dates in the past
+// when editing an already-delivered order, which the default "today onward"
+// window never shows.
+function oeShiftDatePeriod(dir) {
+  S._oeDateOffset = (S._oeDateOffset || 0) + dir * 14;
+  oeRenderDateGrid();
 }
 
 function oeRenderDateGrid() {
@@ -5056,10 +5088,11 @@ function oeRenderDateGrid() {
       : loc.delivery_methods.find(x => x.type === methodType);
     if (m) methodSlots = m.slots || [];
   }
-  const today = new Date();
+  const base = new Date();
+  base.setDate(base.getDate() + (S._oeDateOffset || 0));
   let html = '';
   for (let i = 0; i < 14; i++) {
-    const d = new Date(today); d.setDate(today.getDate() + i);
+    const d = new Date(base); d.setDate(base.getDate() + i);
     const dow     = d.getDay();
     const dateStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
     const hasSlots = methodSlots.length ? methodSlots.some(sl => Number(sl.day_of_week) === dow) : true;
@@ -5070,6 +5103,13 @@ function oeRenderDateGrid() {
     </div>`;
   }
   container.innerHTML = html;
+  const labelEl = document.getElementById('oe-date-period-label');
+  if (labelEl) {
+    const last = new Date(base); last.setDate(base.getDate() + 13);
+    labelEl.textContent = base.getMonth() === last.getMonth()
+      ? MONTHS_ES[base.getMonth()]
+      : `${MONTHS_ES[base.getMonth()]} / ${MONTHS_ES[last.getMonth()]}`;
+  }
 }
 
 function oeSelectDate(dateStr, dow) {
