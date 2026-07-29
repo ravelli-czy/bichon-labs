@@ -1,36 +1,47 @@
-// api/finance.js — Módulo Finanzas: resumen, estado de resultados, evolución
-// temporal, gastos y categorías. Todo resuelto con querystring (?resource=)
-// en un solo archivo, sin rutas dinámicas [id].js, para no sumar más
-// Serverless Functions — mismo patrón que api/locales.js y
-// api/users.js?action=logs (ver comentarios ahí: tope de 12 en el plan
-// Hobby de Vercel). Este archivo agrega 1 función nueva al conteo total.
+// api/_finance_routes.js — Módulo Finanzas: resumen, estado de resultados,
+// evolución temporal, gastos y categorías.
 //
-// GET  /api/finance?resource=summary&from=&to=&location_id=&sales_channel=
-// GET  /api/finance?resource=income-statement&from=&to=&location_id=&sales_channel=
-// GET  /api/finance?resource=timeseries&from=&to=&location_id=&sales_channel=&granularity=
-// GET  /api/finance?resource=monthly-table&from=&to=&location_id=
-// GET  /api/finance?resource=export&from=&to=&location_id=&sales_channel=   → CSV
+// NO es una Serverless Function (por eso el prefijo `_`, igual que _db.js /
+// _cors.js / _tenant.js / _log.js / _finance.js) — se invoca desde dentro de
+// api/orders.js cuando `req.query.resource` matchea uno de los recursos de
+// Finanzas, en vez de vivir en su propio archivo `api/finance.js`. El
+// proyecto ya estaba exactamente en el tope de 12 Serverless Functions del
+// plan Hobby de Vercel (ver comentarios en products.js/locales.js/users.js);
+// agregar un archivo nuevo bajo api/ lo hacía saltar a 13 y el deploy
+// falló. Se consolidó acá — mismo patrón que api/locales.js (múltiples
+// recursos, un solo archivo) y que orders.js?action=backfill-costs (varios
+// "sub-endpoints" resueltos por querystring dentro de un mismo handler).
 //
-// GET    /api/finance?resource=expenses&q=&month=&from=&to=&category_id=&location_id=&payment_status=&sort=&order=&page=&limit=
-// GET    /api/finance?resource=expenses&id=EXP-0001
-// POST   /api/finance?resource=expenses
-// PUT    /api/finance?resource=expenses&id=EXP-0001
-// POST   /api/finance?resource=expenses&id=EXP-0001&action=duplicate
-// DELETE /api/finance?resource=expenses&id=EXP-0001                         (soft-delete / anular)
+// GET  /api/orders?resource=summary&from=&to=&location_id=&sales_channel=
+// GET  /api/orders?resource=income-statement&from=&to=&location_id=&sales_channel=
+// GET  /api/orders?resource=timeseries&from=&to=&location_id=&sales_channel=&granularity=
+// GET  /api/orders?resource=monthly-table&from=&to=&location_id=
+// GET  /api/orders?resource=export&from=&to=&location_id=&sales_channel=   → CSV
 //
-// GET    /api/finance?resource=categories
-// POST   /api/finance?resource=categories
-// PUT    /api/finance?resource=categories&id=CAT-001
-// PUT    /api/finance?resource=categories&id=CAT-001&action=toggle
+// GET    /api/orders?resource=expenses&q=&month=&from=&to=&category_id=&location_id=&payment_status=&sort=&order=&page=&limit=
+// GET    /api/orders?resource=expenses&id=EXP-0001
+// POST   /api/orders?resource=expenses
+// PUT    /api/orders?resource=expenses&id=EXP-0001
+// POST   /api/orders?resource=expenses&id=EXP-0001&action=duplicate
+// DELETE /api/orders?resource=expenses&id=EXP-0001                         (soft-delete / anular)
+//
+// GET    /api/orders?resource=categories
+// POST   /api/orders?resource=categories
+// PUT    /api/orders?resource=categories&id=CAT-001
+// PUT    /api/orders?resource=categories&id=CAT-001&action=toggle
 
-const { getDb } = require('./_db');
-const cors = require('./_cors');
 const { writeLog } = require('./_log');
-const { getSession, resolveTenantId } = require('./_tenant');
 const F = require('./_finance');
 
 const ADMIN_ROLES = ['admin', 'superadmin', 'master'];
 const isAdmin = session => ADMIN_ROLES.includes(session.role);
+
+// Recursos que este módulo sabe manejar — api/orders.js consulta esta lista
+// antes de delegar, para no interceptar sus propias rutas (?action=...).
+const FINANCE_RESOURCES = [
+  'summary', 'income-statement', 'timeseries', 'monthly-table',
+  'expenses-by-category', 'export', 'expenses', 'categories',
+];
 
 // ── Rangos de fecha ───────────────────────────────────────────────────────
 function todayKey() { return F.zonedDateKey(new Date()); }
@@ -309,20 +320,10 @@ async function validateExpenseInput(sql, tenantId, body, { partial = false } = {
   return { errors, netAmount, taxAmount, totalAmount };
 }
 
-// ── Handler ────────────────────────────────────────────────────────────
-module.exports = async (req, res) => {
-  if (cors(req, res)) return;
-
-  let sql;
-  try { sql = getDb(); }
-  catch (err) { return res.status(503).json({ error: err.message }); }
-
-  const session  = await getSession(req);
-  const tenantId = resolveTenantId(req, session);
-  if (!session)  return res.status(401).json({ error: 'No autenticado' });
-  if (!tenantId) return res.status(400).json({ error: 'Sin contexto de cliente' });
-  const actor = session.username || 'sistema';
-
+// ── Handler — llamado desde api/orders.js cuando resource ∈ FINANCE_RESOURCES.
+// Recibe sql/session/tenantId/actor ya resueltos por el caller (no repite
+// auth/cors/getDb). ────────────────────────────────────────────────────────
+async function handleFinanceResource(req, res, sql, session, tenantId, actor) {
   const q = req.query || {};
   const resource = q.resource;
 
@@ -664,17 +665,14 @@ module.exports = async (req, res) => {
     console.error(`finance/${resource} error:`, err);
     return res.status(500).json({ error: err.message });
   }
-};
+}
 
-// Expone las funciones puras (sin efectos secundarios en la request/response)
-// como propiedades de la función exportada, para que tests/finance.test.js
-// pueda probarlas directamente sin duplicar esta lógica. No cambia en nada
-// cómo Vercel invoca este archivo (sigue siendo `module.exports(req, res)`).
-Object.assign(module.exports, {
+module.exports = {
+  handleFinanceResource, FINANCE_RESOURCES,
   ADMIN_ROLES, isAdmin,
   parseRange, daySpan, previousPeriod, pickGranularity,
   loadOrders, loadExpensesInRange,
   summarizeOrders, sumExpenses, buildIncomeStatement, variation,
   bucketKeyForOrder, bucketKeyForExpense, generateBucketKeys, buildTimeseries,
   validateExpenseInput, PAYMENT_STATUSES,
-});
+};

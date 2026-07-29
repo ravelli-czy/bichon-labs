@@ -3,17 +3,21 @@
 // El proyecto no tenía infraestructura de tests previa (ver README/docker-compose:
 // microservicios legacy sin suite de pruebas), así que estas pruebas usan sólo
 // `assert` de Node (sin dependencias nuevas) contra las funciones PURAS de
-// api/_finance.js y api/finance.js (cálculos, validación, agregación). No
-// requieren una base de datos real: las funciones que sí consultan Postgres
-// (loadOrders/loadExpensesInRange/validateExpenseInput) se ejercitan con un
-// `sql` mock que imita el driver de @neondatabase/serverless (una función
-// usable como tagged template).
+// api/_finance.js y api/_finance_routes.js (cálculos, validación, agregación).
+// api/_finance_routes.js NO es una Serverless Function — su lógica se invoca
+// desde api/orders.js cuando `?resource=` matchea un recurso de Finanzas (se
+// consolidó ahí para no exceder el tope de 12 Serverless Functions del plan
+// Hobby de Vercel; ver el comentario al inicio de _finance_routes.js). Estas
+// pruebas no requieren una base de datos real: las funciones que sí consultan
+// Postgres (loadOrders/loadExpensesInRange/validateExpenseInput) se ejercitan
+// con un `sql` mock que imita el driver de @neondatabase/serverless (una
+// función usable como tagged template).
 //
 // Ejecutar: node tests/finance.test.js   (o `npm test` desde la raíz)
 
 const assert = require('assert');
 const F = require('../api/_finance');
-const fin = require('../api/finance');
+const fin = require('../api/_finance_routes');
 
 let pass = 0, fail = 0;
 const failures = [];

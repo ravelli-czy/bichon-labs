@@ -6,6 +6,7 @@ const { createShipment } = require('./shipments');
 const { writeLog } = require('./_log');
 const { getSession, resolveTenantId } = require('./_tenant');
 const { loadCostMaps, withFinancialSnapshot } = require('./_finance');
+const { handleFinanceResource, FINANCE_RESOURCES } = require('./_finance_routes');
 
 async function _deductKit(sql, kitSku, qty, wid, tenantId) {
   const [kit] = await sql`SELECT items FROM kits WHERE sku = ${kitSku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
@@ -41,6 +42,16 @@ module.exports = async (req, res) => {
   const tenantId = resolveTenantId(req, session);
   if (!tenantId) return res.status(401).json({ error: 'No autenticado o sin tenant' });
   const actor = session?.username || 'sistema';
+
+  // ── Finanzas: resumen, estado de resultados, gastos, categorías ────────
+  // Vive en api/_finance_routes.js (NO es una Serverless Function propia) y
+  // se despacha desde acá para no sumar un archivo nuevo bajo api/ — el
+  // proyecto ya estaba en el tope de 12 Serverless Functions del plan Hobby
+  // de Vercel (ver comentarios en products.js/locales.js/users.js) y un
+  // api/finance.js aparte lo hacía saltar a 13, lo que rompió el deploy.
+  if (FINANCE_RESOURCES.includes(req.query?.resource)) {
+    return handleFinanceResource(req, res, sql, session, tenantId, actor);
+  }
 
   try {
     // ── GET — list all orders ─────────────────────────────────────────────

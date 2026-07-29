@@ -480,9 +480,9 @@ async function loadResumen() {
   let summary, series, byCategory;
   try {
     [summary, series, byCategory] = await Promise.all([
-      api('/api/finance?' + qs({ resource: 'summary', ...f })),
-      api('/api/finance?' + qs({ resource: 'timeseries', ...f })),
-      api('/api/finance?' + qs({ resource: 'expenses-by-category', ...f })),
+      api('/api/orders?' + qs({ resource: 'summary', ...f })),
+      api('/api/orders?' + qs({ resource: 'timeseries', ...f })),
+      api('/api/orders?' + qs({ resource: 'expenses-by-category', ...f })),
     ]);
   } catch (e) { toast('⚠️ ' + e.message); document.getElementById('resumen-loading').style.display = 'none'; return; }
 
@@ -608,8 +608,8 @@ async function loadEstado() {
   let stmt, monthly;
   try {
     [stmt, monthly] = await Promise.all([
-      api('/api/finance?' + qs({ resource: 'income-statement', ...f })),
-      api('/api/finance?' + qs({ resource: 'monthly-table', ...f })),
+      api('/api/orders?' + qs({ resource: 'income-statement', ...f })),
+      api('/api/orders?' + qs({ resource: 'monthly-table', ...f })),
     ]);
   } catch (e) { toast('⚠️ ' + e.message); card.innerHTML = ''; return; }
 
@@ -658,7 +658,7 @@ function renderMonthlyTable(data) {
 async function exportCSV() {
   const f = currentFilters();
   try {
-    const r = await fetch('/api/finance?' + qs({ resource: 'export', ...f }), { headers: authHeaders() });
+    const r = await fetch('/api/orders?' + qs({ resource: 'export', ...f }), { headers: authHeaders() });
     if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Error al exportar'); }
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);
@@ -673,7 +673,7 @@ async function exportCSV() {
 let _expState = { page: 1, rows: [], total: 0 };
 async function loadCategoryOptions() {
   try {
-    const cats = await api('/api/finance?resource=categories');
+    const cats = await api('/api/orders?resource=categories');
     const active = cats.filter(c => c.is_active);
     const opts = active.map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
     document.getElementById('exp-category').innerHTML = '<option value="">Todas las categorías</option>' + opts;
@@ -697,7 +697,7 @@ async function loadExpenses(reset) {
     sort, order, page: _expState.page, limit: 20,
   };
   let data;
-  try { data = await api('/api/finance?' + qs(params)); }
+  try { data = await api('/api/orders?' + qs(params)); }
   catch (e) { toast('⚠️ ' + e.message); document.getElementById('expenses-loading').style.display = 'none'; return; }
   document.getElementById('expenses-loading').style.display = 'none';
 
@@ -797,8 +797,8 @@ async function saveExpense() {
   const btn = document.getElementById('btn-save-expense');
   btn.disabled = true;
   try {
-    if (_editingExpenseId) await api(`/api/finance?resource=expenses&id=${encodeURIComponent(_editingExpenseId)}`, { method: 'PUT', body: JSON.stringify(payload) });
-    else await api('/api/finance?resource=expenses', { method: 'POST', body: JSON.stringify(payload) });
+    if (_editingExpenseId) await api(`/api/orders?resource=expenses&id=${encodeURIComponent(_editingExpenseId)}`, { method: 'PUT', body: JSON.stringify(payload) });
+    else await api('/api/orders?resource=expenses', { method: 'POST', body: JSON.stringify(payload) });
     toast('✅ Gasto guardado');
     closeExpenseForm();
     loadExpenses(true);
@@ -808,7 +808,7 @@ async function saveExpense() {
 function showFormError(el, msg) { el.textContent = msg; el.style.display = ''; }
 
 async function duplicateExpense(id) {
-  try { await api(`/api/finance?resource=expenses&id=${encodeURIComponent(id)}&action=duplicate`, { method: 'POST' }); toast('✅ Gasto duplicado'); loadExpenses(true); }
+  try { await api(`/api/orders?resource=expenses&id=${encodeURIComponent(id)}&action=duplicate`, { method: 'POST' }); toast('✅ Gasto duplicado'); loadExpenses(true); }
   catch (e) { toast('⚠️ ' + e.message); }
 }
 let _deleteTargetId = null;
@@ -816,7 +816,7 @@ function askDeleteExpense(id, name) { _deleteTargetId = id; document.getElementB
 function closeConfirmDelete() { document.getElementById('modal-confirm-delete').classList.add('hidden'); _deleteTargetId = null; }
 async function confirmDeleteExpense() {
   if (!_deleteTargetId) return;
-  try { await api(`/api/finance?resource=expenses&id=${encodeURIComponent(_deleteTargetId)}`, { method: 'DELETE' }); toast('✅ Gasto anulado'); closeConfirmDelete(); loadExpenses(true); }
+  try { await api(`/api/orders?resource=expenses&id=${encodeURIComponent(_deleteTargetId)}`, { method: 'DELETE' }); toast('✅ Gasto anulado'); closeConfirmDelete(); loadExpenses(true); }
   catch (e) { toast('⚠️ ' + e.message); closeConfirmDelete(); }
 }
 
@@ -825,7 +825,7 @@ async function loadCategories() {
   const list = document.getElementById('categories-list');
   list.innerHTML = '<div class="skeleton"></div>';
   let cats;
-  try { cats = await api('/api/finance?resource=categories'); }
+  try { cats = await api('/api/orders?resource=categories'); }
   catch (e) { toast('⚠️ ' + e.message); list.innerHTML = ''; return; }
   _categoriesById = Object.fromEntries(cats.map(c => [c.id, c]));
   list.innerHTML = cats.map(c => `
@@ -855,15 +855,15 @@ async function saveCategory() {
   if (!name) { showFormError(errEl, 'El nombre es obligatorio'); return; }
   const payload = { name, code: document.getElementById('cat-code').value.trim() };
   try {
-    if (_editingCategoryId) await api(`/api/finance?resource=categories&id=${encodeURIComponent(_editingCategoryId)}`, { method: 'PUT', body: JSON.stringify(payload) });
-    else await api('/api/finance?resource=categories', { method: 'POST', body: JSON.stringify(payload) });
+    if (_editingCategoryId) await api(`/api/orders?resource=categories&id=${encodeURIComponent(_editingCategoryId)}`, { method: 'PUT', body: JSON.stringify(payload) });
+    else await api('/api/orders?resource=categories', { method: 'POST', body: JSON.stringify(payload) });
     toast('✅ Categoría guardada');
     closeCategoryForm();
     loadCategories();
   } catch (e) { showFormError(errEl, e.message); }
 }
 async function toggleCategory(id) {
-  try { await api(`/api/finance?resource=categories&id=${encodeURIComponent(id)}&action=toggle`, { method: 'PUT' }); loadCategories(); }
+  try { await api(`/api/orders?resource=categories&id=${encodeURIComponent(id)}&action=toggle`, { method: 'PUT' }); loadCategories(); }
   catch (e) { toast('⚠️ ' + e.message); }
 }
 
