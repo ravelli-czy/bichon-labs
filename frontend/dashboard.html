@@ -69,6 +69,9 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;max-
 .hero-period-toggle{position:absolute;top:14px;right:14px;display:flex;gap:4px;z-index:2}
 .period-btn{padding:5px 10px;border-radius:20px;border:none;font-family:'Nunito',sans-serif;font-size:11px;font-weight:800;cursor:pointer;transition:all .15s;background:rgba(255,255,255,.18);color:rgba(255,255,255,.75);white-space:nowrap}
 .period-btn.active{background:rgba(255,255,255,.92);color:var(--primary)}
+
+/* HERO TOTALS RANGE TOGGLE — controls which period the two big numbers sum */
+.hero-range-toggle{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;margin-bottom:10px}
 .period-btn:hover:not(.active){background:rgba(255,255,255,.28)}
 
 /* MINI BARS (sparkline) */
@@ -239,10 +242,15 @@ body.embedded #modules-section,body.embedded .footer{display:none}
     </div>
     <div class="hero-greeting"><i class="ti ti-wave-sine"></i> <span id="greeting">Buenos días</span></div>
     <div class="hero-date" id="hero-date">—</div>
+    <div class="hero-range-toggle" id="hero-range-toggle">
+      <button class="period-btn" data-range="full" onclick="setHeroRange('full')">Full</button>
+      <button class="period-btn active" data-range="month" onclick="setHeroRange('month')">Mes Actual</button>
+      <button class="period-btn" data-range="week" onclick="setHeroRange('week')">Última Semana</button>
+    </div>
     <div class="hero-metrics">
       <div class="hero-metric">
         <div class="hero-metric-val" id="hero-ventas">$0</div>
-        <div class="hero-metric-lbl">Ventas del mes</div>
+        <div class="hero-metric-lbl" id="hero-ventas-lbl">Ventas del mes</div>
         <div class="hero-metric-sub up" id="hero-ventas-var" style="display:none"><i class="ti ti-trending-up" style="font-size:11px"></i> —</div>
       </div>
       <div class="hero-metric">
@@ -379,7 +387,7 @@ function viewSalesKPIs() {
 
 // Data is loaded from the API — see init() at bottom of script
 let PRODUCTS = [], VENTAS = [], KITS_LIST = [];
-let totalVentas = 0, utilidad = 0, margen = 0, varPct = 0;
+let totalVentas = 0, utilidad = 0, margen = 0, varPct = 0, allTimeVentas = 0;
 let critical = [], warning = [], alertas = [];
 
 // ── GREETING + DATE (no API dependency) ────────
@@ -406,12 +414,96 @@ function renderHero() {
     chipAl.className = 'hero-chip ' + (critical.length ? 'red' : 'amber');
     document.getElementById('chip-alerts-n').textContent = alertas.length;
   } else { chipAl.style.display = 'none'; }
-  if (varPct !== 0) {
-    const varEl = document.getElementById('hero-ventas-var');
+  const varEl = document.getElementById('hero-ventas-var');
+  if (heroRange !== 'full' && varPct !== 0) {
+    const prevLabel = heroRange === 'week' ? 'sem. ant.' : 'mes ant.';
     varEl.style.display = '';
-    varEl.innerHTML = `<i class="ti ti-trending-${varPct>0?'up':'down'}" style="font-size:11px"></i> ${varPct>0?'+':''}${varPct}% vs mes ant.`;
+    varEl.innerHTML = `<i class="ti ti-trending-${varPct>0?'up':'down'}" style="font-size:11px"></i> ${varPct>0?'+':''}${varPct}% vs ${prevLabel}`;
     varEl.className = 'hero-metric-sub ' + (varPct > 0 ? 'up' : 'down');
+  } else {
+    varEl.style.display = 'none';
   }
+}
+
+// ── HERO TOTALS RANGE (Full / Mes Actual / Última Semana) ─────────────
+let heroRange = 'month'; // 'full' | 'month' | 'week'
+const HERO_RANGE_LABELS = { full: 'Ventas totales', month: 'Ventas del mes', week: 'Ventas última semana' };
+
+function _orderDateObj(v) {
+  if (v.created_at) { const d = new Date(v.created_at); if (!isNaN(d)) return d; }
+  if (v.fecha) {
+    const parts = v.fecha.split('-').map(Number);
+    if (parts.length === 3) { const d = new Date(parts[2], parts[1]-1, parts[0]); if (!isNaN(d)) return d; }
+  }
+  return null;
+}
+function _ordersInRange(orders, start, end) {
+  return orders.filter(v => {
+    const d = _orderDateObj(v);
+    if (!d) return false;
+    if (start && d < start) return false;
+    if (end && d >= end) return false;
+    return true;
+  });
+}
+function _sumVentasCosto(orders) {
+  const total = orders.reduce((s,v) => s + (v.total||0), 0);
+  const costo = orders.reduce((s,v) => {
+    if (!Array.isArray(v.items)) return s;
+    return s + v.items.reduce((is, item) => {
+      if (item.type === 'kit') {
+        const kit = KITS_LIST.find(k => k.sku === item.sku);
+        if (!kit || !Array.isArray(kit.items)) return is;
+        return is + kit.items.reduce((ks, comp) => {
+          const p = PRODUCTS.find(x => x.sku === comp.sku);
+          return ks + (p ? p.cost * comp.qty : 0);
+        }, 0) * item.qty;
+      }
+      const p = PRODUCTS.find(x => x.sku === item.sku);
+      return is + (p ? p.cost * item.qty : 0);
+    }, 0);
+  }, 0);
+  return { total, costo };
+}
+// Recomputes totalVentas/utilidad/margen/varPct for the currently selected
+// heroRange, comparing against the equivalent previous period (previous
+// calendar month for "month", the prior 7 days for "week"; "full" has no
+// meaningful previous period, so its comparison badge stays hidden).
+function computeHeroStats() {
+  const now = new Date();
+  let current, previous;
+  if (heroRange === 'week') {
+    const start = new Date(now); start.setHours(0,0,0,0); start.setDate(start.getDate() - 6);
+    const prevStart = new Date(start); prevStart.setDate(start.getDate() - 7);
+    current  = _ordersInRange(VENTAS, start, null);
+    previous = _ordersInRange(VENTAS, prevStart, start);
+  } else if (heroRange === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    current  = _ordersInRange(VENTAS, start, null);
+    previous = _ordersInRange(VENTAS, prevStart, start);
+  } else {
+    current  = VENTAS;
+    previous = null;
+  }
+  const { total: curTotal, costo: curCosto } = _sumVentasCosto(current);
+  totalVentas = curTotal;
+  utilidad    = curTotal - curCosto;
+  margen      = curTotal > 0 ? Math.round(utilidad / curTotal * 100) : 0;
+  if (previous) {
+    const { total: prevTotal } = _sumVentasCosto(previous);
+    varPct = prevTotal > 0 ? Math.round((curTotal - prevTotal) / prevTotal * 100) : (curTotal > 0 ? 100 : 0);
+  } else {
+    varPct = 0;
+  }
+  const lblEl = document.getElementById('hero-ventas-lbl');
+  if (lblEl) lblEl.textContent = HERO_RANGE_LABELS[heroRange];
+}
+function setHeroRange(range) {
+  heroRange = range;
+  document.querySelectorAll('#hero-range-toggle .period-btn').forEach(b => b.classList.toggle('active', b.dataset.range === range));
+  computeHeroStats();
+  renderHero();
 }
 
 // ── SPARKLINE + PERIOD TOGGLE ──────────────────
@@ -523,7 +615,7 @@ function renderModules() {
     { page:'meson', icon:'ti-hammer', iconBg:'#fffbeb', iconColor:'#d97706', name:'Mesón Creativo', desc:'Arma un nuevo KIT arrastrando SKUs', badge:{text:'Nuevo',cls:'new'}, stat:`<i class="ti ti-drag-drop"></i>Drag &amp; drop` },
     { page:'ventas', icon:'ti-shopping-bag', iconBg:'#ede9ff', iconColor:'#5b4fff', name:'Ventas', desc:'Órdenes, delivery y seguimiento',
       badge: VENTAS.length ? {text:VENTAS.length+' órdenes',cls:'ok'} : null,
-      stat:`<i class="ti ti-coin"></i>${fmt(totalVentas)} total` },
+      stat:`<i class="ti ti-coin"></i>${fmt(allTimeVentas)} total` },
     { page:'locales', icon:'ti-building-store', iconBg:'#f0fdfa', iconColor:'#0d9488', name:'Locales', desc:'Tiendas, almacenes y formas de envío', badge:null, stat:`<i class="ti ti-map-pin"></i>Locales configurados` },
     { page:'delivery', icon:'ti-truck-delivery', iconBg:'#fffbeb', iconColor:'#d97706', name:'Delivery', desc:'Envíos, couriers y tracking', badge:null, stat:`<i class="ti ti-route"></i>Rutas y repartidores` },
     { href:'routes.html', icon:'ti-route', iconBg:'#eff6ff', iconColor:'#2563eb', name:'Rutas', desc:'Armar rutas, mapa y optimizador', badge:null, stat:`<i class="ti ti-map"></i>Drag &amp; drop` },
@@ -569,25 +661,8 @@ function renderModules() {
   }
 
   // Compute derived values
-  totalVentas = VENTAS.reduce((s,v) => s + (v.total||0), 0);
-  const totalCosto = VENTAS.reduce((s,v) => {
-    if (!Array.isArray(v.items)) return s;
-    return s + v.items.reduce((is, item) => {
-      if (item.type === 'kit') {
-        const kit = KITS_LIST.find(k => k.sku === item.sku);
-        if (!kit || !Array.isArray(kit.items)) return is;
-        return is + kit.items.reduce((ks, comp) => {
-          const p = PRODUCTS.find(x => x.sku === comp.sku);
-          return ks + (p ? p.cost * comp.qty : 0);
-        }, 0) * item.qty;
-      }
-      const p = PRODUCTS.find(x => x.sku === item.sku);
-      return is + (p ? p.cost * item.qty : 0);
-    }, 0);
-  }, 0);
-  utilidad   = totalVentas - totalCosto;
-  margen     = totalVentas > 0 ? Math.round(utilidad / totalVentas * 100) : 0;
-  varPct     = 498000 > 0 ? Math.round((totalVentas - 498000) / 498000 * 100) : 0;
+  allTimeVentas = _sumVentasCosto(VENTAS).total; // used by the "Ventas" module card stat, unaffected by the hero range toggle
+  computeHeroStats();
   critical   = PRODUCTS.filter(p => p.stock === 0);
   warning    = PRODUCTS.filter(p => p.stock > 0 && p.stock <= p.threshold);
   alertas    = [...critical, ...warning];
