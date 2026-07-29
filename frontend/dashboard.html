@@ -18,6 +18,7 @@
   --blue:#3b82f6;--blue-light:#eff6ff;--blue-dark:#2563eb;
   --r:12px;--r-lg:16px;--r-xl:20px;
   --sh:0 2px 12px rgba(91,79,255,.08);--sh-md:0 6px 24px rgba(91,79,255,.13);
+  --hero-1:#4c3fff;--hero-2:#7c5cff;--hero-3:#a87aff;
 }
 body.dark-mode{
   --bg:#14141f;--bg2:#1c1c2b;--bg3:#242438;
@@ -45,7 +46,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;max-
 .content{padding:16px;padding-bottom:32px;display:flex;flex-direction:column;gap:16px}
 
 /* HERO CARD */
-.hero{border-radius:var(--r-xl);background:linear-gradient(135deg,#4c3fff 0%,#7c5cff 60%,#a87aff 100%);padding:22px 20px 18px;position:relative;overflow:hidden;box-shadow:0 8px 32px rgba(91,79,255,.35)}
+.hero{border-radius:var(--r-xl);background:linear-gradient(135deg,var(--hero-1) 0%,var(--hero-2) 60%,var(--hero-3) 100%);padding:22px 20px 18px;position:relative;overflow:hidden;box-shadow:0 8px 32px rgba(91,79,255,.35)}
 .hero::before{content:'';position:absolute;top:-40px;right:-40px;width:160px;height:160px;background:rgba(255,255,255,.07);border-radius:50%;pointer-events:none}
 .hero::after{content:'';position:absolute;bottom:-30px;right:20px;width:100px;height:100px;background:rgba(255,255,255,.05);border-radius:50%;pointer-events:none}
 .hero-greeting{font-size:13px;font-weight:700;color:rgba(255,255,255,.75);margin-bottom:4px;display:flex;align-items:center;gap:5px}
@@ -338,6 +339,15 @@ function shadeColor(hex, pct) {
     document.documentElement.style.setProperty('--green', color2);
     document.documentElement.style.setProperty('--green-dark', shadeColor(color2, -20));
     document.documentElement.style.setProperty('--green-light', shadeColor(color2, 85));
+  }
+  // Third color: only used for the hero card's gradient here in the Home
+  // dashboard — nowhere else in the app. Derives a darker→base→lighter
+  // 3-stop gradient from it so the degradé look is preserved either way.
+  const color3 = localStorage.getItem('sf_tenant_color3');
+  if (color3) {
+    document.documentElement.style.setProperty('--hero-1', shadeColor(color3, -15));
+    document.documentElement.style.setProperty('--hero-2', color3);
+    document.documentElement.style.setProperty('--hero-3', shadeColor(color3, 35));
   }
 })();
 

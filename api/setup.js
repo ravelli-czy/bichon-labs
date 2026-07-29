@@ -83,6 +83,7 @@ module.exports = async (req, res) => {
     `;
     await sql`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'`;
     await sql`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS color2 TEXT DEFAULT '#16c98d'`;
+    await sql`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS color3 TEXT DEFAULT '#4c3fff'`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS products (
