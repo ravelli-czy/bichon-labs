@@ -7,6 +7,7 @@ const { getDb } = require('./_db');
 const cors = require('./_cors');
 const crypto = require('crypto');
 const { getSession, resolveTenantId } = require('./_tenant');
+const { seedDefaultCategories } = require('./_finance');
 
 const SEED_PRODUCTS = [
   { sku: 'PRD-001', name: 'Cámara IP 1080p',   brand: 'Hikvision', cat: 'Seguridad', tipo: 'ambos',    cost: 45000, price: 79000, stock: 24, threshold: 10 },
@@ -180,6 +181,75 @@ module.exports = async (req, res) => {
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tenant_id      TEXT NOT NULL DEFAULT 'TEN-001'`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT ''`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS sales_channel  TEXT DEFAULT ''`;
+
+    // ── Finanzas: columnas financieras de la orden ────────────────────────
+    // discount_amount / refund_amount reducen el ingreso neto (ver
+    // api/_finance.js). delivered_at es la fecha real en que la orden pasó a
+    // 'entregada' — se usa para reconocer el ingreso en el período correcto,
+    // en vez de la fecha de creación (created_at) o el string legado `fecha`.
+    // location_id resuelve el local/sucursal para poder filtrar por
+    // sucursal en Finanzas — órdenes antiguas o sin almacén asociado
+    // quedan con '' (sin sucursal conocida), nunca se inventa un valor.
+    // tax_amount queda NULL/reservado: StockFlow no separa IVA todavía (ver
+    // _finance.js) — cuando exista esa info, se puede popular sin migrar nada.
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount INTEGER NOT NULL DEFAULT 0`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_amount   INTEGER NOT NULL DEFAULT 0`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at    TIMESTAMPTZ`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS location_id     TEXT NOT NULL DEFAULT ''`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tax_amount      INTEGER`;
+    await sql`CREATE INDEX IF NOT EXISTS orders_tenant_status_idx    ON orders (tenant_id, status)`;
+    await sql`CREATE INDEX IF NOT EXISTS orders_delivered_at_idx     ON orders (delivered_at)`;
+    await sql`CREATE INDEX IF NOT EXISTS orders_tenant_delivered_idx ON orders (tenant_id, delivered_at)`;
+    await sql`CREATE INDEX IF NOT EXISTS orders_location_idx         ON orders (location_id)`;
+
+    // ── Finanzas: categorías de gasto ──────────────────────────────────────
+    await sql`
+      CREATE TABLE IF NOT EXISTS expense_categories (
+        id          TEXT PRIMARY KEY,
+        tenant_id   TEXT NOT NULL DEFAULT 'TEN-001',
+        name        TEXT NOT NULL,
+        code        TEXT DEFAULT '',
+        is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+        is_default  BOOLEAN NOT NULL DEFAULT FALSE,
+        created_by  TEXT DEFAULT '',
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (tenant_id, name)
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS expense_categories_tenant_idx ON expense_categories (tenant_id)`;
+
+    // ── Finanzas: gastos ────────────────────────────────────────────────────
+    // Eliminación lógica vía deleted_at (mismo patrón que ya usa el resto del
+    // proyecto para soft-delete — ver api_keys.status / users.status).
+    await sql`
+      CREATE TABLE IF NOT EXISTS expenses (
+        id             TEXT PRIMARY KEY,
+        tenant_id      TEXT NOT NULL DEFAULT 'TEN-001',
+        location_id    TEXT DEFAULT '',
+        warehouse_id   TEXT DEFAULT '',
+        date           DATE NOT NULL,
+        description    TEXT NOT NULL,
+        category_id    TEXT NOT NULL,
+        supplier_name  TEXT DEFAULT '',
+        net_amount     INTEGER NOT NULL DEFAULT 0,
+        tax_amount     INTEGER NOT NULL DEFAULT 0,
+        total_amount   INTEGER NOT NULL DEFAULT 0,
+        payment_status TEXT NOT NULL DEFAULT 'pending',
+        payment_method TEXT DEFAULT '',
+        notes          TEXT DEFAULT '',
+        created_by     TEXT DEFAULT '',
+        updated_by     TEXT DEFAULT '',
+        created_at     TIMESTAMPTZ DEFAULT NOW(),
+        updated_at     TIMESTAMPTZ DEFAULT NOW(),
+        deleted_at     TIMESTAMPTZ
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS expenses_tenant_idx        ON expenses (tenant_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS expenses_date_idx          ON expenses (date)`;
+    await sql`CREATE INDEX IF NOT EXISTS expenses_category_idx      ON expenses (category_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS expenses_location_idx      ON expenses (location_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS expenses_tenant_date_idx   ON expenses (tenant_id, date)`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS purchases (
@@ -372,7 +442,7 @@ module.exports = async (req, res) => {
     await sql`CREATE INDEX IF NOT EXISTS api_keys_tenant_idx  ON api_keys (tenant_id)`;
     await sql`CREATE INDEX IF NOT EXISTS api_keys_user_idx    ON api_keys (user_id)`;
 
-    const created = ['tenants', 'products', 'kits', 'product_groups', 'orders', 'purchases', 'suppliers', 'shipments', 'users', 'sessions', 'audit_logs', 'api_keys', 'locales', 'warehouses', 'delivery_methods', 'delivery_slots'];
+    const created = ['tenants', 'products', 'kits', 'product_groups', 'orders', 'purchases', 'suppliers', 'shipments', 'users', 'sessions', 'audit_logs', 'api_keys', 'locales', 'warehouses', 'delivery_methods', 'delivery_slots', 'expense_categories', 'expenses'];
 
     // Always ensure superadmin user exists
     const [{ ucount }] = await sql`SELECT COUNT(*) AS ucount FROM users WHERE username = 'admin'`;
@@ -405,6 +475,21 @@ module.exports = async (req, res) => {
     await sql`UPDATE orders     SET tenant_id = 'TEN-001' WHERE tenant_id = ''`;
     await sql`UPDATE shipments  SET tenant_id = 'TEN-001' WHERE tenant_id = ''`;
     await sql`UPDATE audit_logs SET tenant_id = 'TEN-001' WHERE tenant_id = ''`;
+
+    // ── Finanzas: backfill de categorías de gasto por defecto ─────────────
+    // Migración segura para cuentas existentes — idempotente (seedDefaultCategories
+    // matchea por nombre y usa ON CONFLICT DO NOTHING), no borra ni pisa
+    // categorías que una cuenta ya haya creado o renombrado. Se ejecuta cada
+    // vez que corre /api/setup, así que también cubre tenants creados luego
+    // sin pasar por el flujo normal de creación de tenant.
+    try {
+      const allTenants = await sql`SELECT id FROM tenants`;
+      for (const t of allTenants) {
+        await seedDefaultCategories(sql, t.id, 'sistema');
+      }
+    } catch (seedErr) {
+      console.error('[setup] category seed error:', seedErr.message);
+    }
 
     // ── Optional seeding ─────────────────────────────────────────────────────
     const doSeed = req.query?.seed === '1' || req.body?.seed === true;

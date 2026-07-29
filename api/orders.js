@@ -5,6 +5,7 @@ const cors = require('./_cors');
 const { createShipment } = require('./shipments');
 const { writeLog } = require('./_log');
 const { getSession, resolveTenantId } = require('./_tenant');
+const { loadCostMaps, withFinancialSnapshot } = require('./_finance');
 
 async function _deductKit(sql, kitSku, qty, wid, tenantId) {
   const [kit] = await sql`SELECT items FROM kits WHERE sku = ${kitSku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
@@ -21,47 +22,13 @@ async function _deductKit(sql, kitSku, qty, wid, tenantId) {
 
 // ── Cost snapshotting ────────────────────────────────────────────────────
 // An order item's cost at time of sale isn't tracked automatically (products'
-// cost can change later), so we snapshot it into item.cost. These helpers
-// resolve a product/KIT's current cost, recursing into nested KITs (a KIT
-// built from other KITs via Mesón Creativo) to full depth.
-async function _loadCostMaps(sql, tenantId) {
-  const products = await sql`SELECT sku, warehouse_id, cost FROM products WHERE tenant_id = ${tenantId}`;
-  const kits     = await sql`SELECT sku, items FROM kits WHERE tenant_id = ${tenantId} AND warehouse_id = ''`;
-  const productsBySkuWh = new Map(); // "sku|warehouse_id" -> cost
-  const productsBySku   = new Map(); // sku -> cost (first match, any warehouse)
-  for (const p of products) {
-    productsBySkuWh.set(`${p.sku}|${p.warehouse_id || ''}`, p.cost || 0);
-    if (!productsBySku.has(p.sku)) productsBySku.set(p.sku, p.cost || 0);
-  }
-  const kitsBySku = new Map();
-  for (const k of kits) kitsBySku.set(k.sku, k.items || []);
-  return { productsBySkuWh, productsBySku, kitsBySku };
-}
-function _productCost({ productsBySkuWh, productsBySku }, sku, warehouseId) {
-  const key = `${sku}|${warehouseId || ''}`;
-  if (productsBySkuWh.has(key)) return productsBySkuWh.get(key);
-  return productsBySku.get(sku) || 0;
-}
-function _kitUnitCost(maps, kitSku, depth = 0, seen = new Set()) {
-  if (depth > 8 || seen.has(kitSku)) return 0;
-  seen = new Set(seen); seen.add(kitSku);
-  const items = maps.kitsBySku.get(kitSku);
-  if (!items) return 0;
-  return items.reduce((sum, comp) => {
-    const compCost = comp.type === 'kit'
-      ? _kitUnitCost(maps, comp.sku, depth + 1, seen)
-      : _productCost(maps, comp.sku, comp.warehouse_id);
-    return sum + compCost * comp.qty;
-  }, 0);
-}
-function _itemUnitCost(maps, item) {
-  return item.type === 'kit'
-    ? _kitUnitCost(maps, item.sku)
-    : _productCost(maps, item.sku, item.warehouse_id);
-}
-function _withCostSnapshot(items, maps) {
-  return (items || []).map(item => ({ ...item, cost: _itemUnitCost(maps, item) }));
-}
+// cost can change later), so we snapshot it at creation time. `withFinancialSnapshot`
+// (api/_finance.js) resolves each product/KIT's current cost, recursing into
+// nested KITs (a KIT built from other KITs via Mesón Creativo) to full depth,
+// and attaches the full financial snapshot the Finanzas module relies on
+// (unitCostAtSale, totalCostAtSale, etc.) without touching the existing keys.
+const _loadCostMaps = loadCostMaps;
+const _withCostSnapshot = withFinancialSnapshot;
 
 module.exports = async (req, res) => {
   if (cors(req, res)) return;
@@ -120,10 +87,12 @@ module.exports = async (req, res) => {
         cliente = 'Cliente', telefono = '', dedicatoria = '',
         total = 0, items: rawItems = [], delivery = {}, warehouse_id: orderWarehouseId = '',
         payment_method = '', sales_channel = '',
+        discount_amount = 0, refund_amount = 0,
       } = req.body || {};
 
       if (!rawItems.length) return res.status(400).json({ error: 'items is required' });
-      // Snapshot each item's current cost so it survives future cost changes
+      // Snapshot each item's current cost (and full financial snapshot for
+      // Finanzas) so it survives future cost/price changes
       const items = _withCostSnapshot(rawItems, await _loadCostMaps(sql, tenantId));
 
       // ID must be globally unique (orders.id is a plain PK shared across tenants)
@@ -134,13 +103,30 @@ module.exports = async (req, res) => {
       const id = 'ORD-' + String(parseInt(max_num) + 1).padStart(4, '0');
       const fecha = new Date().toLocaleDateString('es-CL');
 
+      // Best-effort location for Finanzas filtering: orders don't carry their
+      // own local/sucursal, only a warehouse per item — resolve it from the
+      // first item's (or order-level) warehouse_id via warehouses.local_id.
+      let locationId = '';
+      const firstWarehouseId = rawItems.find(i => i.warehouse_id)?.warehouse_id || orderWarehouseId || '';
+      if (firstWarehouseId) {
+        try {
+          const [wh] = await sql`SELECT local_id FROM warehouses WHERE id = ${firstWarehouseId} AND tenant_id = ${tenantId}`;
+          locationId = wh?.local_id || '';
+        } catch { /* non-fatal — location filter just won't apply to this order */ }
+      }
+
       // Insert order
       const [order] = await sql`
-        INSERT INTO orders (id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status, created_by, tenant_id, payment_method, sales_channel)
+        INSERT INTO orders (
+          id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
+          created_by, tenant_id, payment_method, sales_channel,
+          discount_amount, refund_amount, location_id
+        )
         VALUES (
           ${id}, ${cliente}, ${telefono}, ${total},
           ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
-          ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel}
+          ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
+          ${discount_amount || 0}, ${refund_amount || 0}, ${locationId}
         )
         RETURNING *
       `;

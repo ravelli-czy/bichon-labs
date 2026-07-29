@@ -59,6 +59,11 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .nav-tab i{font-size:22px;transition:all .2s}
 .nav-tab span{font-size:10px;font-weight:700}
 .nav-tab.active{color:var(--primary)}
+/* Ícono de Finanzas: corazón con signo peso al centro (no existe como glifo
+   único en Tabler Icons — se compone superponiendo un badge "$" sobre el
+   ícono de corazón). Se reutiliza también en el sheet "más" móvil. */
+.nav-fin-icon{position:relative;display:inline-flex}
+.nav-fin-icon::after{content:'$';position:absolute;top:52%;left:50%;transform:translate(-50%,-50%);font-family:'Nunito',sans-serif;font-weight:900;font-size:9px;line-height:1;color:currentColor}
 
 .content{flex:1;padding:16px;padding-bottom:88px;overflow-y:auto}
 .page{display:none}.page.active{display:block}
@@ -749,6 +754,9 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <button class="nav-tab sidebar-only-item" onclick="openCatalogTab('canales')" title="Canales de venta">
     <i class="ti ti-broadcast"></i><span>Canales</span>
   </button>
+  <a href="/finanzas" class="nav-tab sidebar-only-item" title="Finanzas">
+    <i class="ti ti-heart nav-fin-icon"></i><span>Finanzas</span>
+  </a>
   <a href="/users" class="nav-tab sidebar-only-item" id="admin-users-btn" title="Gestión de usuarios" style="display:none;text-decoration:none">
     <i class="ti ti-users"></i><span>Perfiles y Usuarios</span>
   </a>
@@ -776,6 +784,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('locales',navTabEl('locales'))"><i class="ti ti-building-store"></i> Locales</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('pagos')"><i class="ti ti-credit-card"></i> Pagos</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('canales')"><i class="ti ti-broadcast"></i> Canales</button>
+      <a href="/finanzas" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-heart nav-fin-icon"></i> Finanzas</a>
       <a href="/users" class="btn btn-outline" id="admin-users-btn-mobile" style="display:none;text-decoration:none"><i class="ti ti-users"></i> Perfiles y Usuarios</a>
       <a href="/logs" class="btn btn-outline" id="admin-logs-btn-mobile" style="display:none;text-decoration:none"><i class="ti ti-history"></i> Logs</a>
       <button class="btn btn-outline" id="prefs-btn-mobile" onclick="closeSheet('sheet-mobile-more');openPrefs()" style="display:none"><i class="ti ti-settings"></i> Settings</button>
@@ -994,6 +1003,13 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         </div>
         <div class="form-group"><div class="form-label">Referencia</div><input class="form-input" id="oe-addr-notes" placeholder="Depto, piso, timbre..."></div>
       </div>
+      <div class="section-label" style="margin-top:14px"><i class="ti ti-receipt-refund"></i> Finanzas</div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Descuento aplicado</div><input class="form-input" id="oe-discount" type="number" min="0" placeholder="0"></div>
+        <div class="form-group"><div class="form-label">Devolución</div><input class="form-input" id="oe-refund" type="number" min="0" placeholder="0"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);font-weight:600;margin:-6px 0 8px">Reducen los ingresos netos de esta orden en el módulo Finanzas.</div>
+
       <div class="total-bar mt-3">
         <span style="font-size:14px;font-weight:800;color:var(--green-dark)">Total de la orden</span>
         <span style="font-size:20px;font-weight:900;color:var(--green-dark)" id="oe-total">$0</span>
@@ -4971,6 +4987,8 @@ function openOrderEditSheet(id, pushURL = true) {
   _populateOptionSelect('oe-sales-channel', 'salesChannels', v.sales_channel || '');
   document.getElementById('oe-receptor').value = v.delivery?.receptor || '';
   document.getElementById('oe-receptor-tel').value = v.delivery?.receptor_telefono || '';
+  document.getElementById('oe-discount').value = v.discount_amount || '';
+  document.getElementById('oe-refund').value = v.refund_amount || '';
   document.getElementById('oe-dedicatoria').value = v.dedicatoria || '';
   _oePopulateDelivery(v);
   // overlay-orden sits behind this sheet in the DOM but shares the same
@@ -5231,6 +5249,8 @@ async function saveOrderEdit() {
     receptor_telefono: document.getElementById('oe-receptor-tel').value.trim(),
     payment_method:    document.getElementById('oe-payment-method').value || '',
     sales_channel:     document.getElementById('oe-sales-channel').value || '',
+    discount_amount:   Math.max(0, parseFloat(document.getElementById('oe-discount').value) || 0),
+    refund_amount:     Math.max(0, parseFloat(document.getElementById('oe-refund').value) || 0),
   };
   if (S._oeDeliveryTouched) {
     const d = S._oeDelivery;

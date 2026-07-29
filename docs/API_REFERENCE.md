@@ -481,3 +481,73 @@ Retorna:
   "delivery_rate": 84.0
 }
 ```
+
+---
+
+## 💰 Finanzas
+
+> A diferencia de las secciones anteriores de este documento (que describen el
+> diseño original de microservicios), **Finanzas está implementado sobre la
+> arquitectura real y actualmente desplegada del proyecto**: Vercel Serverless
+> Functions (`api/finance.js`) + Neon PostgreSQL. Todos los endpoints van bajo
+> un único archivo, enrutado por `?resource=`, por el mismo motivo que
+> `api/locales.js` — el plan Hobby de Vercel tiene un tope de 12 Serverless
+> Functions y el proyecto ya estaba en el límite (ver comentarios en
+> `api/products.js`, `api/locales.js`, `api/users.js`). **Este módulo agrega 1
+> función nueva, llevando el total a 13** — si el proyecto sigue en el plan
+> Hobby, hay que subir a Pro o consolidar otro endpoint existente antes de
+> desplegar.
+>
+> Todos los endpoints requieren `Authorization: Bearer <token>` (+ `X-Tenant-Id`
+> para usuarios `superadmin`/`master` impersonando una cuenta). El `tenant_id`
+> siempre se resuelve en el backend (`_tenant.js`), nunca se confía en un
+> `tenant_id`/`accountId` recibido del body o querystring.
+
+### Reportes (lectura — cualquier rol autenticado de la cuenta)
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/finance?resource=summary&from=&to=&location_id=&sales_channel=` | Tarjetas del Resumen, con comparación vs. el período anterior de igual duración |
+| GET | `/api/finance?resource=income-statement&from=&to=&location_id=&sales_channel=` | Estado de Resultados del período |
+| GET | `/api/finance?resource=timeseries&from=&to=&granularity=` | Serie temporal (hora/día/semana/mes, auto-elegida por el largo del rango salvo que se fuerce `granularity`) |
+| GET | `/api/finance?resource=monthly-table&from=&to=` | Tabla mensual del Estado de Resultados + columna Total |
+| GET | `/api/finance?resource=expenses-by-category&from=&to=` | Totales de gasto agrupados por categoría (para el gráfico de dona) |
+| GET | `/api/finance?resource=export&from=&to=` | Estado de Resultados en CSV — **sólo admin/superadmin/master** |
+
+Filtros comunes: `from`/`to` (`YYYY-MM-DD`) o `month=YYYY-MM`; `location_id` (sucursal); `sales_channel` (canal de venta, texto libre — mismo campo que ya usan las órdenes). Sin filtros, `from`/`to` por defecto es el mes actual.
+
+### Gastos
+
+| Método | Endpoint | Descripción | Rol |
+|--------|----------|-------------|-----|
+| GET | `/api/finance?resource=expenses&q=&month=&from=&to=&category_id=&location_id=&payment_status=&sort=&order=&page=&limit=` | Listar/buscar/filtrar/ordenar/paginar | cualquiera |
+| GET | `/api/finance?resource=expenses&id=EXP-0001` | Detalle | cualquiera |
+| POST | `/api/finance?resource=expenses` | Crear gasto | staff, admin+ |
+| PUT | `/api/finance?resource=expenses&id=EXP-0001` | Editar gasto | staff, admin+ |
+| POST | `/api/finance?resource=expenses&id=EXP-0001&action=duplicate` | Duplicar gasto | staff, admin+ |
+| DELETE | `/api/finance?resource=expenses&id=EXP-0001` | Anular gasto (soft-delete vía `deleted_at`) | **admin+** |
+
+`sort` acepta `date`, `total_amount` o `created_at`; `order` acepta `asc`/`desc`.
+
+### Categorías de gasto
+
+| Método | Endpoint | Descripción | Rol |
+|--------|----------|-------------|-----|
+| GET | `/api/finance?resource=categories` | Listar (incluye inactivas) | cualquiera |
+| POST | `/api/finance?resource=categories` | Crear | **admin+** |
+| PUT | `/api/finance?resource=categories&id=CAT-001` | Editar nombre/código | **admin+** |
+| PUT | `/api/finance?resource=categories&id=CAT-001&action=toggle` | Activar/desactivar | **admin+** |
+
+Cada cuenta nueva recibe 15 categorías predeterminadas (`Arriendo`, `Sueldos`, `Honorarios`, ... `Otros` — ver `api/_finance.js:DEFAULT_EXPENSE_CATEGORIES`) al crearse (`api/auth/[action].js`) y también se retro-siembran en cada cuenta existente cada vez que corre `/api/setup` (idempotente, no pisa categorías ya creadas/renombradas).
+
+### Reglas de negocio (resumen)
+
+- **Ingreso reconocido**: sólo órdenes con `status = 'entregada'` (estado real del proyecto — no se inventaron estados nuevos). `cancelled` y `no_entregada` no cuentan.
+- **Fecha de reconocimiento**: `orders.delivered_at`, seteada la primera vez que la orden pasa a `entregada` (no la fecha de creación).
+- **Ingresos netos** = ventas brutas (`items[].price * qty`) + despacho cobrado (`delivery.slot_cost`) − `discount_amount` − `refund_amount`.
+- **Costo de ventas**: snapshot histórico guardado en cada línea al crear la orden (`unitCostAtSale`/`totalCostAtSale`, ver `api/_finance.js:withFinancialSnapshot`), nunca el costo actual del producto. KITs (incluidos KITs-de-KITs) se descomponen recursivamente sin doble conteo (`decomposeKit`/`kitCostBreakdown`).
+- **EBITDA operacional** = Utilidad bruta − Gastos operacionales (suma de `expenses.total_amount` del período). Es una aproximación operacional — no incluye depreciación, amortización, intereses ni impuestos corporativos porque StockFlow no registra esa información.
+- **IVA**: el sistema no separa IVA en ningún punto hoy. `orders.tax_amount` y `expenses.tax_amount` quedan en el modelo para cuando exista esa información; hasta entonces, los montos se tratan tal como están cargados (comportamiento temporal, documentado en `api/_finance.js`).
+- **Moneda**: no hay configuración de moneda por cuenta — se usa CLP (la moneda implícita del resto del sistema) centralizada en un solo helper (`money()` en `finanzas.html`, vía `Intl.NumberFormat`), fácil de cambiar cuando exista esa configuración.
+- **Zona horaria**: no hay timezone por cuenta — se usa `America/Santiago` centralizada en `api/_finance.js:DEFAULT_TIMEZONE`, con conversión explícita (`AT TIME ZONE` en SQL / `Intl.DateTimeFormat` en JS) para evitar saltos de día por UTC.
+- **Multi-tenant**: toda consulta de este módulo filtra por `tenant_id` resuelto en el backend; `location_id`/`category_id`/`warehouse_id` recibidos del body se validan contra el tenant antes de usarse (`validateExpenseInput`).
