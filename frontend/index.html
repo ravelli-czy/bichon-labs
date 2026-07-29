@@ -522,7 +522,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   </div>
   <div class="topbar-right">
     <button class="icon-btn" id="dark-mode-btn" onclick="toggleDarkMode()" title="Modo oscuro">
-      <i class="ti ti-moon" id="dark-mode-icon"></i>
+      <span id="dark-mode-icon" style="font-size:16px;line-height:1">🌙</span>
     </button>
     <button class="icon-btn" id="sidebar-toggle" onclick="toggleSidebar()" title="Expandir/Colapsar menú">
       <i class="ti ti-layout-sidebar"></i>
@@ -1405,7 +1405,7 @@ function applyDarkMode() {
   document.body.classList.toggle('dark-mode', on);
   const icon = document.getElementById('dark-mode-icon');
   const btn  = document.getElementById('dark-mode-btn');
-  if (icon) icon.className = on ? 'ti ti-sun' : 'ti ti-moon';
+  if (icon) icon.textContent = on ? '☀️' : '🌙';
   if (btn)  btn.title = on ? 'Modo claro' : 'Modo oscuro';
   return on;
 }
