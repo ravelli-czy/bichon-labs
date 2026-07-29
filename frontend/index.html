@@ -5415,29 +5415,55 @@ async function confirmarDuplicarOrden() {
   }
 }
 
+// Recursively walks a KIT's components, descending into nested KITs to
+// full depth (a KIT can itself contain other KITs, e.g. via Mesón Creativo).
+// Returns a flat list preserving nesting depth so callers can indent/style
+// intermediate KIT nodes differently from leaf products.
+function _kitComponentRows(kitSku, qtyMultiplier, whs, depth = 0, seen = new Set()) {
+  if (depth > 6 || seen.has(kitSku)) return [];
+  seen = new Set(seen); seen.add(kitSku);
+  const kit = S.kits.find(k => k.sku === kitSku && (k.warehouse_id||'') === '');
+  if (!kit) return [];
+  let rows = [];
+  kit.items.forEach(comp => {
+    const qty = comp.qty * qtyMultiplier;
+    if (comp.type === 'kit') {
+      const sub = S.kits.find(k => k.sku === comp.sku && (k.warehouse_id||'') === '');
+      rows.push({ depth, qty, name: sub?.name || comp.sku, sku: comp.sku, whLabel: '', isKit: true });
+      rows = rows.concat(_kitComponentRows(comp.sku, qty, whs, depth + 1, seen));
+    } else {
+      const prod = S.products.find(p => p.sku === comp.sku);
+      const whLabel = prod?.warehouse_id ? (whs.find(w => w.id === prod.warehouse_id)?.name || '') : '';
+      rows.push({ depth, qty, name: prod?.name || comp.sku, sku: comp.sku, whLabel, isKit: false });
+    }
+  });
+  return rows;
+}
+
 function printComanda(id) {
   const v = S.ventas.find(x => x.id === id);
   if (!v) return;
   const dv = v.delivery || {};
+  const whs = getWarehouses();
   const dlLabels = { store_pickup:'Retiro en tienda', home_delivery:'Despacho a domicilio', pickup_point:'Punto de retiro', express:'Express' };
 
-  // Build items rows — expand KIT components
+  // Build items rows — expand KIT components to full depth
   let itemsRows = '';
   v.items.forEach(item => {
     itemsRows += `<tr>
-      <td style="padding:5px 6px;font-weight:700;vertical-align:top">${item.qty}×</td>
-      <td style="padding:5px 6px;font-weight:700;vertical-align:top">${item.name}</td>
-      <td style="padding:5px 6px;text-align:right;font-weight:700;vertical-align:top;white-space:nowrap">${fmt(item.price*item.qty)}</td>
+      <td style="padding:6px 6px 4px;font-weight:700;vertical-align:top">${item.qty}×</td>
+      <td style="padding:6px 6px 4px;font-weight:700;vertical-align:top">${item.name}</td>
+      <td style="padding:6px 6px 4px;text-align:right;font-weight:700;vertical-align:top;white-space:nowrap">${fmt(item.price*item.qty)}</td>
     </tr>`;
     if (item.type === 'kit') {
-      const kit = S.kits.find(k => k.sku === item.sku && (k.warehouse_id||'') === '');
-      if (kit) kit.items.forEach(comp => {
-        const label = comp.type === 'kit'
-          ? (S.kits.find(k => k.sku === comp.sku && (k.warehouse_id||'') === '')?.name || comp.sku)
-          : (S.products.find(p => p.sku === comp.sku)?.name || comp.sku);
+      _kitComponentRows(item.sku, item.qty, whs).forEach(r => {
+        const indent = 18 + r.depth * 14;
+        const meta = [r.sku, r.whLabel].filter(Boolean).join(' · ');
         itemsRows += `<tr style="background:#f7f7f7">
-          <td style="padding:2px 6px 2px 18px;color:#555;font-size:11px">↳ ${comp.qty*item.qty}×</td>
-          <td style="padding:2px 6px;color:#555;font-size:11px" colspan="2">${label}</td>
+          <td style="padding:3px 4px 3px ${indent}px;color:#555;font-size:11px;white-space:nowrap;vertical-align:top">☐ ${r.qty}×</td>
+          <td style="padding:3px 6px;font-size:11px;font-weight:${r.isKit?'700':'400'};color:${r.isKit?'#000':'#444'}" colspan="2">
+            ${r.name}${meta?`<div style="font-size:9px;color:#999;font-weight:400;margin-top:1px">${meta}</div>`:''}
+          </td>
         </tr>`;
       });
     }
@@ -5523,6 +5549,7 @@ function printComandasBatch() {
   if (!ids.length) { toast('ℹ️ Selecciona al menos una orden'); return; }
 
   const dlLabels = { store_pickup:'Retiro en tienda', home_delivery:'Despacho a domicilio', pickup_point:'Punto de retiro', express:'Express' };
+  const whs = getWarehouses();
 
   function buildComanda(v) {
     const dv = v.delivery || {};
@@ -5530,12 +5557,12 @@ function printComandasBatch() {
     v.items.forEach(item => {
       rows += `<tr><td class="qty">${item.qty}×</td><td class="nm">${item.name}</td><td class="pr">${fmt(item.price*item.qty)}</td></tr>`;
       if (item.type === 'kit') {
-        const kit = S.kits.find(k => k.sku === item.sku && (k.warehouse_id||'') === '');
-        if (kit) kit.items.forEach(comp => {
-          const label = comp.type === 'kit'
-            ? (S.kits.find(k => k.sku === comp.sku && (k.warehouse_id||'') === '')?.name || comp.sku)
-            : (S.products.find(p => p.sku === comp.sku)?.name || comp.sku);
-          rows += `<tr class="kc"><td>↳${comp.qty*item.qty}×</td><td colspan="2">${label}</td></tr>`;
+        _kitComponentRows(item.sku, item.qty, whs).forEach(r => {
+          const meta = [r.sku, r.whLabel].filter(Boolean).join(' · ');
+          rows += `<tr class="kc${r.isKit?' kc-kit':''}">
+            <td style="padding-left:${10 + r.depth*8}px">☐${r.qty}×</td>
+            <td colspan="2">${r.name}${meta?` <span class="kc-meta">${meta}</span>`:''}</td>
+          </tr>`;
         });
       }
     });
@@ -5584,7 +5611,9 @@ table{width:100%;border-collapse:collapse}
 .qty{padding:2px 3px;font-weight:700;vertical-align:top;white-space:nowrap}
 .nm{padding:2px 3px;font-weight:700;vertical-align:top}
 .pr{padding:2px 3px;text-align:right;font-weight:700;vertical-align:top;white-space:nowrap}
-.kc td{padding:1px 3px 1px 10px;color:#555;font-size:9px}
+.kc td{padding:1px 3px;color:#555;font-size:9px}
+.kc-kit td{font-weight:700;color:#000}
+.kc-meta{color:#999;font-weight:400;font-size:8px}
 .tot{display:flex;justify-content:space-between;font-size:13px;font-weight:900;margin:3px 0}
 .dl{display:flex;justify-content:space-between;font-size:10px;padding:1px 0;gap:4px}
 .dlk{color:#555;flex-shrink:0}
