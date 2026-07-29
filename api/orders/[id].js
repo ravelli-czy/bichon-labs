@@ -31,6 +31,7 @@ module.exports = async (req, res) => {
       const {
         status, action, cliente, telefono, dedicatoria, receptor, receptor_telefono,
         payment_method, sales_channel, delivery_update, total,
+        discount_amount, refund_amount,
       } = req.body || {};
 
       // Update customer-facing info fields
@@ -39,17 +40,21 @@ module.exports = async (req, res) => {
         // carries keys the user actually edited (method/date/slot/address), so
         // receptor and anything else already stored is left untouched.
         const deliveryPatch = { receptor: receptor ?? '', receptor_telefono: receptor_telefono ?? '', ...(delivery_update || {}) };
+        const [before] = await sql`SELECT discount_amount, refund_amount FROM orders WHERE id = ${id} AND tenant_id = ${tenantId}`;
+        if (!before) return res.status(404).json({ error: 'Order not found' });
         const [row] = await sql`
           UPDATE orders SET
-            cliente        = ${cliente ?? ''},
-            telefono       = ${telefono ?? ''},
-            dedicatoria    = ${dedicatoria ?? ''},
-            delivery       = delivery || ${JSON.stringify(deliveryPatch)}::jsonb,
-            payment_method = ${payment_method ?? ''},
-            sales_channel  = ${sales_channel ?? ''},
-            total          = COALESCE(${total ?? null}, total),
-            updated_by     = ${actor},
-            updated_at     = NOW()
+            cliente          = ${cliente ?? ''},
+            telefono         = ${telefono ?? ''},
+            dedicatoria      = ${dedicatoria ?? ''},
+            delivery         = delivery || ${JSON.stringify(deliveryPatch)}::jsonb,
+            payment_method   = ${payment_method ?? ''},
+            sales_channel    = ${sales_channel ?? ''},
+            total            = COALESCE(${total ?? null}, total),
+            discount_amount  = COALESCE(${discount_amount ?? null}, discount_amount),
+            refund_amount    = COALESCE(${refund_amount ?? null}, refund_amount),
+            updated_by       = ${actor},
+            updated_at       = NOW()
           WHERE id = ${id} AND tenant_id = ${tenantId}
           RETURNING *
         `;
@@ -63,16 +68,44 @@ module.exports = async (req, res) => {
           entity_name: `${id} — ${row.cliente}`,
           details:     { cliente: row.cliente, telefono: row.telefono },
         });
+        // Descuento/devolución alimentan directamente los ingresos netos de
+        // Finanzas — se registra un log de auditoría dedicado (con valores
+        // antes/después) cada vez que cambian, además del log genérico de
+        // edición de info de arriba.
+        if (before.discount_amount !== row.discount_amount || before.refund_amount !== row.refund_amount) {
+          await writeLog(sql, {
+            tenant_id:   tenantId,
+            actor,
+            action:      'orden.financiero_editado',
+            entity_type: 'orden',
+            entity_id:   id,
+            entity_name: `${id} — ${row.cliente}`,
+            details:     {
+              discount_amount: { from: before.discount_amount, to: row.discount_amount },
+              refund_amount:   { from: before.refund_amount,   to: row.refund_amount   },
+            },
+          });
+        }
         return res.json(row);
       }
 
       // Update status
       if (!status) return res.status(400).json({ error: 'status or action required' });
-      const [current] = await sql`SELECT status, cliente FROM orders WHERE id = ${id} AND tenant_id = ${tenantId}`;
-      const [row] = await sql`
-        UPDATE orders SET status = ${status}, updated_by = ${actor}, updated_at = NOW()
-        WHERE id = ${id} AND tenant_id = ${tenantId} RETURNING *
-      `;
+      const [current] = await sql`SELECT status, cliente, delivered_at FROM orders WHERE id = ${id} AND tenant_id = ${tenantId}`;
+      if (!current) return res.status(404).json({ error: 'Order not found' });
+      // La fecha de reconocimiento de ingreso en Finanzas es la fecha real en
+      // que la orden queda "entregada" (no la de creación) — se registra una
+      // sola vez, la primera vez que la orden alcanza ese estado.
+      const setsDeliveredAt = status === 'entregada' && !current.delivered_at;
+      const [row] = setsDeliveredAt
+        ? await sql`
+            UPDATE orders SET status = ${status}, delivered_at = NOW(), updated_by = ${actor}, updated_at = NOW()
+            WHERE id = ${id} AND tenant_id = ${tenantId} RETURNING *
+          `
+        : await sql`
+            UPDATE orders SET status = ${status}, updated_by = ${actor}, updated_at = NOW()
+            WHERE id = ${id} AND tenant_id = ${tenantId} RETURNING *
+          `;
       if (!row) return res.status(404).json({ error: 'Order not found' });
 
       await writeLog(sql, {

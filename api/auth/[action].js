@@ -19,6 +19,7 @@ const cors = require('../_cors');
 const crypto = require('crypto');
 const { getSession } = require('../_tenant');
 const { sendEmail, inviteEmailHtml } = require('../_email');
+const { seedDefaultCategories } = require('../_finance');
 
 const APP_URL = process.env.APP_URL || 'https://bichon-labs.vercel.app';
 
@@ -211,6 +212,10 @@ module.exports = async (req, res) => {
           VALUES (${tenantId}, ${name}, ${slug}, ${logo_url}, ${logo_text}, ${color}, ${color2}, ${color3}, ${plan}, ${session.username})
           RETURNING *
         `;
+        // Finanzas: cada cuenta nueva arranca con sus categorías de gasto
+        // predeterminadas (propias, no comparte nada con otras cuentas).
+        await seedDefaultCategories(sql, tenantId, session.username).catch(e =>
+          console.error('[auth/tenants] category seed error:', e.message));
         return res.status(201).json({ ...tenant, users_count: 0 });
       }
 
