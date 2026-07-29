@@ -659,8 +659,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="tab" id="ctab-grupos" onclick="switchCatTab('grupos',this)">Grupos</div>
       <div class="tab" id="ctab-productos" onclick="switchCatTab('productos',this)">Productos</div>
       <div class="tab" id="ctab-skus" onclick="switchCatTab('skus',this)">SKUs</div>
-      <div class="tab" id="ctab-pagos" onclick="switchCatTab('pagos',this)">Pagos</div>
-      <div class="tab" id="ctab-canales" onclick="switchCatTab('canales',this)">Canales</div>
     </div>
     <div id="cat-content" style="margin-top:10px"></div>
   </div>
@@ -737,6 +735,12 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <button class="nav-tab" id="mobile-more-btn" onclick="openSheet('sheet-mobile-more')">
     <i class="ti ti-menu-2"></i><span>Más</span>
   </button>
+  <button class="nav-tab sidebar-only-item" onclick="openCatalogTab('pagos')" title="Medios de pago">
+    <i class="ti ti-credit-card"></i><span>Pagos</span>
+  </button>
+  <button class="nav-tab sidebar-only-item" onclick="openCatalogTab('canales')" title="Canales de venta">
+    <i class="ti ti-broadcast"></i><span>Canales</span>
+  </button>
   <a href="/users" class="nav-tab sidebar-only-item" id="admin-users-btn" title="Gestión de usuarios" style="display:none;text-decoration:none">
     <i class="ti ti-users"></i><span>Perfiles y Usuarios</span>
   </a>
@@ -761,6 +765,8 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-content" style="padding:16px 20px 28px;display:flex;flex-direction:column;gap:10px">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('pagos')"><i class="ti ti-credit-card"></i> Pagos</button>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('canales')"><i class="ti ti-broadcast"></i> Canales</button>
       <a href="/users" class="btn btn-outline" id="admin-users-btn-mobile" style="display:none;text-decoration:none"><i class="ti ti-users"></i> Perfiles y Usuarios</a>
       <a href="/logs" class="btn btn-outline" id="admin-logs-btn-mobile" style="display:none;text-decoration:none"><i class="ti ti-history"></i> Logs</a>
       <button class="btn btn-outline" id="prefs-btn-mobile" onclick="closeSheet('sheet-mobile-more');openPrefs()" style="display:none"><i class="ti ti-settings"></i> Settings</button>
@@ -2617,7 +2623,7 @@ function editProd(sku, warehouseId, pushURL = true) {
     document.getElementById('p-stock-row').style.display   = '';
     document.getElementById('p-barcode-row').style.display = '';
     document.getElementById('p-sku-section').style.display = 'none';
-    _populateWarehouseSelect(p.warehouse_id || '', true); // read-only in edit mode
+    _populateWarehouseSelect(p.warehouse_id || '', false); // editable when there's more than 1 warehouse
   }
   _populateCatalogLists();
   openSheet('sheet-prod');
@@ -2766,6 +2772,15 @@ async function _saveProdImpl() {
   };
   if (S.editingProdSku) {
     const wid = S.editingProdWarehouseId || '';
+    if (!S._catalogMode && warehouse_id && warehouse_id !== wid) {
+      const dup = S.products.some(p => p.sku === S.editingProdSku && (p.warehouse_id||'') === warehouse_id);
+      if (dup) {
+        const whName = getWarehouses().find(w => w.id === warehouse_id)?.name || warehouse_id;
+        toast(`⚠️ Este producto ya tiene un SKU en ${whName}`);
+        return;
+      }
+      data.new_warehouse_id = warehouse_id;
+    }
     if (S._apiReady) {
       try {
         const updated = await apiFetch(`/api/products/${S.editingProdSku}?warehouse_id=${encodeURIComponent(wid)}`, { method:'PUT', body: JSON.stringify(data) });
@@ -3368,6 +3383,12 @@ async function saveCatalogList(key, arr) {
   }
 }
 
+// Opens the Catálogo page directly on a tab that's no longer in the
+// horizontal tab bar (Pagos, Canales) — reachable from the sidebar/hamburger.
+function openCatalogTab(tab) {
+  S.catTab = tab;
+  showPage('catalogo', navTabEl('catalogo'), true);
+}
 function switchCatTab(tab, el) {
   S.catTab = tab;
   document.querySelectorAll('#page-catalogo .tab').forEach(t => t.classList.remove('active'));
@@ -3858,25 +3879,52 @@ function _catExportImportToolbar(fileInputId) {
 }
 
 function renderCatalogProductsView(el) {
-  const toolbar = _catExportImportToolbar('import-products-file-cat-prod');
   const addBtn = `<button onclick="openSheetProdCatalog()" style="display:flex;align-items:center;gap:6px;width:100%;padding:11px 14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius);font-weight:800;cursor:pointer;font-size:13px;margin-bottom:12px;box-sizing:border-box">
     <i class="ti ti-plus"></i> Nuevo Producto
   </button>`;
+  const searchBar = `<div class="search-bar" style="margin-bottom:12px">
+    <i class="ti ti-search" style="color:var(--text3);font-size:20px"></i>
+    <input type="text" id="cat-prod-search" placeholder="Buscar productos..." value="${(S.catProdQ||'').replace(/"/g,'&quot;')}" oninput="S.catProdQ=this.value;_renderCatalogProductsList()">
+  </div>`;
 
-  const whs = getWarehouses();
   const masterKits = S.kits.filter(k => (k.warehouse_id||'') === '');
 
   if (!S.products.length && !masterKits.length) {
-    el.innerHTML = toolbar + addBtn + `<div class="empty-state"><i class="ti ti-box"></i><p>Sin productos en el catálogo.<br>Crea el primero arriba.</p></div>`;
+    el.innerHTML = addBtn + `<div class="empty-state"><i class="ti ti-box"></i><p>Sin productos en el catálogo.<br>Crea el primero arriba.</p></div>`;
     return;
   }
+
+  el.innerHTML = addBtn + searchBar + `<div id="cat-prod-list"></div>`;
+  _renderCatalogProductsList();
+}
+
+function _renderCatalogProductsList() {
+  const listEl = document.getElementById('cat-prod-list');
+  if (!listEl) return;
+  const whs = getWarehouses();
+  const masterKits = S.kits.filter(k => (k.warehouse_id||'') === '');
 
   // Prefer master (warehouse_id='') as representative; fill in with warehouse entries for products with no master
   const seen = new Map();
   S.products.filter(p => (p.warehouse_id||'') === '').forEach(p => { if (!seen.has(p.sku)) seen.set(p.sku, { ...p, _isKit: false }); });
   S.products.filter(p => (p.warehouse_id||'') !== '').forEach(p => { if (!seen.has(p.sku)) seen.set(p.sku, { ...p, _isKit: false }); });
   masterKits.forEach(k => { if (!seen.has('KIT:'+k.sku)) seen.set('KIT:'+k.sku, { ...k, _isKit: true }); });
-  const unique = [...seen.values()].sort((a,b) => a.name.localeCompare(b.name));
+  let unique = [...seen.values()].sort((a,b) => a.name.localeCompare(b.name));
+
+  const q = (S.catProdQ||'').trim().toLowerCase();
+  if (q) {
+    unique = unique.filter(p =>
+      (p.name||'').toLowerCase().includes(q) ||
+      (p.sku||'').toLowerCase().includes(q) ||
+      (p.brand||'').toLowerCase().includes(q) ||
+      (p.cat||'').toLowerCase().includes(q)
+    );
+  }
+
+  if (!unique.length) {
+    listEl.innerHTML = `<div class="empty-state"><i class="ti ti-search"></i><p>Sin resultados para "${(S.catProdQ||'').replace(/</g,'&lt;')}"</p></div>`;
+    return;
+  }
 
   // Build SKU counts per product
   const skuInstances = new Map();
@@ -3891,7 +3939,7 @@ function renderCatalogProductsView(el) {
     kitSkuInstances.get(k.sku).push(k);
   });
 
-  el.innerHTML = toolbar + addBtn + `<div class="card" style="padding:4px 0">` +
+  listEl.innerHTML = `<div class="card" style="padding:4px 0">` +
     unique.map(p => {
       const skuEsc = (p.sku||'').replace(/'/g,"&#39;");
       if (p._isKit) {
