@@ -401,10 +401,18 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .powered-by i{font-size:14px;color:var(--primary)}
 .powered-by strong{color:var(--primary)}
 
+/* Mobile: the sidebar-only admin items + brand live in the "Más" sheet
+   instead, opened via the hamburger nav-tab — never show them inline in
+   the cramped bottom bar, regardless of what the role-based JS sets. */
+@media(max-width:767px){
+  .sidebar-only-item{display:none!important}
+}
+
 @media(min-width:768px){
   body{max-width:100%}
   .topbar{max-width:100%}
   #sidebar-toggle{display:flex}
+  #mobile-more-btn{display:none}
 
   /* Sidebar brand */
   .sidebar-brand{
@@ -531,13 +539,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <i class="ti ti-bell"></i>
       <span class="notif-badge" id="bell-badge" style="display:none">0</span>
     </button>
-    <a href="/users" class="icon-btn" id="admin-users-btn" title="Gestión de usuarios" style="display:none;text-decoration:none;color:var(--text2)">
-      <i class="ti ti-users"></i>
-    </a>
-    <a href="/logs" class="icon-btn" id="admin-logs-btn" title="Registro de actividad" style="display:none;text-decoration:none;color:var(--text2)">
-      <i class="ti ti-history"></i>
-    </a>
-    <button class="icon-btn" id="prefs-btn" onclick="openPrefs()" title="Preferencias" style="display:none"><i class="ti ti-settings"></i></button>
     <button class="icon-btn" onclick="doLogout()" title="Cerrar sesión"><i class="ti ti-logout"></i></button>
   </div>
 </div>
@@ -731,7 +732,21 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <button class="nav-tab" onclick="showPage('ventas',this)"><i class="ti ti-shopping-bag"></i><span>Ventas</span></button>
   <button class="nav-tab" onclick="showPage('locales',this)"><i class="ti ti-building-store"></i><span>Locales</span></button>
   <button class="nav-tab" onclick="showPage('delivery',this)"><i class="ti ti-truck-delivery"></i><span>Delivery</span></button>
-  <div class="nav-tab" style="cursor:default;margin-top:auto" title="Bichon Labs">
+  <!-- Mobile-only: opens the "more" sheet with the 4 items below. On desktop
+       these show inline in the sidebar instead and this stays hidden. -->
+  <button class="nav-tab" id="mobile-more-btn" onclick="openSheet('sheet-mobile-more')">
+    <i class="ti ti-menu-2"></i><span>Más</span>
+  </button>
+  <a href="/users" class="nav-tab sidebar-only-item" id="admin-users-btn" title="Gestión de usuarios" style="display:none;text-decoration:none">
+    <i class="ti ti-users"></i><span>Perfiles y Usuarios</span>
+  </a>
+  <a href="/logs" class="nav-tab sidebar-only-item" id="admin-logs-btn" title="Registro de actividad" style="display:none;text-decoration:none">
+    <i class="ti ti-history"></i><span>Logs</span>
+  </a>
+  <button class="nav-tab sidebar-only-item" id="prefs-btn" onclick="openPrefs()" title="Preferencias" style="display:none">
+    <i class="ti ti-settings"></i><span>Settings</span>
+  </button>
+  <div class="nav-tab sidebar-only-item" id="brand-nav-item" style="cursor:default;margin-top:auto" title="Bichon Labs">
     <i class="ti ti-paw"></i>
     <span>Bichon Labs</span>
   </div>
@@ -740,6 +755,19 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <span>Powered by <strong>StockFlow</strong></span>
   </div>
 </nav>
+
+<!-- SHEET: MÁS (mobile-only — mirrors the sidebar-only admin items + brand) -->
+<div class="sheet-overlay hidden" id="sheet-mobile-more" onclick="if(event.target===this)closeSheet('sheet-mobile-more')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-content" style="padding:16px 20px 28px;display:flex;flex-direction:column;gap:10px">
+      <a href="/users" class="btn btn-outline" id="admin-users-btn-mobile" style="display:none;text-decoration:none"><i class="ti ti-users"></i> Perfiles y Usuarios</a>
+      <a href="/logs" class="btn btn-outline" id="admin-logs-btn-mobile" style="display:none;text-decoration:none"><i class="ti ti-history"></i> Logs</a>
+      <button class="btn btn-outline" id="prefs-btn-mobile" onclick="closeSheet('sheet-mobile-more');openPrefs()" style="display:none"><i class="ti ti-settings"></i> Settings</button>
+      <div class="btn btn-outline" style="cursor:default;color:var(--text3)"><i class="ti ti-paw"></i> Bichon Labs</div>
+    </div>
+  </div>
+</div>
 
 <!-- SHEET: NUEVO PRODUCTO -->
 <div class="overlay-page hidden" id="sheet-prod">
@@ -1214,6 +1242,8 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
           <div class="form-group"><div class="form-label">Color secundario</div><input type="color" id="brand-color2" class="color-input" value="#16c98d"></div>
         </div>
         <div class="pref-hint" style="margin-bottom:12px">Se aplican de inmediato a toda la app al guardar.</div>
+        <div class="form-group" style="margin-bottom:4px"><div class="form-label">Color del panel de inicio</div><input type="color" id="brand-color3" class="color-input" value="#4c3fff"></div>
+        <div class="pref-hint" style="margin-bottom:12px">Solo afecta el degradé de la tarjeta principal en Inicio — el resto de la app no lo usa.</div>
         <div class="form-label">Logo cuadrado</div>
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
           <div id="brand-logo-preview" style="width:56px;height:56px;border-radius:12px;background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;border:1.5px solid var(--border)">
@@ -1309,6 +1339,13 @@ function shadeColor(hex, pct) {
   } catch { return hex; }
 }
 
+// Shows an element by id with the given `display` value, if it exists —
+// used to keep a sidebar item and its mobile "más" sheet duplicate in sync.
+function _showById(id, display) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = display;
+}
+
 // ── AUTH GUARD ────────────────────────────────────
 (function(){
   const token = localStorage.getItem('sf_token');
@@ -1329,6 +1366,7 @@ function shadeColor(hex, pct) {
         localStorage.setItem('sf_tenant_name',      user.tenant.name);
         localStorage.setItem('sf_tenant_color',     user.tenant.color || '#5b4fff');
         localStorage.setItem('sf_tenant_color2',    user.tenant.color2 || '#16c98d');
+        localStorage.setItem('sf_tenant_color3',    user.tenant.color3 || '#4c3fff');
         localStorage.setItem('sf_tenant_logo_text', user.tenant.logo_text || '');
         localStorage.setItem('sf_tenant_logo_url',  user.tenant.logo_url || '');
         applyTenantBranding();
@@ -1348,18 +1386,16 @@ function shadeColor(hex, pct) {
       if ((user.role === 'superadmin' || user.role === 'master') && !localStorage.getItem('sf_tenant_id')) {
         location.replace('/admin'); return;
       }
-      // Show admin buttons for admin, superadmin and master
+      // Show admin buttons for admin, superadmin and master (both the
+      // desktop sidebar item and its mobile "más" sheet duplicate).
       if (['admin','superadmin','master'].includes(user.role)) {
-        const usersBtn = document.getElementById('admin-users-btn');
-        const logsBtn  = document.getElementById('admin-logs-btn');
-        if (usersBtn) usersBtn.style.display = 'flex';
-        if (logsBtn)  logsBtn.style.display  = 'flex';
+        _showById('admin-users-btn', 'flex'); _showById('admin-users-btn-mobile', 'flex');
+        _showById('admin-logs-btn',  'flex'); _showById('admin-logs-btn-mobile',  'flex');
       }
       // Preferencias (incl. personalización de marca) is admin-only —
       // superadmin/master manage branding from their own /admin panel.
       if (user.role === 'admin') {
-        const prefsBtn = document.getElementById('prefs-btn');
-        if (prefsBtn) prefsBtn.style.display = '';
+        _showById('prefs-btn', ''); _showById('prefs-btn-mobile', '');
       }
       // Show tenant banner for platform-level users in client context
       if (user.role === 'superadmin' || user.role === 'master') {
@@ -1375,14 +1411,11 @@ function shadeColor(hex, pct) {
       // Offline: use cached role
       const role = localStorage.getItem('sf_role');
       if (['admin','superadmin','master'].includes(role)) {
-        const usersBtn = document.getElementById('admin-users-btn');
-        const logsBtn  = document.getElementById('admin-logs-btn');
-        if (usersBtn) usersBtn.style.display = 'flex';
-        if (logsBtn)  logsBtn.style.display  = 'flex';
+        _showById('admin-users-btn', 'flex'); _showById('admin-users-btn-mobile', 'flex');
+        _showById('admin-logs-btn',  'flex'); _showById('admin-logs-btn-mobile',  'flex');
       }
       if (role === 'admin') {
-        const prefsBtn = document.getElementById('prefs-btn');
-        if (prefsBtn) prefsBtn.style.display = '';
+        _showById('prefs-btn', ''); _showById('prefs-btn-mobile', '');
       }
     });
 })();
@@ -1494,6 +1527,7 @@ function exitTenant() {
   localStorage.removeItem('sf_tenant_name');
   localStorage.removeItem('sf_tenant_color');
   localStorage.removeItem('sf_tenant_color2');
+  localStorage.removeItem('sf_tenant_color3');
   localStorage.removeItem('sf_tenant_logo_text');
   localStorage.removeItem('sf_tenant_logo_url');
   location.replace('/admin');
@@ -1741,12 +1775,10 @@ function openPrefs() {
   document.querySelectorAll('#pref-inv-tab .pref-opt').forEach(b => {
     b.classList.toggle('active', b.dataset.val === tab);
   });
-  const darkOn = document.body.classList.contains('dark-mode');
-  const dmToggle = document.getElementById('dark-mode-toggle');
-  if (dmToggle) { dmToggle.classList.toggle('active', darkOn); dmToggle.setAttribute('aria-checked', darkOn); }
   document.getElementById('brand-name').value   = localStorage.getItem('sf_tenant_name') || '';
   document.getElementById('brand-color').value  = localStorage.getItem('sf_tenant_color') || '#5b4fff';
   document.getElementById('brand-color2').value = localStorage.getItem('sf_tenant_color2') || '#16c98d';
+  document.getElementById('brand-color3').value = localStorage.getItem('sf_tenant_color3') || '#4c3fff';
   S._brandLogoDataUrl = null;
   _renderBrandLogoPreview(localStorage.getItem('sf_tenant_logo_url') || '');
   openSheet('sheet-prefs');
@@ -1788,9 +1820,10 @@ async function saveBrandSettings() {
   const name   = document.getElementById('brand-name').value.trim();
   const color  = document.getElementById('brand-color').value;
   const color2 = document.getElementById('brand-color2').value;
+  const color3 = document.getElementById('brand-color3').value;
   if (!name) { toast('⚠️ El nombre de la cuenta es obligatorio'); return; }
   const tenantId = localStorage.getItem('sf_tenant_id');
-  const payload = { name, color, color2 };
+  const payload = { name, color, color2, color3 };
   if (S._brandLogoDataUrl) payload.logo_url = S._brandLogoDataUrl;
   const btn = document.getElementById('brand-save-btn');
   if (btn) btn.disabled = true;
@@ -1801,6 +1834,7 @@ async function saveBrandSettings() {
     localStorage.setItem('sf_tenant_name', name);
     localStorage.setItem('sf_tenant_color', color);
     localStorage.setItem('sf_tenant_color2', color2);
+    localStorage.setItem('sf_tenant_color3', color3);
     if (payload.logo_url) localStorage.setItem('sf_tenant_logo_url', payload.logo_url);
     applyTenantBranding();
     S._brandLogoDataUrl = null;

@@ -49,7 +49,7 @@ module.exports = async (req, res) => {
 
       let tenant = null;
       if (session.tenant_id) {
-        const [t] = await sql`SELECT id, name, slug, logo_url, logo_text, color, color2 FROM tenants WHERE id = ${session.tenant_id}`;
+        const [t] = await sql`SELECT id, name, slug, logo_url, logo_text, color, color2, color3 FROM tenants WHERE id = ${session.tenant_id}`;
         tenant = t || null;
       }
 
@@ -78,7 +78,7 @@ module.exports = async (req, res) => {
 
       let tenant = null;
       if (user.tenant_id) {
-        const [t] = await sql`SELECT id, name, slug, logo_url, logo_text, color, color2 FROM tenants WHERE id = ${user.tenant_id}`;
+        const [t] = await sql`SELECT id, name, slug, logo_url, logo_text, color, color2, color3 FROM tenants WHERE id = ${user.tenant_id}`;
         tenant = t || null;
       }
 
@@ -158,12 +158,13 @@ module.exports = async (req, res) => {
       // colors, logo) — nothing else, and only for their own tenant.
       if (req.method === 'PUT' && session.role === 'admin') {
         if (!id || id !== session.tenant_id) return res.status(403).json({ error: 'Solo puedes editar tu propio cliente' });
-        const { name, color, color2, logo_url } = req.body || {};
+        const { name, color, color2, color3, logo_url } = req.body || {};
         const [tenant] = await sql`
           UPDATE tenants SET
             name     = COALESCE(${name     ?? null}, name),
             color    = COALESCE(${color    ?? null}, color),
             color2   = COALESCE(${color2   ?? null}, color2),
+            color3   = COALESCE(${color3   ?? null}, color3),
             logo_url = COALESCE(${logo_url ?? null}, logo_url)
           WHERE id = ${id}
           RETURNING *
@@ -191,7 +192,7 @@ module.exports = async (req, res) => {
 
       // POST — create tenant
       if (req.method === 'POST') {
-        const { name, slug, logo_url = '', logo_text = '', color = '#5b4fff', color2 = '#16c98d', plan = 'starter' } = req.body || {};
+        const { name, slug, logo_url = '', logo_text = '', color = '#5b4fff', color2 = '#16c98d', color3 = '#4c3fff', plan = 'starter' } = req.body || {};
         if (!name) return res.status(400).json({ error: 'name es requerido' });
         if (!slug) return res.status(400).json({ error: 'slug es requerido' });
         if (!/^[a-z0-9-]{2,64}$/.test(slug)) return res.status(400).json({ error: 'El slug sólo admite letras minúsculas, números y guiones' });
@@ -206,8 +207,8 @@ module.exports = async (req, res) => {
         const tenantId = 'TEN-' + String(parseInt(max_num) + 1).padStart(3, '0');
 
         const [tenant] = await sql`
-          INSERT INTO tenants (id, name, slug, logo_url, logo_text, color, color2, plan, created_by)
-          VALUES (${tenantId}, ${name}, ${slug}, ${logo_url}, ${logo_text}, ${color}, ${color2}, ${plan}, ${session.username})
+          INSERT INTO tenants (id, name, slug, logo_url, logo_text, color, color2, color3, plan, created_by)
+          VALUES (${tenantId}, ${name}, ${slug}, ${logo_url}, ${logo_text}, ${color}, ${color2}, ${color3}, ${plan}, ${session.username})
           RETURNING *
         `;
         return res.status(201).json({ ...tenant, users_count: 0 });
@@ -216,7 +217,7 @@ module.exports = async (req, res) => {
       // PUT — update tenant
       if (req.method === 'PUT') {
         if (!id) return res.status(400).json({ error: 'id es requerido' });
-        const { name, logo_url, logo_text, color, color2, plan, status } = req.body || {};
+        const { name, logo_url, logo_text, color, color2, color3, plan, status } = req.body || {};
         const [tenant] = await sql`
           UPDATE tenants SET
             name      = COALESCE(${name      ?? null}, name),
@@ -224,6 +225,7 @@ module.exports = async (req, res) => {
             logo_text = COALESCE(${logo_text ?? null}, logo_text),
             color     = COALESCE(${color     ?? null}, color),
             color2    = COALESCE(${color2    ?? null}, color2),
+            color3    = COALESCE(${color3    ?? null}, color3),
             plan      = COALESCE(${plan      ?? null}, plan),
             status    = COALESCE(${status    ?? null}, status)
           WHERE id = ${id}
