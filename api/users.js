@@ -87,6 +87,32 @@ module.exports = async (req, res) => {
     }
   }
 
+  // ── MY SETTINGS — any authenticated user, scoped to their own account
+  // only (e.g. dark mode). Distinct from action=settings above, which is
+  // tenant-wide and admin-only. ────────────────────────────────────────────
+  if ((req.query || {}).action === 'my-settings') {
+    try {
+      if (req.method === 'GET') {
+        const [row] = await sql`SELECT settings FROM users WHERE id = ${session.user_id}`;
+        return res.json((row && row.settings) ? row.settings : {});
+      }
+      if (req.method === 'PUT') {
+        const { settings: newSettings = {} } = req.body || {};
+        const [row] = await sql`
+          UPDATE users
+          SET settings = COALESCE(settings, '{}')::jsonb || ${JSON.stringify(newSettings)}::jsonb
+          WHERE id = ${session.user_id}
+          RETURNING settings
+        `;
+        return res.json((row && row.settings) ? row.settings : {});
+      }
+      return res.status(405).json({ error: 'Method not allowed' });
+    } catch (err) {
+      console.error('[users/my-settings] error:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
   if (!['admin','superadmin','master'].includes(session.role))
     return res.status(403).json({ error: 'Solo administradores pueden gestionar usuarios' });
   if (!tenantId)
