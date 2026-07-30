@@ -209,10 +209,18 @@ const DEFAULT_EXPENSE_CATEGORIES = [
   'Telefonía e internet', 'Gastos administrativos', 'Otros',
 ];
 
+// `id` en expense_categories/expenses es una PK global (TEXT PRIMARY KEY,
+// sin tenant_id en la clave — a diferencia de products/kits, que sí usan PK
+// compuesta (sku, warehouse_id, tenant_id)). Por eso el "próximo ID" se
+// calcula sobre TODAS las filas, no sólo las de este tenant — igual que
+// orders.js/shipments.js/users.js (ver sus comentarios "id is a plain PK
+// shared across tenants"). Calcularlo scoped-por-tenant (como hacía antes)
+// producía el mismo CAT-001/EXP-0001 para la primera fila de cada cuenta
+// nueva y chocaba contra la PK global de la primera cuenta que ya lo tenía.
 async function nextCategoryId(sql, tenantId) {
   const [{ max_num }] = await sql`
     SELECT COALESCE(MAX(CAST(SUBSTRING(id FROM 5) AS INTEGER)), 0) AS max_num
-    FROM expense_categories WHERE id ~ '^CAT-[0-9]+$' AND tenant_id = ${tenantId}
+    FROM expense_categories WHERE id ~ '^CAT-[0-9]+$'
   `;
   return 'CAT-' + String(parseInt(max_num) + 1).padStart(3, '0');
 }
@@ -220,7 +228,7 @@ async function nextCategoryId(sql, tenantId) {
 async function nextExpenseId(sql, tenantId) {
   const [{ max_num }] = await sql`
     SELECT COALESCE(MAX(CAST(SUBSTRING(id FROM 5) AS INTEGER)), 0) AS max_num
-    FROM expenses WHERE id ~ '^EXP-[0-9]+$' AND tenant_id = ${tenantId}
+    FROM expenses WHERE id ~ '^EXP-[0-9]+$'
   `;
   return 'EXP-' + String(parseInt(max_num) + 1).padStart(4, '0');
 }
