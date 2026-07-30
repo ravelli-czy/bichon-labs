@@ -828,7 +828,7 @@ async function loadCategories() {
   try { cats = await api('/api/orders?resource=categories'); }
   catch (e) { toast('⚠️ ' + e.message); list.innerHTML = ''; return; }
   _categoriesById = Object.fromEntries(cats.map(c => [c.id, c]));
-  list.innerHTML = cats.map(c => `
+  list.innerHTML = cats.length ? cats.map(c => `
     <div class="cat-row ${c.is_active ? '' : 'inactive'}">
       <i class="ti ti-tag" style="color:var(--primary)"></i>
       <div class="cat-name">${escHtml(c.name)} ${c.is_default ? '<span class="badge-default">predeterminada</span>' : ''}</div>
@@ -836,7 +836,7 @@ async function loadCategories() {
         <button class="icon-btn" style="width:30px;height:30px;font-size:14px" title="Editar" onclick="openCategoryForm('${c.id}')"><i class="ti ti-pencil"></i></button>
         <button class="icon-btn" style="width:30px;height:30px;font-size:14px" title="${c.is_active ? 'Desactivar' : 'Activar'}" onclick="toggleCategory('${c.id}')"><i class="ti ${c.is_active ? 'ti-toggle-right' : 'ti-toggle-left'}"></i></button>
       ` : ''}
-    </div>`).join('');
+    </div>`).join('') : `<div class="empty-state"><i class="ti ti-category-off"></i><p>Aún no hay categorías de gasto.${isAdmin() ? ' Creá la primera con "Nueva categoría".' : ''}</p></div>`;
 }
 let _editingCategoryId = null;
 function openCategoryForm(id) {

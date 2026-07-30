@@ -454,7 +454,16 @@ async function handleFinanceResource(req, res, sql, session, tenantId, actor) {
     // ── CATEGORÍAS ──────────────────────────────────────────────────────────
     if (resource === 'categories') {
       if (req.method === 'GET') {
-        const rows = await sql`SELECT * FROM expense_categories WHERE tenant_id = ${tenantId} ORDER BY name`;
+        let rows = await sql`SELECT * FROM expense_categories WHERE tenant_id = ${tenantId} ORDER BY name`;
+        // Self-healing: si esta cuenta llega a Finanzas sin categorías (p.ej.
+        // porque el tenant no estaba en `tenants` cuando corrió el backfill
+        // global de /api/setup), se siembran acá mismo — idempotente
+        // (seedDefaultCategories matchea por nombre, nunca duplica) y no
+        // depende de que exista una fila en `tenants` para este tenant_id.
+        if (!rows.length) {
+          await F.seedDefaultCategories(sql, tenantId, 'sistema');
+          rows = await sql`SELECT * FROM expense_categories WHERE tenant_id = ${tenantId} ORDER BY name`;
+        }
         return res.json(rows);
       }
       if (!isAdmin(session)) return res.status(403).json({ error: 'Sólo administradores pueden gestionar categorías' });
