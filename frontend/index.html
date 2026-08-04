@@ -532,9 +532,9 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 /* Order detail top grid */
 .orden-top-grid{display:grid;grid-template-columns:1fr;gap:12px}
 @media(min-width:640px){.orden-top-grid{grid-template-columns:1fr 1fr}}
-/* Delivery card hover when clickable */
-.delivery-card-clickable{cursor:pointer!important;border-color:var(--amber)!important}
-.delivery-card-clickable:hover{background:var(--amber-light)!important;border-color:var(--amber-dark)!important;transform:translateY(-1px);box-shadow:0 4px 16px rgba(217,119,6,.15)}
+/* Delivery card hover when clickable (sin borde — se marca solo con sombra) */
+.delivery-card-clickable{cursor:pointer!important}
+.delivery-card-clickable:hover{background:var(--amber-light)!important;transform:translateY(-1px);box-shadow:0 4px 16px rgba(217,119,6,.15)!important}
 
 /* Template de etiqueta: campos + vista previa en vivo */
 .ltpl-grid{display:grid;grid-template-columns:1fr;gap:24px}
@@ -1508,7 +1508,10 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 <div class="overlay-page hidden" id="overlay-orden">
   <div class="overlay-topbar">
     <button class="icon-btn" onclick="closeOrdenDetalle()" title="Volver"><i class="ti ti-arrow-left"></i></button>
-    <div class="overlay-topbar-title" id="overlay-orden-id">Detalle de orden</div>
+    <div class="overlay-topbar-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span id="overlay-orden-id">Detalle de orden</span>
+      <span id="overlay-orden-status"></span>
+    </div>
     <div style="display:flex;gap:6px">
       <button class="icon-btn" onclick="openOrderEditSheet(currentDetalleId)" title="Editar info"><i class="ti ti-pencil"></i></button>
       <button class="icon-btn" onclick="openEliminarOrden(currentDetalleId)" title="Eliminar orden" style="color:var(--red)"><i class="ti ti-trash"></i></button>
@@ -6195,6 +6198,7 @@ function openOrdenDetalle(id, pushURL = true) {
   const icon = deliveryIcons[dv.method_type] || 'ti-truck-delivery';
 
   document.getElementById('overlay-orden-id').textContent = v.id;
+  document.getElementById('overlay-orden-status').innerHTML = statusBadge(v.status||'por_hacer');
 
   // Build items HTML — expand KIT components
   const itemsHtml = v.items.map(item => {
@@ -6245,13 +6249,12 @@ function openOrdenDetalle(id, pushURL = true) {
     <div class="orden-top-grid" style="margin-bottom:14px">
 
       <!-- CLIENT INFO -->
-      <div style="background:var(--bg3);border-radius:var(--radius);padding:14px 16px">
+      <div style="background:var(--bg2);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:14px 16px">
         <div style="font-size:18px;font-weight:900;margin-bottom:2px">${v.cliente||'Cliente'}</div>
         ${v.telefono?`<div style="font-size:13px;color:var(--text2);font-weight:600;margin-top:4px;display:flex;align-items:center;gap:5px"><i class="ti ti-phone" style="font-size:13px"></i>${v.telefono}</div>`:''}
         <div style="font-size:12px;color:var(--text3);font-weight:600;margin-top:5px">${v.fecha}</div>
         ${v.payment_method?`<div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:5px;display:flex;align-items:center;gap:5px"><i class="ti ti-credit-card" style="font-size:13px;color:var(--text3)"></i>${v.payment_method}</div>`:''}
         ${v.sales_channel?`<div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:3px;display:flex;align-items:center;gap:5px"><i class="ti ti-broadcast" style="font-size:13px;color:var(--text3)"></i>${v.sales_channel}</div>`:''}
-        <div style="margin-top:8px">${statusBadge(v.status||'por_hacer')}</div>
         ${STATUS_NEXT[v.status]
           ? `<button class="advance-btn" onclick="event.stopPropagation();${STATUS_NEXT[v.status]==='en_preparacion' ? `openPrepChecklist('${v.id}')` : `advanceOrderStatus('${v.id}')`}" style="margin-top:10px;width:100%;justify-content:center">
                <i class="ti ti-arrow-right"></i>${STATUS_NEXT_LABEL[v.status]||'Avanzar'}
@@ -6269,7 +6272,7 @@ function openOrdenDetalle(id, pushURL = true) {
 
       <!-- DELIVERY + SHIPMENT CARD (async) -->
       <div id="orden-delivery-card"
-           style="border-radius:var(--radius);border:2px solid var(--border);padding:14px 16px;background:var(--bg2);cursor:default;transition:all .18s;position:relative;overflow:hidden">
+           style="border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:14px 16px;background:var(--bg2);cursor:default;transition:all .18s;position:relative;overflow:hidden">
         <div style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:10px;display:flex;align-items:center;gap:5px">
           <i class="ti ti-truck-delivery"></i> Entrega
         </div>
