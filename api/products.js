@@ -32,7 +32,10 @@ module.exports = async (req, res) => {
           paper_type = 'adhesivo', content_text = '',
         } = req.body || {};
         if (!name) return res.status(400).json({ error: 'name is required' });
-        if (!['etiqueta', 'huincha_sellado', 'tarjeta_instrucciones'].includes(type)) {
+        // El tenant puede definir tipos de etiqueta propios además de los 3
+        // predefinidos (etiqueta, huincha_sellado, tarjeta_instrucciones) —
+        // la columna es texto libre, sin CHECK constraint.
+        if (typeof type !== 'string' || !type.trim()) {
           return res.status(400).json({ error: 'type inválido' });
         }
         const [{ max_num }] = await sql`

@@ -33,7 +33,8 @@ module.exports = async (req, res) => {
 
       if (req.method === 'PUT') {
         const { type, name, image_url, font, width_mm, height_mm, auto_size, paper_type, content_text, active } = req.body || {};
-        if (type !== undefined && !['etiqueta', 'huincha_sellado', 'tarjeta_instrucciones'].includes(type)) {
+        // Tipos custom son texto libre — solo validamos que no venga vacío.
+        if (type !== undefined && (typeof type !== 'string' || !type.trim())) {
           return res.status(400).json({ error: 'type inválido' });
         }
         // Nota: igual que en el resto de la API, un campo omitido deja el

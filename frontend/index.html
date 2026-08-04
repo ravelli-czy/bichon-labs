@@ -1131,12 +1131,24 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div class="form-group"><div class="form-label">Nombre *</div><input class="form-input" id="ltpl-name" placeholder="Ej: Etiqueta redonda logo" oninput="renderLtplPreview()"></div>
         <div class="form-group">
           <div class="form-label">Imagen</div>
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+          <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:6px">
             <div id="ltpl-image-preview" style="width:80px;height:80px;border-radius:10px;background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;border:1.5px solid var(--border)">
               <i class="ti ti-photo" style="color:var(--text3);font-size:26px"></i>
             </div>
-            <button class="btn btn-outline btn-sm" onclick="document.getElementById('ltpl-image-file').click()" style="width:auto"><i class="ti ti-upload"></i> Subir imagen</button>
+            <div style="display:flex;flex-direction:column;gap:8px;flex:1;min-width:0">
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-outline btn-sm" onclick="document.getElementById('ltpl-image-file').click()" style="width:auto"><i class="ti ti-upload"></i> Subir imagen</button>
+                <button class="btn btn-outline btn-sm" onclick="document.getElementById('ltpl-photo-file').click()" style="width:auto"><i class="ti ti-camera"></i> Tomar foto</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <span style="font-size:11px;font-weight:700;color:var(--text3);margin-right:2px">O elige un color:</span>
+                <div id="ltpl-color-swatches" style="display:flex;gap:6px"></div>
+                <button type="button" title="Más colores" onclick="document.getElementById('ltpl-color-picker').click()" style="width:24px;height:24px;border-radius:50%;border:1.5px dashed var(--border);background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);cursor:pointer;flex-shrink:0"></button>
+              </div>
+            </div>
             <input type="file" id="ltpl-image-file" accept="image/*" style="display:none" onchange="onLabelTemplateImageFile(this.files[0])">
+            <input type="file" id="ltpl-photo-file" accept="image/*" capture="environment" style="display:none" onchange="onLabelTemplateImageFile(this.files[0])">
+            <input type="color" id="ltpl-color-picker" value="#5b4fff" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none" onchange="setLabelTemplateColor(this.value)">
           </div>
         </div>
         <div class="form-row">
@@ -1427,14 +1439,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <!-- ETIQUETAS -->
       <div id="venta-labels-wrap" style="display:none">
         <div class="section-label" style="margin-top:14px"><i class="ti ti-tag"></i> Etiquetas</div>
-        <div class="form-group">
-          <div class="form-label">Template de etiqueta <span id="venta-etiqueta-required-mark" style="color:var(--red)"></span></div>
-          <select class="form-input" id="venta-label-etiqueta"><option value="">Selecciona un template...</option></select>
-        </div>
-        <div class="form-row" id="venta-labels-optional-row" style="display:none">
-          <div class="form-group"><div class="form-label">Huincha de sellado</div><select class="form-input" id="venta-label-huincha"><option value="">Ninguna</option></select></div>
-          <div class="form-group"><div class="form-label">Tarjeta de instrucciones</div><select class="form-input" id="venta-label-tarjeta"><option value="">Ninguna</option></select></div>
-        </div>
+        <div id="venta-labels-dynamic"></div>
       </div>
 
       <!-- TOTAL -->
@@ -4705,20 +4710,70 @@ function renderCatalogSKUsView(el) {
 }
 
 // ── CATÁLOGO: Templates de etiqueta/tarjeta (item 8) ──────────────────────
-const LABEL_TEMPLATE_TYPES = [
-  { key:'etiqueta',              label:'Etiqueta adhesiva',      icon:'ti-tag',       desc:'Obligatoria al crear una venta (si hay al menos una activa).' },
+const LABEL_TEMPLATE_TYPES_BUILTIN = [
+  { key:'etiqueta',              label:'Etiqueta adhesiva',      icon:'ti-tag',       desc:'Obligatoria al crear una venta (si hay al menos una activa y "Etiquetado obligatorio" está activo en Preferencias → Flujos).' },
   { key:'huincha_sellado',       label:'Huincha de sellado',     icon:'ti-ribbon',    desc:'Opcional — se elige al vender o después, desde la orden.' },
   { key:'tarjeta_instrucciones', label:'Tarjeta de instrucciones', icon:'ti-file-text', desc:'Opcional — instrucciones de uso del producto.' },
 ];
 const LABEL_TEMPLATE_FONTS = ['Nunito', 'Poppins', 'Playfair Display', 'Caveat', 'Georgia', 'Courier New', 'Arial'];
 const LABEL_PAPER_TYPE_LABELS = { normal:'Hoja normal', adhesivo:'Adhesivo', mate300:'Mate 300' };
 
+// Tipos de etiqueta = los 3 fijos + los que el tenant haya creado (item 8,
+// pedido explícito: poder crear nuevos tipos además de los default).
+function getLabelTemplateTypes() {
+  const custom = (S._tenantSettings?.customLabelTypes || []).map(c => ({
+    key: c.key, label: c.label, icon: 'ti-tag',
+    desc: 'Tipo personalizado — selección opcional al vender.',
+    custom: true,
+  }));
+  return [...LABEL_TEMPLATE_TYPES_BUILTIN, ...custom];
+}
+function _slugifyLabelTypeKey(label) {
+  return 'custom_' + label.trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+async function addCustomLabelType() {
+  const label = prompt('Nombre del nuevo tipo de etiqueta (ej: "Etiqueta de temporada"):');
+  if (!label || !label.trim()) return;
+  const key = _slugifyLabelTypeKey(label);
+  if (key === 'custom_') { toast('⚠️ Nombre inválido'); return; }
+  if (getLabelTemplateTypes().some(t => t.key === key)) { toast('⚠️ Ya existe un tipo con ese nombre'); return; }
+  const customLabelTypes = [...(S._tenantSettings?.customLabelTypes || []), { key, label: label.trim() }];
+  if (!S._tenantSettings) S._tenantSettings = {};
+  S._tenantSettings.customLabelTypes = customLabelTypes;
+  if (S._apiReady) {
+    try {
+      const settings = await apiFetch('/api/users?action=settings', { method:'PUT', body: JSON.stringify({ settings: { customLabelTypes } }) });
+      S._tenantSettings = settings;
+    } catch (e) { toast('❌ ' + (e.message || 'No se pudo guardar')); return; }
+  }
+  toast('✅ Tipo de etiqueta creado');
+  if (S.currentPage === 'catalogo') renderCatalogo();
+}
+async function deleteCustomLabelType(key) {
+  const inUse = (S.labelTemplates || []).some(tpl => tpl.type === key);
+  if (inUse) { toast('⚠️ Este tipo tiene templates — elimínalos primero'); return; }
+  const typeMeta = getLabelTemplateTypes().find(t => t.key === key);
+  if (!confirm(`¿Eliminar el tipo "${typeMeta?.label || key}"?`)) return;
+  const customLabelTypes = (S._tenantSettings?.customLabelTypes || []).filter(c => c.key !== key);
+  S._tenantSettings.customLabelTypes = customLabelTypes;
+  if (S._apiReady) {
+    try {
+      const settings = await apiFetch('/api/users?action=settings', { method:'PUT', body: JSON.stringify({ settings: { customLabelTypes } }) });
+      S._tenantSettings = settings;
+    } catch (e) { toast('❌ ' + (e.message || 'No se pudo eliminar')); return; }
+  }
+  toast('🗑 Tipo de etiqueta eliminado');
+  if (S.currentPage === 'catalogo') renderCatalogo();
+}
+
 // Resuelve los templates de etiqueta elegidos para una orden (item 8.5) a
 // partir de v.label_selections — usado tanto en el checklist de "Iniciar
 // preparación" como en el detalle de la orden para imprimir cada una.
 function _orderLabelItems(v) {
   const sel = v.label_selections || {};
-  return LABEL_TEMPLATE_TYPES
+  return getLabelTemplateTypes()
     .map(t => ({ key: t.key, label: t.label, tpl: sel[t.key] ? (S.labelTemplates||[]).find(x => String(x.id) === String(sel[t.key])) : null }))
     .filter(t => t.tpl);
 }
@@ -4743,17 +4798,21 @@ function renderLabelTemplatesView(el) {
     <div class="info-box" style="background:var(--primary-light);color:var(--primary);border-radius:var(--radius);padding:10px 12px;font-size:12px;font-weight:700;margin-bottom:14px">
       <i class="ti ti-info-circle"></i> Estos templates se seleccionan (no se crean al vuelo) al registrar una venta, y se pueden imprimir desde el detalle de la orden.
     </div>
-    ${LABEL_TEMPLATE_TYPES.map(t => {
+    ${getLabelTemplateTypes().map(t => {
       const items = (S.labelTemplates || []).filter(tpl => tpl.type === t.key);
       return `
-      <div class="section-label" style="margin-top:6px"><i class="ti ${t.icon}" style="color:var(--primary)"></i>${t.label}</div>
+      <div class="section-label" style="margin-top:6px;display:flex;align-items:center;gap:8px">
+        <i class="ti ${t.icon}" style="color:var(--primary)"></i><span style="flex:1">${t.label}</span>
+        ${t.custom ? `<button onclick="deleteCustomLabelType('${t.key}')" title="Eliminar tipo" style="width:26px;height:26px;border-radius:7px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-trash" style="font-size:12px"></i></button>` : ''}
+      </div>
       <div style="font-size:12px;color:var(--text3);font-weight:600;margin:-4px 0 8px">${t.desc}</div>
       <button class="btn btn-outline btn-sm" style="width:auto;margin-bottom:10px" onclick="openLabelTemplateSheet('${t.key}')"><i class="ti ti-plus"></i> Nuevo template</button>
       ${items.length
         ? `<div class="card" style="padding:4px 0;margin-bottom:8px">${items.map(labelTemplateRow).join('')}</div>`
         : `<div class="empty-state" style="padding:20px 16px;margin-bottom:8px"><p>Sin templates de este tipo aún.</p></div>`}
       `;
-    }).join('')}`;
+    }).join('')}
+    <button class="btn btn-outline btn-sm" style="width:auto;margin-top:4px" onclick="addCustomLabelType()"><i class="ti ti-plus"></i> Nuevo tipo de etiqueta</button>`;
 }
 
 function labelTemplateRow(tpl) {
@@ -4786,8 +4845,10 @@ function openLabelTemplateSheet(type, id) {
 
   const fontSel = document.getElementById('ltpl-font');
   fontSel.innerHTML = LABEL_TEMPLATE_FONTS.map(f => `<option value="${f}" style="font-family:'${f}'">${f}</option>`).join('');
+  _renderLtplColorSwatches();
 
-  const typeMeta = LABEL_TEMPLATE_TYPES.find(t => t.key === type) || LABEL_TEMPLATE_TYPES[0];
+  const allTypes = getLabelTemplateTypes();
+  const typeMeta = allTypes.find(t => t.key === type) || allTypes[0];
   document.getElementById('ltpl-content-label').textContent = type === 'tarjeta_instrucciones'
     ? 'Instrucciones de uso *'
     : 'Texto (opcional)';
@@ -4874,6 +4935,27 @@ function renderLtplPreview() {
     <div class="ltpl-preview-paper">Papel: ${paperLabel}</div>
     ${imageUrl ? `<img src="${imageUrl}" style="${imgStyle}">` : ''}
     ${contentText.trim() ? `<div class="ltpl-preview-text" style="font-family:'${font.replace(/'/g,"\\'")}',sans-serif">${contentText.replace(/</g,'&lt;')}</div>` : ''}`;
+}
+// Paleta rápida para etiquetas de color liso (sin imagen/foto) — item pedido:
+// "Foto o Selección de Color desde una paleta". El picker nativo (rueda de
+// colores) queda disponible aparte para cualquier color fuera de la paleta.
+const LABEL_COLOR_PALETTE = ['#5b4fff', '#ff4d6d', '#f59e0b', '#16c98d', '#0ea5e9', '#a855f7', '#111827', '#ffffff'];
+function _renderLtplColorSwatches() {
+  const el = document.getElementById('ltpl-color-swatches');
+  if (!el) return;
+  el.innerHTML = LABEL_COLOR_PALETTE.map(hex => `<button type="button" onclick="setLabelTemplateColor('${hex}')" title="${hex}" style="width:24px;height:24px;border-radius:50%;border:1.5px solid var(--border);background:${hex};cursor:pointer;flex-shrink:0"></button>`).join('');
+}
+function setLabelTemplateColor(hex) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 300; canvas.height = 300;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = hex;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  S._ltplImageDataUrl = canvas.toDataURL('image/png');
+  S._ltplImageNatural = { width: canvas.width, height: canvas.height };
+  document.getElementById('ltpl-color-picker').value = hex;
+  _renderLtplImagePreview(S._ltplImageDataUrl);
+  renderLtplPreview();
 }
 function onLabelTemplateImageFile(file) {
   if (!file) return;
@@ -5158,26 +5240,26 @@ function openSheetVenta(pushURL = true) {
 // "etiqueta" es obligatorio únicamente si hay alguno activo de ese tipo.
 function populateVentaLabelSelects() {
   const wrap = document.getElementById('venta-labels-wrap');
+  const dyn  = document.getElementById('venta-labels-dynamic');
   const all = S.labelTemplates || [];
-  if (!all.length) { wrap.style.display = 'none'; return; }
-  wrap.style.display = '';
+  if (!all.length) { wrap.style.display = 'none'; dyn.innerHTML = ''; return; }
 
   const byType = (t) => all.filter(tpl => tpl.type === t && tpl.active !== false);
-  const etiquetas = byType('etiqueta');
-  const huinchas   = byType('huincha_sellado');
-  const tarjetas   = byType('tarjeta_instrucciones');
+  const rows = getLabelTemplateTypes().map(t => {
+    const items = byType(t.key);
+    if (!items.length) return null;
+    const required = t.key === 'etiqueta' && isEtiquetaObligatoria();
+    const options = items.map(tpl => `<option value="${tpl.id}">${tpl.name}</option>`).join('');
+    return `<div class="form-group">
+      <div class="form-label">${t.label} ${required ? '<span style="color:var(--red)">*</span>' : ''}</div>
+      <select class="form-input venta-label-select" data-type-key="${t.key}" data-required="${required ? '1' : '0'}">
+        <option value="">${required ? 'Selecciona un template...' : 'Ninguna'}</option>${options}
+      </select>
+    </div>`;
+  }).filter(Boolean);
 
-  const fillSelect = (id, items, placeholder) => {
-    const sel = document.getElementById(id);
-    sel.innerHTML = `<option value="">${placeholder}</option>` + items.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-    sel.value = '';
-  };
-  fillSelect('venta-label-etiqueta', etiquetas, 'Selecciona un template...');
-  fillSelect('venta-label-huincha',  huinchas,   'Ninguna');
-  fillSelect('venta-label-tarjeta',  tarjetas,   'Ninguna');
-
-  document.getElementById('venta-etiqueta-required-mark').textContent = (etiquetas.length && isEtiquetaObligatoria()) ? '*' : '';
-  document.getElementById('venta-labels-optional-row').style.display = (huinchas.length || tarjetas.length) ? '' : 'none';
+  dyn.innerHTML = rows.join('');
+  wrap.style.display = rows.length ? '' : 'none';
 }
 
 function selectDeliveryMethod(type, el, methodId, methodName) {
@@ -5634,15 +5716,14 @@ async function saveVenta() {
     if (!document.getElementById('venta-addr-city').value.trim())   { toast('⚠️ Ingresa la ciudad'); return; }
   }
   // Item 8.2: si hay al menos un template de etiqueta activo, elegir uno es obligatorio
-  const labelEtiquetaId = document.getElementById('venta-label-etiqueta')?.value || '';
-  if (document.getElementById('venta-etiqueta-required-mark')?.textContent === '*' && !labelEtiquetaId) {
-    toast('⚠️ Selecciona un template de etiqueta'); return;
-  }
-  const label_selections = {
-    etiqueta:              labelEtiquetaId || null,
-    huincha_sellado:       document.getElementById('venta-label-huincha')?.value || null,
-    tarjeta_instrucciones: document.getElementById('venta-label-tarjeta')?.value || null,
-  };
+  const label_selections = {};
+  let missingRequiredLabel = false;
+  document.querySelectorAll('#venta-labels-dynamic .venta-label-select').forEach(sel => {
+    const val = sel.value || null;
+    label_selections[sel.dataset.typeKey] = val;
+    if (sel.dataset.required === '1' && !val) missingRequiredLabel = true;
+  });
+  if (missingRequiredLabel) { toast('⚠️ Selecciona un template de etiqueta'); return; }
 
   const shipping = ventaShippingCost();
   const total = S.tempVentaItems.reduce((s,i) => s+i.qty*i.price, 0) + shipping;
