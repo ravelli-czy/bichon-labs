@@ -548,6 +548,14 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 #ltpl-preview .ltpl-preview-text.ltpl-text-standalone{position:static;padding:0}
 #ltpl-preview .ltpl-preview-empty{color:var(--text3);font-size:12px;font-weight:600}
 #ltpl-preview .ltpl-preview-paper{font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px}
+/* Toolbar de formato del texto del template (negrita/cursiva/tachado/tamaño/color) */
+.ltpl-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.ltpl-tb-btn{width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg2);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ltpl-tb-btn:hover{background:var(--bg3)}
+.ltpl-tb-select{height:32px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg2);color:var(--text2);font-family:'Nunito',sans-serif;font-weight:700;font-size:12px;padding:0 6px}
+.ltpl-tb-color{width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:none;padding:2px;cursor:pointer}
+#ltpl-content-text[contenteditable]:empty:before{content:attr(data-placeholder);color:var(--text3);font-weight:400}
+#ltpl-content-text[contenteditable]{cursor:text}
 </style>
 </head>
 <body>
@@ -1166,7 +1174,25 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         </div>
         <div class="form-group">
           <div class="form-label" id="ltpl-content-label">Texto (opcional)</div>
-          <textarea class="form-input" id="ltpl-content-text" rows="3" placeholder="Se imprime debajo de la imagen, en la fuente elegida" oninput="renderLtplPreview()"></textarea>
+          <div class="ltpl-toolbar">
+            <button type="button" class="ltpl-tb-btn" onmousedown="_ltplSaveSelection(event)" onclick="ltplToggleBold()" title="Negrita"><i class="ti ti-bold"></i></button>
+            <button type="button" class="ltpl-tb-btn" onmousedown="_ltplSaveSelection(event)" onclick="ltplToggleItalic()" title="Cursiva"><i class="ti ti-italic"></i></button>
+            <button type="button" class="ltpl-tb-btn" onmousedown="_ltplSaveSelection(event)" onclick="ltplToggleStrike()" title="Tachado"><i class="ti ti-strikethrough"></i></button>
+            <select class="ltpl-tb-select" onmousedown="_ltplSaveSelection(event)" onchange="ltplSetFontSize(this.value);this.value=''" title="Tamaño de fuente">
+              <option value="">Tamaño</option>
+              <option value="10">10px</option>
+              <option value="12">12px</option>
+              <option value="14">14px</option>
+              <option value="16">16px</option>
+              <option value="18">18px</option>
+              <option value="20">20px</option>
+              <option value="24">24px</option>
+              <option value="28">28px</option>
+              <option value="32">32px</option>
+            </select>
+            <input type="color" class="ltpl-tb-color" value="#000000" title="Color de texto" onmousedown="_ltplSaveSelection(event)" onchange="ltplSetColor(this.value)">
+          </div>
+          <div class="form-input" id="ltpl-content-text" contenteditable="true" data-placeholder="Se imprime debajo de la imagen, en la fuente elegida" style="min-height:76px;text-align:left;line-height:1.4" oninput="renderLtplPreview()"></div>
         </div>
         <div class="form-group">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -4863,7 +4889,7 @@ function openLabelTemplateSheet(type, id) {
     document.getElementById('ltpl-name').value = tpl.name || '';
     document.getElementById('ltpl-font').value = tpl.font || 'Nunito';
     document.getElementById('ltpl-paper-type').value = tpl.paper_type || 'adhesivo';
-    document.getElementById('ltpl-content-text').value = tpl.content_text || '';
+    document.getElementById('ltpl-content-text').innerHTML = tpl.content_text || '';
     document.getElementById('ltpl-auto-size').checked = tpl.auto_size !== false;
     document.getElementById('ltpl-width').value = tpl.width_mm || '';
     document.getElementById('ltpl-height').value = tpl.height_mm || '';
@@ -4874,7 +4900,7 @@ function openLabelTemplateSheet(type, id) {
     document.getElementById('ltpl-name').value = '';
     document.getElementById('ltpl-font').value = 'Nunito';
     document.getElementById('ltpl-paper-type').value = 'adhesivo';
-    document.getElementById('ltpl-content-text').value = '';
+    document.getElementById('ltpl-content-text').innerHTML = '';
     document.getElementById('ltpl-auto-size').checked = true;
     document.getElementById('ltpl-width').value = '';
     document.getElementById('ltpl-height').value = '';
@@ -4911,6 +4937,82 @@ function _ensureGoogleFont(font) {
   document.head.appendChild(link);
 }
 
+// ── Toolbar de formato del texto del template (negrita/cursiva/tachado/
+// tamaño/color) ─────────────────────────────────────────────────────────
+// El texto se edita en un <div contenteditable>; cada botón envuelve la
+// selección actual en un <span style="..."> con la propiedad correspondiente.
+// Como hacer click en un botón/select/color-picker le quita el foco (y la
+// selección) al editor, guardamos el Range en el mousedown (que dispara
+// ANTES del cambio de foco) y lo reusamos en el action handler.
+let _ltplSavedRange = null;
+function _ltplSaveSelection() {
+  const sel = window.getSelection();
+  const editor = document.getElementById('ltpl-content-text');
+  if (sel && sel.rangeCount && !sel.isCollapsed && editor.contains(sel.anchorNode)) {
+    _ltplSavedRange = sel.getRangeAt(0).cloneRange();
+  }
+}
+function _ltplWrapSelection(styleProp, value) {
+  if (!_ltplSavedRange) { toast('⚠️ Selecciona el texto a formatear'); return; }
+  const editor = document.getElementById('ltpl-content-text');
+  const range = _ltplSavedRange;
+  const span = document.createElement('span');
+  span.style[styleProp] = value;
+  span.appendChild(range.extractContents());
+  range.insertNode(span);
+  editor.focus();
+  const sel = window.getSelection();
+  const newRange = document.createRange();
+  newRange.selectNodeContents(span);
+  sel.removeAllRanges();
+  sel.addRange(newRange);
+  _ltplSavedRange = newRange.cloneRange();
+  renderLtplPreview();
+}
+function ltplToggleBold()    { _ltplWrapSelection('fontWeight', '800'); }
+function ltplToggleItalic()  { _ltplWrapSelection('fontStyle', 'italic'); }
+function ltplToggleStrike()  { _ltplWrapSelection('textDecoration', 'line-through'); }
+function ltplSetFontSize(px) { if (px) _ltplWrapSelection('fontSize', px + 'px'); }
+function ltplSetColor(hex)   { _ltplWrapSelection('color', hex); }
+
+// Sanitiza el HTML del editor antes de guardarlo/imprimirlo: solo permite
+// tags de formato (negrita/cursiva/tachado/span) y, dentro de style, solo
+// las propiedades que el toolbar puede generar — nada de scripts, eventos,
+// ni estilos arbitrarios pegados desde otro lado.
+const LTPL_ALLOWED_TAGS = new Set(['B','STRONG','I','EM','S','STRIKE','SPAN','BR','DIV']);
+const LTPL_ALLOWED_STYLE_PROPS = new Set(['color','font-size','font-weight','font-style','text-decoration']);
+function _sanitizeLtplHtml(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const walk = (node) => {
+    [...node.childNodes].forEach(child => {
+      if (child.nodeType === Node.TEXT_NODE) return;
+      if (child.nodeType !== Node.ELEMENT_NODE || !LTPL_ALLOWED_TAGS.has(child.tagName)) {
+        const parent = child.parentNode;
+        while (child.firstChild) parent.insertBefore(child.firstChild, child);
+        parent.removeChild(child);
+        return;
+      }
+      const style = child.getAttribute('style') || '';
+      const safeProps = [];
+      style.split(';').forEach(rule => {
+        const parts = rule.split(':');
+        if (parts.length !== 2) return;
+        const prop = parts[0].trim().toLowerCase();
+        const val  = parts[1].trim();
+        if (LTPL_ALLOWED_STYLE_PROPS.has(prop) && /^[a-zA-Z0-9#(),.%\s]+$/.test(val)) {
+          safeProps.push(`${prop}:${val}`);
+        }
+      });
+      [...child.attributes].forEach(a => child.removeAttribute(a.name));
+      if (safeProps.length) child.setAttribute('style', safeProps.join(';'));
+      walk(child);
+    });
+  };
+  walk(tmp);
+  return tmp.innerHTML;
+}
+
 // Vista previa en vivo del template — se actualiza en cada cambio de imagen,
 // texto, fuente o tamaño (item 8.2, pedido explícito de vista previa).
 function renderLtplPreview() {
@@ -4918,7 +5020,8 @@ function renderLtplPreview() {
   if (!el) return;
   const font = document.getElementById('ltpl-font').value || 'Nunito';
   _ensureGoogleFont(font);
-  const contentText = document.getElementById('ltpl-content-text').value;
+  const contentEditor = document.getElementById('ltpl-content-text');
+  const contentPlain = contentEditor.textContent || '';
   const imageUrl = S._ltplImageDataUrl || S._ltplExistingImageUrl || '';
   const autoSize = document.getElementById('ltpl-auto-size').checked;
   const widthMm  = parseFloat(document.getElementById('ltpl-width').value) || null;
@@ -4930,14 +5033,14 @@ function renderLtplPreview() {
     ? `width:${Math.min(widthMm, 260)}px;height:${Math.min(heightMm, 260)}px;object-fit:contain`
     : `max-width:100%;max-height:220px`;
 
-  if (!imageUrl && !contentText.trim()) {
+  if (!imageUrl && !contentPlain.trim()) {
     el.innerHTML = `<i class="ti ti-photo" style="font-size:28px;color:var(--text3)"></i><div class="ltpl-preview-empty">La vista previa aparece acá a medida que cargas la imagen y el texto</div>`;
     return;
   }
   // Si hay imagen, el texto se centra encima de ella (distribuido desde el
   // centro); sin imagen, el texto simplemente se muestra centrado en la vista.
-  const textHtml = contentText.trim()
-    ? `<div class="ltpl-preview-text${imageUrl ? '' : ' ltpl-text-standalone'}" style="font-family:'${font.replace(/'/g,"\\'")}',sans-serif">${contentText.replace(/</g,'&lt;')}</div>`
+  const textHtml = contentPlain.trim()
+    ? `<div class="ltpl-preview-text${imageUrl ? '' : ' ltpl-text-standalone'}" style="font-family:'${font.replace(/'/g,"\\'")}',sans-serif">${_sanitizeLtplHtml(contentEditor.innerHTML)}</div>`
     : '';
   el.innerHTML = `
     <div class="ltpl-preview-paper">Papel: ${paperLabel}</div>
@@ -4997,10 +5100,12 @@ function onLabelTemplateImageFile(file) {
 async function saveLabelTemplate() {
   const name = document.getElementById('ltpl-name').value.trim();
   if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
-  const contentText = document.getElementById('ltpl-content-text').value.trim();
-  if (_editingLabelTemplateType === 'tarjeta_instrucciones' && !contentText && !S._ltplImageDataUrl) {
+  const contentEditor = document.getElementById('ltpl-content-text');
+  const contentPlain = (contentEditor.textContent || '').trim();
+  if (_editingLabelTemplateType === 'tarjeta_instrucciones' && !contentPlain && !S._ltplImageDataUrl) {
     toast('⚠️ Escribe las instrucciones o sube una imagen'); return;
   }
+  const contentText = contentPlain ? _sanitizeLtplHtml(contentEditor.innerHTML) : '';
   const autoSize = document.getElementById('ltpl-auto-size').checked;
   const payload = {
     type: _editingLabelTemplateType,
@@ -5058,6 +5163,9 @@ function printLabelTemplate(id, orderCtx) {
     ? `max-width:50mm;width:100%;height:auto`
     : `width:${tpl.width_mm}mm;height:${tpl.height_mm}mm;object-fit:contain`;
   const paperLabel = LABEL_PAPER_TYPE_LABELS[tpl.paper_type] || tpl.paper_type;
+  // Se re-sanitiza acá también (además de al guardar) por si el valor viene
+  // de un template creado antes del editor con formato, o editado a mano.
+  const safeContentText = tpl.content_text ? _sanitizeLtplHtml(tpl.content_text) : '';
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${tpl.name}</title>
 <link rel="stylesheet" href="${googleFontHref}">
@@ -5077,9 +5185,9 @@ body{font-family:'${font}',sans-serif;color:#000;background:#fff;padding:16px;ma
 ${tpl.image_url
   ? `<div class="label-stage">
       <img src="${tpl.image_url}" style="${sizeCss}">
-      ${tpl.content_text ? `<div class="content-text">${tpl.content_text.replace(/</g,'&lt;')}</div>` : ''}
+      ${safeContentText ? `<div class="content-text">${safeContentText}</div>` : ''}
     </div>`
-  : (tpl.content_text ? `<div class="content-text" style="margin-bottom:10px">${tpl.content_text.replace(/</g,'&lt;')}</div>` : '')}
+  : (safeContentText ? `<div class="content-text" style="margin-bottom:10px">${safeContentText}</div>` : '')}
 ${orderCtx ? `<div class="order-ctx">${orderCtx.id} · ${orderCtx.fecha||''}</div>` : ''}
 <script>window.onload=function(){window.print();}<\/script>
 </body></html>`;
