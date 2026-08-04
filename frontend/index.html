@@ -762,74 +762,88 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <div class="page" id="page-prefs">
     <div class="section-title"><i class="ti ti-settings" style="color:var(--primary)"></i> Preferencias</div>
     <div class="section-sub">Configuración de inventario, marca y datos de tu cuenta</div>
-    <div class="pref-group">
-      <div class="pref-group-title">Inventario</div>
-      <div class="pref-label">Vista inicial al abrir inventario</div>
-      <div class="pref-options" id="pref-inv-tab">
-        <button class="pref-opt" data-val="alertas" onclick="setPrefInvTab('alertas')">
-          <i class="ti ti-bell"></i>Alertas
-        </button>
-        <button class="pref-opt" data-val="kits" onclick="setPrefInvTab('kits')">
-          <i class="ti ti-stack-2"></i>KITs
-        </button>
-        <button class="pref-opt" data-val="todos" onclick="setPrefInvTab('todos')">
-          <i class="ti ti-list"></i>Todos
-        </button>
-      </div>
-      <div class="pref-hint">Se aplica al iniciar la app o abrir Inventario.</div>
+    <div class="tabs">
+      <div class="tab" id="ptab-visual" onclick="switchPrefsTab('visual',this)">Visual</div>
+      <div class="tab" id="ptab-flujos" onclick="switchPrefsTab('flujos',this)">Flujos</div>
+      <div class="tab" id="ptab-datos" onclick="switchPrefsTab('datos',this)">Datos</div>
     </div>
-    <div class="pref-group" style="margin-top:18px">
-      <div class="pref-group-title">Flujo de estados de las órdenes</div>
-      <div class="pref-hint" style="margin-bottom:10px">Define qué pasos ve tu equipo entre "Por hacer" y "Lista p/ enviar" — y en qué orden. Los pasos de envío (en camino, entregada) los sigue manejando Delivery.</div>
-      <div class="pref-options" style="margin-bottom:14px">
-        <button class="pref-opt" onclick="applyOrderFlowTemplate('estandar')" title="Por hacer → En preparación → Lista p/ facturar → Facturada → Lista p/ enviar">
-          <i class="ti ti-list-check"></i>Estándar
-        </button>
-        <button class="pref-opt" onclick="applyOrderFlowTemplate('flota_propia')" title="Por hacer → En preparación → Lista p/ enviar (sin pasos de facturación)">
-          <i class="ti ti-truck-delivery"></i>Flota propia
-        </button>
-        <button class="pref-opt" onclick="applyOrderFlowTemplate('vacio')" title="Empezar desde cero: solo Por hacer → Lista p/ enviar">
-          <i class="ti ti-sparkles"></i>Personalizado
-        </button>
-      </div>
-      <div id="order-flow-chain" style="margin-bottom:14px"></div>
-      <div class="pref-label">Pasos intermedios (en orden)</div>
-      <div id="order-flow-steps" style="margin-bottom:8px"></div>
-      <div class="add-row">
-        <select id="order-flow-add-select" class="form-input" style="flex:1;font-size:13px"><option value="">Agregar paso...</option></select>
-        <button class="add-row-btn" onclick="addOrderFlowStep()"><i class="ti ti-plus"></i></button>
-      </div>
-      <button id="order-flow-save-btn" class="btn btn-primary mt-3" onclick="saveOrderFlow()"><i class="ti ti-check"></i> Guardar flujo</button>
-    </div>
-    <div class="pref-group" style="margin-top:18px">
-      <div class="pref-group-title">Personalización de marca</div>
-      <div class="pref-label">Nombre visible de la cuenta</div>
-      <input class="form-input" id="brand-name" placeholder="Ej: Harmony" style="margin-bottom:12px">
-      <div class="form-row" style="margin-bottom:4px">
-        <div class="form-group"><div class="form-label">Color primario</div><input type="color" id="brand-color" class="color-input" value="#5b4fff"></div>
-        <div class="form-group"><div class="form-label">Color secundario</div><input type="color" id="brand-color2" class="color-input" value="#16c98d"></div>
-      </div>
-      <div class="pref-hint" style="margin-bottom:12px">Se aplican de inmediato a toda la app al guardar.</div>
-      <div class="form-group" style="margin-bottom:4px"><div class="form-label">Color del panel de inicio</div><input type="color" id="brand-color3" class="color-input" value="#4c3fff"></div>
-      <div class="pref-hint" style="margin-bottom:12px">Solo afecta el degradé de la tarjeta principal en Inicio — el resto de la app no lo usa.</div>
-      <div class="form-label">Logo cuadrado</div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
-        <div id="brand-logo-preview" style="width:56px;height:56px;border-radius:12px;background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;border:1.5px solid var(--border)">
-          <i class="ti ti-photo" style="color:var(--text3);font-size:22px"></i>
+
+    <div id="prefs-tab-visual">
+      <div class="pref-group" style="margin-top:16px">
+        <div class="pref-group-title">Inventario</div>
+        <div class="pref-label">Vista inicial al abrir inventario</div>
+        <div class="pref-options" id="pref-inv-tab">
+          <button class="pref-opt" data-val="alertas" onclick="setPrefInvTab('alertas')">
+            <i class="ti ti-bell"></i>Alertas
+          </button>
+          <button class="pref-opt" data-val="kits" onclick="setPrefInvTab('kits')">
+            <i class="ti ti-stack-2"></i>KITs
+          </button>
+          <button class="pref-opt" data-val="todos" onclick="setPrefInvTab('todos')">
+            <i class="ti ti-list"></i>Todos
+          </button>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="document.getElementById('brand-logo-file').click()" style="width:auto"><i class="ti ti-upload"></i> Subir logo</button>
-        <input type="file" id="brand-logo-file" accept="image/*" style="display:none" onchange="onBrandLogoFile(this.files[0])">
+        <div class="pref-hint">Se aplica al iniciar la app o abrir Inventario.</div>
       </div>
-      <div class="pref-hint" style="margin-bottom:14px">Se recorta y ajusta a un cuadrado automáticamente.</div>
-      <button id="brand-save-btn" class="btn btn-primary" onclick="saveBrandSettings()" style="width:100%"><i class="ti ti-check"></i> Guardar personalización</button>
+      <div class="pref-group" style="margin-top:18px">
+        <div class="pref-group-title">Personalización de marca</div>
+        <div class="pref-label">Nombre visible de la cuenta</div>
+        <input class="form-input" id="brand-name" placeholder="Ej: Harmony" style="margin-bottom:12px">
+        <div class="form-row" style="margin-bottom:4px">
+          <div class="form-group"><div class="form-label">Color primario</div><input type="color" id="brand-color" class="color-input" value="#5b4fff"></div>
+          <div class="form-group"><div class="form-label">Color secundario</div><input type="color" id="brand-color2" class="color-input" value="#16c98d"></div>
+        </div>
+        <div class="pref-hint" style="margin-bottom:12px">Se aplican de inmediato a toda la app al guardar.</div>
+        <div class="form-group" style="margin-bottom:4px"><div class="form-label">Color del panel de inicio</div><input type="color" id="brand-color3" class="color-input" value="#4c3fff"></div>
+        <div class="pref-hint" style="margin-bottom:12px">Solo afecta el degradé de la tarjeta principal en Inicio — el resto de la app no lo usa.</div>
+        <div class="form-label">Logo cuadrado</div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+          <div id="brand-logo-preview" style="width:56px;height:56px;border-radius:12px;background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;border:1.5px solid var(--border)">
+            <i class="ti ti-photo" style="color:var(--text3);font-size:22px"></i>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('brand-logo-file').click()" style="width:auto"><i class="ti ti-upload"></i> Subir logo</button>
+          <input type="file" id="brand-logo-file" accept="image/*" style="display:none" onchange="onBrandLogoFile(this.files[0])">
+        </div>
+        <div class="pref-hint" style="margin-bottom:14px">Se recorta y ajusta a un cuadrado automáticamente.</div>
+        <button id="brand-save-btn" class="btn btn-primary" onclick="saveBrandSettings()" style="width:100%"><i class="ti ti-check"></i> Guardar personalización</button>
+      </div>
     </div>
-    <div class="pref-group" style="margin-top:18px">
-      <div class="pref-group-title">Datos</div>
-      <div class="pref-label">Borrar toda la información del cliente activo</div>
-      <div class="pref-hint" style="margin-bottom:10px">Elimina productos, KITs, órdenes y envíos. Esta acción <strong>no puede deshacerse</strong>.</div>
-      <button onclick="clearTenantData()" style="width:100%;padding:10px 16px;background:var(--red-light);color:var(--red);border:1.5px solid var(--red);border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
-        <i class="ti ti-trash"></i> Limpiar datos de inventario y ventas
-      </button>
+
+    <div id="prefs-tab-flujos" style="display:none">
+      <div class="pref-group" style="margin-top:16px">
+        <div class="pref-group-title">Flujo de estados de las órdenes</div>
+        <div class="pref-hint" style="margin-bottom:10px">Define qué pasos ve tu equipo entre "Por hacer" y "Lista p/ enviar" — y en qué orden. Los pasos de envío (en camino, entregada) los sigue manejando Delivery.</div>
+        <div class="pref-options" style="margin-bottom:14px">
+          <button class="pref-opt" onclick="applyOrderFlowTemplate('estandar')" title="Por hacer → En preparación → Lista p/ facturar → Facturada → Lista p/ enviar">
+            <i class="ti ti-list-check"></i>Estándar
+          </button>
+          <button class="pref-opt" onclick="applyOrderFlowTemplate('flota_propia')" title="Por hacer → En preparación → Lista p/ enviar (sin pasos de facturación)">
+            <i class="ti ti-truck-delivery"></i>Flota propia
+          </button>
+          <button class="pref-opt" onclick="applyOrderFlowTemplate('vacio')" title="Empezar desde cero: solo Por hacer → Lista p/ enviar">
+            <i class="ti ti-sparkles"></i>Personalizado
+          </button>
+        </div>
+        <div id="order-flow-chain" style="margin-bottom:14px"></div>
+        <div class="pref-label">Pasos intermedios (en orden)</div>
+        <div id="order-flow-steps" style="margin-bottom:8px"></div>
+        <div class="add-row">
+          <select id="order-flow-add-select" class="form-input" style="flex:1;font-size:13px"><option value="">Agregar paso...</option></select>
+          <button class="add-row-btn" onclick="addOrderFlowStep()"><i class="ti ti-plus"></i></button>
+        </div>
+        <button id="order-flow-save-btn" class="btn btn-primary mt-3" onclick="saveOrderFlow()"><i class="ti ti-check"></i> Guardar flujo</button>
+      </div>
+    </div>
+
+    <div id="prefs-tab-datos" style="display:none">
+      <div class="pref-group" style="margin-top:16px">
+        <div class="pref-group-title">Datos</div>
+        <div class="pref-label">Borrar toda la información del cliente activo</div>
+        <div class="pref-hint" style="margin-bottom:10px">Elimina productos, KITs, órdenes y envíos. Esta acción <strong>no puede deshacerse</strong>.</div>
+        <button onclick="clearTenantData()" style="width:100%;padding:10px 16px;background:var(--red-light);color:var(--red);border:1.5px solid var(--red);border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+          <i class="ti ti-trash"></i> Limpiar datos de inventario y ventas
+        </button>
+      </div>
     </div>
   </div>
 
@@ -1608,6 +1622,7 @@ const S = {
   editingProdWarehouseId: '',  // warehouse of the product being edited
   warehouseId: '',             // currently selected warehouse in inventory view
   catTab: 'categorias',        // active sub-tab in Catálogo page
+  prefsTab: 'visual',          // active sub-tab in Preferencias page: 'visual' | 'flujos' | 'datos'
   _apiReady: false,
 };
 
@@ -1985,7 +2000,23 @@ function updateKitAlertBadge() {
 function openPrefs(pushURL = true) {
   showPage('prefs', document.getElementById('prefs-btn'), pushURL);
 }
+function switchPrefsTab(tab, el) {
+  S.prefsTab = tab;
+  document.querySelectorAll('#page-prefs .tab').forEach(t => t.classList.remove('active'));
+  const target = el || document.getElementById('ptab-' + tab);
+  if (target) target.classList.add('active');
+  ['visual', 'flujos', 'datos'].forEach(t => {
+    document.getElementById('prefs-tab-' + t).style.display = t === tab ? '' : 'none';
+  });
+}
 function renderPrefsPage() {
+  document.querySelectorAll('#page-prefs .tab').forEach(t => t.classList.remove('active'));
+  const activeTabEl = document.getElementById('ptab-' + S.prefsTab);
+  if (activeTabEl) activeTabEl.classList.add('active');
+  ['visual', 'flujos', 'datos'].forEach(t => {
+    document.getElementById('prefs-tab-' + t).style.display = t === S.prefsTab ? '' : 'none';
+  });
+
   const tab = (S._tenantSettings && S._tenantSettings.invDefaultTab) || getPrefs().invDefaultTab || 'todos';
   document.querySelectorAll('#pref-inv-tab .pref-opt').forEach(b => {
     b.classList.toggle('active', b.dataset.val === tab);
