@@ -1515,15 +1515,21 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div style="display:flex;gap:6px">
       <button class="icon-btn" onclick="openOrderEditSheet(currentDetalleId)" title="Editar info"><i class="ti ti-pencil"></i></button>
       <button class="icon-btn" onclick="openEliminarOrden(currentDetalleId)" title="Eliminar orden" style="color:var(--red)"><i class="ti ti-trash"></i></button>
-      <button class="btn btn-outline btn-sm" onclick="openDuplicarOrden(currentDetalleId)" style="gap:5px" title="Duplicar orden">
-        <i class="ti ti-copy"></i> Duplicar
-      </button>
-      <button class="btn btn-outline btn-sm" onclick="printComanda(currentDetalleId)" style="gap:5px">
-        <i class="ti ti-printer"></i> Imprimir comanda
-      </button>
+      <button class="icon-btn" onclick="openOrdenActionsSheet()" title="Más acciones"><i class="ti ti-wand"></i></button>
     </div>
   </div>
   <div class="overlay-scroll" id="overlay-orden-content"></div>
+</div>
+
+<!-- SHEET: MÁS ACCIONES DE LA ORDEN (Duplicar / Imprimir comanda) -->
+<div class="sheet-overlay hidden" id="sheet-orden-actions" onclick="if(event.target===this)closeSheet('sheet-orden-actions')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-content" style="padding:16px 20px 28px;display:flex;flex-direction:column;gap:10px">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-orden-actions');openDuplicarOrden(currentDetalleId)"><i class="ti ti-copy"></i> Duplicar orden</button>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-orden-actions');printComanda(currentDetalleId)"><i class="ti ti-printer"></i> Imprimir comanda</button>
+    </div>
+  </div>
 </div>
 
 <!-- OVERLAY: REPORTES DE VENTAS -->
@@ -6791,6 +6797,10 @@ function addDuplicarItem() {
   else S._tempDuplicarItems.push({ type, sku, name, price, qty:1, tipo, warehouse_id });
   document.getElementById('dup-add-item').value = '';
   renderDuplicarItemsList();
+}
+
+function openOrdenActionsSheet() {
+  openSheet('sheet-orden-actions');
 }
 
 function openDuplicarOrden(id, pushURL = true) {
