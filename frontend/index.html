@@ -746,6 +746,58 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     </div>
   </div>
 
+  <!-- PREFERENCIAS -->
+  <div class="page" id="page-prefs">
+    <div class="section-title"><i class="ti ti-settings" style="color:var(--primary)"></i> Preferencias</div>
+    <div class="section-sub">Configuración de inventario, marca y datos de tu cuenta</div>
+    <div class="pref-group">
+      <div class="pref-group-title">Inventario</div>
+      <div class="pref-label">Vista inicial al abrir inventario</div>
+      <div class="pref-options" id="pref-inv-tab">
+        <button class="pref-opt" data-val="alertas" onclick="setPrefInvTab('alertas')">
+          <i class="ti ti-bell"></i>Alertas
+        </button>
+        <button class="pref-opt" data-val="kits" onclick="setPrefInvTab('kits')">
+          <i class="ti ti-stack-2"></i>KITs
+        </button>
+        <button class="pref-opt" data-val="todos" onclick="setPrefInvTab('todos')">
+          <i class="ti ti-list"></i>Todos
+        </button>
+      </div>
+      <div class="pref-hint">Se aplica al iniciar la app o abrir Inventario.</div>
+    </div>
+    <div class="pref-group" style="margin-top:18px">
+      <div class="pref-group-title">Personalización de marca</div>
+      <div class="pref-label">Nombre visible de la cuenta</div>
+      <input class="form-input" id="brand-name" placeholder="Ej: Harmony" style="margin-bottom:12px">
+      <div class="form-row" style="margin-bottom:4px">
+        <div class="form-group"><div class="form-label">Color primario</div><input type="color" id="brand-color" class="color-input" value="#5b4fff"></div>
+        <div class="form-group"><div class="form-label">Color secundario</div><input type="color" id="brand-color2" class="color-input" value="#16c98d"></div>
+      </div>
+      <div class="pref-hint" style="margin-bottom:12px">Se aplican de inmediato a toda la app al guardar.</div>
+      <div class="form-group" style="margin-bottom:4px"><div class="form-label">Color del panel de inicio</div><input type="color" id="brand-color3" class="color-input" value="#4c3fff"></div>
+      <div class="pref-hint" style="margin-bottom:12px">Solo afecta el degradé de la tarjeta principal en Inicio — el resto de la app no lo usa.</div>
+      <div class="form-label">Logo cuadrado</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+        <div id="brand-logo-preview" style="width:56px;height:56px;border-radius:12px;background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;border:1.5px solid var(--border)">
+          <i class="ti ti-photo" style="color:var(--text3);font-size:22px"></i>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('brand-logo-file').click()" style="width:auto"><i class="ti ti-upload"></i> Subir logo</button>
+        <input type="file" id="brand-logo-file" accept="image/*" style="display:none" onchange="onBrandLogoFile(this.files[0])">
+      </div>
+      <div class="pref-hint" style="margin-bottom:14px">Se recorta y ajusta a un cuadrado automáticamente.</div>
+      <button id="brand-save-btn" class="btn btn-primary" onclick="saveBrandSettings()" style="width:100%"><i class="ti ti-check"></i> Guardar personalización</button>
+    </div>
+    <div class="pref-group" style="margin-top:18px">
+      <div class="pref-group-title">Datos</div>
+      <div class="pref-label">Borrar toda la información del cliente activo</div>
+      <div class="pref-hint" style="margin-bottom:10px">Elimina productos, KITs, órdenes y envíos. Esta acción <strong>no puede deshacerse</strong>.</div>
+      <button onclick="clearTenantData()" style="width:100%;padding:10px 16px;background:var(--red-light);color:var(--red);border:1.5px solid var(--red);border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+        <i class="ti ti-trash"></i> Limpiar datos de inventario y ventas
+      </button>
+    </div>
+  </div>
+
 </div>
 
 <button class="fab" onclick="openSheet('sheet-fab')"><i class="ti ti-plus"></i></button>
@@ -1292,65 +1344,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   </div>
 </div>
 
-<!-- SHEET: PREFERENCIAS -->
-<div class="sheet-overlay hidden" id="sheet-prefs" onclick="if(event.target===this)closeSheet('sheet-prefs')">
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
-      <div class="sheet-title"><i class="ti ti-settings" style="color:var(--primary)"></i> Preferencias</div>
-      <button class="sheet-close" onclick="closeSheet('sheet-prefs')"><i class="ti ti-x"></i></button>
-    </div>
-    <div class="sheet-content">
-      <div class="pref-group">
-        <div class="pref-group-title">Inventario</div>
-        <div class="pref-label">Vista inicial al abrir inventario</div>
-        <div class="pref-options" id="pref-inv-tab">
-          <button class="pref-opt" data-val="alertas" onclick="setPrefInvTab('alertas')">
-            <i class="ti ti-bell"></i>Alertas
-          </button>
-          <button class="pref-opt" data-val="kits" onclick="setPrefInvTab('kits')">
-            <i class="ti ti-stack-2"></i>KITs
-          </button>
-          <button class="pref-opt" data-val="todos" onclick="setPrefInvTab('todos')">
-            <i class="ti ti-list"></i>Todos
-          </button>
-        </div>
-        <div class="pref-hint">Se aplica al iniciar la app o abrir Inventario.</div>
-      </div>
-      <div class="pref-group" style="margin-top:18px">
-        <div class="pref-group-title">Personalización de marca</div>
-        <div class="pref-label">Nombre visible de la cuenta</div>
-        <input class="form-input" id="brand-name" placeholder="Ej: Harmony" style="margin-bottom:12px">
-        <div class="form-row" style="margin-bottom:4px">
-          <div class="form-group"><div class="form-label">Color primario</div><input type="color" id="brand-color" class="color-input" value="#5b4fff"></div>
-          <div class="form-group"><div class="form-label">Color secundario</div><input type="color" id="brand-color2" class="color-input" value="#16c98d"></div>
-        </div>
-        <div class="pref-hint" style="margin-bottom:12px">Se aplican de inmediato a toda la app al guardar.</div>
-        <div class="form-group" style="margin-bottom:4px"><div class="form-label">Color del panel de inicio</div><input type="color" id="brand-color3" class="color-input" value="#4c3fff"></div>
-        <div class="pref-hint" style="margin-bottom:12px">Solo afecta el degradé de la tarjeta principal en Inicio — el resto de la app no lo usa.</div>
-        <div class="form-label">Logo cuadrado</div>
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
-          <div id="brand-logo-preview" style="width:56px;height:56px;border-radius:12px;background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;border:1.5px solid var(--border)">
-            <i class="ti ti-photo" style="color:var(--text3);font-size:22px"></i>
-          </div>
-          <button class="btn btn-outline btn-sm" onclick="document.getElementById('brand-logo-file').click()" style="width:auto"><i class="ti ti-upload"></i> Subir logo</button>
-          <input type="file" id="brand-logo-file" accept="image/*" style="display:none" onchange="onBrandLogoFile(this.files[0])">
-        </div>
-        <div class="pref-hint" style="margin-bottom:14px">Se recorta y ajusta a un cuadrado automáticamente.</div>
-        <button id="brand-save-btn" class="btn btn-primary" onclick="saveBrandSettings()" style="width:100%"><i class="ti ti-check"></i> Guardar personalización</button>
-      </div>
-      <div class="pref-group" style="margin-top:18px">
-        <div class="pref-group-title">Datos</div>
-        <div class="pref-label">Borrar toda la información del cliente activo</div>
-        <div class="pref-hint" style="margin-bottom:10px">Elimina productos, KITs, órdenes y envíos. Esta acción <strong>no puede deshacerse</strong>.</div>
-        <button onclick="clearTenantData()" style="width:100%;padding:10px 16px;background:var(--red-light);color:var(--red);border:1.5px solid var(--red);border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
-          <i class="ti ti-trash"></i> Limpiar datos de inventario y ventas
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -1570,6 +1563,7 @@ const S = {
   invQ: '',
   ventasQ: '',
   ventasFilter: null,
+  ventasDateFilter: null, // 'hoy' | 'manana' | 'resto' | null — desde la huincha de pedidos del Home
   ventasSort: 'desc', // 'desc' = más nuevas primero (default), 'asc' = más antiguas primero
   _ventasSelectMode: false,
   _selectedOrders: new Set(),
@@ -1905,8 +1899,11 @@ function updateKitAlertBadge() {
   if (el) { el.textContent = count; el.style.display = count ? '' : 'none'; }
 }
 
-// ── Preferences ────────────────────────────────────────────────────────────
-function openPrefs() {
+// ── Preferences (página propia, no popup — ver showPage('prefs')) ─────────
+function openPrefs(pushURL = true) {
+  showPage('prefs', document.getElementById('prefs-btn'), pushURL);
+}
+function renderPrefsPage() {
   const tab = (S._tenantSettings && S._tenantSettings.invDefaultTab) || getPrefs().invDefaultTab || 'todos';
   document.querySelectorAll('#pref-inv-tab .pref-opt').forEach(b => {
     b.classList.toggle('active', b.dataset.val === tab);
@@ -1917,7 +1914,6 @@ function openPrefs() {
   document.getElementById('brand-color3').value = localStorage.getItem('sf_tenant_color3') || '#4c3fff';
   S._brandLogoDataUrl = null;
   _renderBrandLogoPreview(localStorage.getItem('sf_tenant_logo_url') || '');
-  openSheet('sheet-prefs');
 }
 
 // ── Personalización de marca (nombre, colores, logo) — solo admin ─────────
@@ -2010,7 +2006,7 @@ function sellable() {
 }
 
 // URL map for nav tabs
-const PAGE_URLS = { home:'/', inventory:'/inventory', catalogo:'/catalog', ventas:'/orders', locales:'/locales', delivery:'/delivery-hub', meson:'/meson-creativo' };
+const PAGE_URLS = { home:'/', inventory:'/inventory', catalogo:'/catalog', ventas:'/orders', locales:'/locales', delivery:'/delivery-hub', meson:'/meson-creativo', prefs:'/preferencias' };
 
 function showPage(id, el, pushURL = true) {
   // Close order detail overlay when navigating to any tab
@@ -2054,6 +2050,7 @@ function showPage(id, el, pushURL = true) {
   if (id==='ventas')    renderVentas();
   if (id==='catalogo')  renderCatalogo();
   if (id==='meson')     { renderMesonCatalog(); renderMesonTiles(); }
+  if (id==='prefs')     renderPrefsPage();
   // Lazy-load iframe pages
   if (id === 'locales') {
     const ifr = document.getElementById('iframe-locales');
@@ -2284,7 +2281,6 @@ async function clearTenantData() {
     renderHome();
     if (S.currentPage === 'inventory') renderInventory();
     if (S.currentPage === 'ventas') renderVentas();
-    closeSheet('sheet-prefs');
   } catch(e) {
     toast('❌ Error: ' + (e.message || 'No se pudo borrar'));
   }
@@ -2473,8 +2469,27 @@ function renderKits() {
 // ── VENTAS ────────────────────────────────────
 function setVentasFilter(status, el) {
   S.ventasFilter = status;
+  S.ventasDateFilter = null; // elegir una tab de estado a mano sale del filtro por fecha de la huincha
   document.querySelectorAll('#ventas-status-tabs .tab').forEach(t => t.classList.remove('active'));
   if (el) el.classList.add('active');
+  renderVentas();
+}
+
+// ── Filtro por fecha de entrega (desde la huincha de pedidos del Home) ────
+const VENTAS_DATE_FILTER_DONE_STATUSES = ['entregada', 'no_entregada', 'cancelled'];
+const VENTAS_DATE_FILTER_LABELS = { hoy: 'para hoy', manana: 'para mañana', resto: 'resto' };
+function _localDateStr(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function setVentasDateFilter(bucket) {
+  S.ventasDateFilter = bucket;
+  S.ventasFilter = null; // la huincha ya excluye completadas/canceladas — no mezclar con una tab de estado
+  document.querySelectorAll('#ventas-status-tabs .tab').forEach((t,i) => t.classList.toggle('active', i===0));
+  if (S.currentPage === 'ventas') renderVentas();
+  else showPage('ventas', navTabEl('ventas'), true);
+}
+function clearVentasDateFilter() {
+  S.ventasDateFilter = null;
   renderVentas();
 }
 
@@ -2504,12 +2519,32 @@ function renderVentas() {
 
   let html = `<div class="info-box green"><i class="ti ti-info-circle"></i> Disponibles para venta: <strong>${totalSellable} ítems</strong> (${kits.length} KIT${kits.length!==1?'s':''} + ${prods.length} producto${prods.length!==1?'s':''}). Los ${S.products.filter(p=>p.tipo==='insumo').length} insumos no aparecen aquí.</div>`;
 
+  if (S.ventasDateFilter) {
+    html += `<div class="info-box" style="background:var(--primary-light);border-color:var(--primary);color:var(--primary);display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span><i class="ti ti-filter"></i> Filtrando: pedidos pendientes ${VENTAS_DATE_FILTER_LABELS[S.ventasDateFilter]||''}</span>
+      <button onclick="clearVentasDateFilter()" style="background:none;border:none;color:var(--primary);font-weight:800;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:3px"><i class="ti ti-x"></i> Quitar</button>
+    </div>`;
+  }
+
   _updateVentasSortBtn();
   let ventas = [...S.ventas].sort((a, b) => {
     const ka = _ventaSortKey(a), kb = _ventaSortKey(b);
     return S.ventasSort === 'asc' ? ka - kb : kb - ka;
   });
   if (S.ventasFilter) ventas = ventas.filter(v => (v.status||'por_hacer') === S.ventasFilter);
+  if (S.ventasDateFilter) {
+    const now = new Date();
+    const todayStr = _localDateStr(now);
+    const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = _localDateStr(tomorrow);
+    ventas = ventas.filter(v => {
+      if (VENTAS_DATE_FILTER_DONE_STATUSES.includes(v.status)) return false;
+      const d = v.delivery && v.delivery.date;
+      if (S.ventasDateFilter === 'hoy')    return d === todayStr;
+      if (S.ventasDateFilter === 'manana') return d === tomorrowStr;
+      return d !== todayStr && d !== tomorrowStr; // 'resto'
+    });
+  }
   if (S.ventasQ) {
     const q = S.ventasQ.toLowerCase();
     ventas = ventas.filter(v =>
@@ -6001,6 +6036,10 @@ window.addEventListener('message', async (e) => {
     const page = e.data.page;
     if (!page) return;
     if (page === 'reportes') { openReportesPage(); return; }
+    if (page === 'ventas' && e.data.ventasDateFilter) {
+      setVentasDateFilter(e.data.ventasDateFilter);
+      return;
+    }
     showPage(page, navTabEl(page), true);
     return;
   }
@@ -6585,9 +6624,13 @@ function applyRoute() {
   if (path === '/catalog')      { showPage('catalogo',     navTabEl('catalogo'),   false); return; }
   if (path === '/meson-creativo') { showPage('meson',      navTabEl('meson'),      false); return; }
   if (path === '/ventas' || path === '/orders') {
-                                  showPage('ventas',        navTabEl('ventas'),     false); return; }
+    const due = new URLSearchParams(location.search).get('due');
+    if (due === 'hoy' || due === 'manana' || due === 'resto') { setVentasDateFilter(due); return; }
+    showPage('ventas',        navTabEl('ventas'),     false); return;
+  }
   if (path === '/locales')      { showPage('locales',       navTabEl('locales'),    false); return; }
   if (path === '/delivery-hub') { showPage('delivery',      navTabEl('delivery'),   false); return; }
+  if (path === '/preferencias') { showPage('prefs',         document.getElementById('prefs-btn'), false); return; }
   // Default: home
   showPage('home', navTabEl('home'), false);
 }

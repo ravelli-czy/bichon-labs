@@ -313,6 +313,14 @@ function navTo(page) {
     location.href = PAGE_URLS_DASH[page] || '/' + page;
   }
 }
+// Huincha de pedidos: cada chip lleva a Ventas ya filtrada por ese bucket de fecha
+function goToVentasFiltered(bucket) {
+  if (IS_EMBED && window.parent !== window) {
+    window.parent.postMessage({ type: 'sf_navigate', page: 'ventas', ventasDateFilter: bucket }, '*');
+  } else {
+    location.href = '/orders?due=' + bucket;
+  }
+}
 function newVentaFromDash() {
   if (IS_EMBED && window.parent !== window) {
     window.parent.postMessage({ type: 'sf_create_order', payload: {} }, '*');
@@ -381,9 +389,9 @@ function renderPedidosHuincha() {
   });
 
   document.getElementById('pedidos-huincha').innerHTML = `
-    <a href="javascript:void(0)" onclick="navTo('ventas')" class="hero-chip red"><i class="ti ti-alert-circle"></i> ${hoy} para hoy</a>
-    <a href="javascript:void(0)" onclick="navTo('ventas')" class="hero-chip amber"><i class="ti ti-clock"></i> ${manana} para mañana</a>
-    <a href="javascript:void(0)" onclick="navTo('ventas')" class="hero-chip green"><i class="ti ti-calendar"></i> ${resto} resto</a>`;
+    <a href="javascript:void(0)" onclick="goToVentasFiltered('hoy')" class="hero-chip red"><i class="ti ti-alert-circle"></i> ${hoy} para hoy</a>
+    <a href="javascript:void(0)" onclick="goToVentasFiltered('manana')" class="hero-chip amber"><i class="ti ti-clock"></i> ${manana} para mañana</a>
+    <a href="javascript:void(0)" onclick="goToVentasFiltered('resto')" class="hero-chip green"><i class="ti ti-calendar"></i> ${resto} resto</a>`;
 }
 
 // ── HERO TOTALS RANGE (Full / Mes Actual / Última Semana) ─────────────
