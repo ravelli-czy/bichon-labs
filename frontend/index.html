@@ -836,6 +836,19 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         </div>
         <button id="order-flow-save-btn" class="btn btn-primary mt-3" onclick="saveOrderFlow()"><i class="ti ti-check"></i> Guardar flujo</button>
       </div>
+      <div class="pref-group" style="margin-top:18px">
+        <div class="pref-group-title">Etiquetado</div>
+        <div class="pref-label">¿Elegir un template de etiqueta es obligatorio al vender?</div>
+        <div class="pref-hint" style="margin-bottom:10px">Si lo activas, no se puede completar una venta sin seleccionar un template de etiqueta ya cargado en Catálogo. Si no hay ningún template cargado, no bloquea igual.</div>
+        <div class="pref-options" id="pref-etiqueta-obligatoria">
+          <button class="pref-opt" data-val="si" onclick="setEtiquetaObligatoria(true)">
+            <i class="ti ti-check"></i>Obligatorio
+          </button>
+          <button class="pref-opt" data-val="no" onclick="setEtiquetaObligatoria(false)">
+            <i class="ti ti-x"></i>Opcional
+          </button>
+        </div>
+      </div>
     </div>
 
     <div id="prefs-tab-datos" style="display:none">
@@ -2129,6 +2142,37 @@ function renderPrefsPage() {
   S._brandLogoDataUrl = null;
   _renderBrandLogoPreview(localStorage.getItem('sf_tenant_logo_url') || '');
   initOrderFlowEditor();
+  renderEtiquetaObligatoriaPref();
+}
+
+// ── Etiquetado obligatorio al vender (Preferencias → Flujos) ──────────────
+// Sin configurar, el comportamiento default es "obligatorio" — igual que
+// cuando se lanzó esta función (item 8.2), para no cambiar nada bajo los
+// tenants que ya vienen usándola.
+function isEtiquetaObligatoria() {
+  const v = S._tenantSettings?.labelFlow?.etiquetaObligatoria;
+  return v !== false;
+}
+function renderEtiquetaObligatoriaPref() {
+  const obligatoria = isEtiquetaObligatoria();
+  document.querySelectorAll('#pref-etiqueta-obligatoria .pref-opt').forEach(b => {
+    b.classList.toggle('active', (b.dataset.val === 'si') === obligatoria);
+  });
+}
+async function setEtiquetaObligatoria(value) {
+  if (!S._tenantSettings) S._tenantSettings = {};
+  S._tenantSettings.labelFlow = { ...(S._tenantSettings.labelFlow || {}), etiquetaObligatoria: value };
+  renderEtiquetaObligatoriaPref();
+  if (S._apiReady) {
+    try {
+      const settings = await apiFetch('/api/users?action=settings', {
+        method: 'PUT',
+        body: JSON.stringify({ settings: { labelFlow: S._tenantSettings.labelFlow } }),
+      });
+      S._tenantSettings = settings;
+    } catch (e) { toast('❌ ' + (e.message || 'No se pudo guardar')); return; }
+  }
+  toast('✅ Etiquetado ' + (value ? 'obligatorio' : 'opcional') + ' al vender');
 }
 
 // ── Flujo de estados configurable (Preferencias) ───────────────────────────
@@ -5069,7 +5113,7 @@ function populateVentaLabelSelects() {
   fillSelect('venta-label-huincha',  huinchas,   'Ninguna');
   fillSelect('venta-label-tarjeta',  tarjetas,   'Ninguna');
 
-  document.getElementById('venta-etiqueta-required-mark').textContent = etiquetas.length ? '*' : '';
+  document.getElementById('venta-etiqueta-required-mark').textContent = (etiquetas.length && isEtiquetaObligatoria()) ? '*' : '';
   document.getElementById('venta-labels-optional-row').style.display = (huinchas.length || tarjetas.length) ? '' : 'none';
 }
 
