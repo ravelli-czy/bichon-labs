@@ -152,25 +152,52 @@ module.exports = async (req, res) => {
       const { name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, new_warehouse_id, is_fixed_label } = req.body || {};
       if (groups !== undefined && !Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
       const groupsJson = groups !== undefined ? JSON.stringify(groups) : null;
-      const [row] = await sql`
-        UPDATE products SET
-          name         = COALESCE(${name         ?? null}, name),
-          brand        = COALESCE(${brand        ?? null}, brand),
-          cat          = COALESCE(${cat          ?? null}, cat),
-          tipo         = COALESCE(${tipo         ?? null}, tipo),
-          cost         = COALESCE(${cost         ?? null}, cost),
-          price        = COALESCE(${price        ?? null}, price),
-          stock        = COALESCE(${stock        ?? null}, stock),
-          threshold    = COALESCE(${threshold    ?? null}, threshold),
-          barcode      = COALESCE(${barcode      ?? null}, barcode),
-          groups       = COALESCE(${groupsJson}::jsonb, groups),
-          warehouse_id = COALESCE(${new_warehouse_id ?? null}, warehouse_id),
-          is_fixed_label = COALESCE(${is_fixed_label ?? null}, is_fixed_label),
-          updated_by = ${actor},
-          updated_at = NOW()
-        WHERE sku = ${sku} AND warehouse_id = ${warehouse_id} AND tenant_id = ${tenantId}
-        RETURNING *
-      `;
+      // is_fixed_label es una columna nueva (migración vía POST /api/setup) —
+      // si todavía no se corrió en esta base, se sigue de largo sin ella en
+      // vez de romper la edición de productos por completo.
+      let row;
+      try {
+        [row] = await sql`
+          UPDATE products SET
+            name         = COALESCE(${name         ?? null}, name),
+            brand        = COALESCE(${brand        ?? null}, brand),
+            cat          = COALESCE(${cat          ?? null}, cat),
+            tipo         = COALESCE(${tipo         ?? null}, tipo),
+            cost         = COALESCE(${cost         ?? null}, cost),
+            price        = COALESCE(${price        ?? null}, price),
+            stock        = COALESCE(${stock        ?? null}, stock),
+            threshold    = COALESCE(${threshold    ?? null}, threshold),
+            barcode      = COALESCE(${barcode      ?? null}, barcode),
+            groups       = COALESCE(${groupsJson}::jsonb, groups),
+            warehouse_id = COALESCE(${new_warehouse_id ?? null}, warehouse_id),
+            is_fixed_label = COALESCE(${is_fixed_label ?? null}, is_fixed_label),
+            updated_by = ${actor},
+            updated_at = NOW()
+          WHERE sku = ${sku} AND warehouse_id = ${warehouse_id} AND tenant_id = ${tenantId}
+          RETURNING *
+        `;
+      } catch (updateErr) {
+        if (updateErr.code !== '42703') throw updateErr;
+        console.warn('[products/[sku]] is_fixed_label column not migrated yet, updating without it');
+        [row] = await sql`
+          UPDATE products SET
+            name         = COALESCE(${name         ?? null}, name),
+            brand        = COALESCE(${brand        ?? null}, brand),
+            cat          = COALESCE(${cat          ?? null}, cat),
+            tipo         = COALESCE(${tipo         ?? null}, tipo),
+            cost         = COALESCE(${cost         ?? null}, cost),
+            price        = COALESCE(${price        ?? null}, price),
+            stock        = COALESCE(${stock        ?? null}, stock),
+            threshold    = COALESCE(${threshold    ?? null}, threshold),
+            barcode      = COALESCE(${barcode      ?? null}, barcode),
+            groups       = COALESCE(${groupsJson}::jsonb, groups),
+            warehouse_id = COALESCE(${new_warehouse_id ?? null}, warehouse_id),
+            updated_by = ${actor},
+            updated_at = NOW()
+          WHERE sku = ${sku} AND warehouse_id = ${warehouse_id} AND tenant_id = ${tenantId}
+          RETURNING *
+        `;
+      }
       if (!row) return res.status(404).json({ error: 'Product not found' });
 
       // El Grupo de Productos es una propiedad del producto, no del almacén:
