@@ -60,11 +60,15 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;max-
 .hero-metric-sub.margin{background:rgba(255,255,255,.15);color:rgba(255,255,255,.9)}
 .hero-divider{height:1px;background:rgba(255,255,255,.15);margin-bottom:14px}
 .hero-chips{display:flex;gap:8px;flex-wrap:wrap}
-.hero-chip{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;background:rgba(255,255,255,.15);font-size:12px;font-weight:700;color:rgba(255,255,255,.9)}
+.hero-chip{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;background:rgba(255,255,255,.15);font-size:12px;font-weight:700;color:rgba(255,255,255,.9);text-decoration:none;transition:filter .15s,transform .15s}
 .hero-chip i{font-size:14px}
-.hero-chip.red{background:rgba(255,77,109,.3)}
-.hero-chip.amber{background:rgba(245,158,11,.3)}
-.hero-chip.green{background:rgba(22,201,141,.3)}
+/* Colores sólidos y fijos (no dependen del color de marca del tenant) para
+   que el semáforo rojo/amarillo/verde siempre se distinga con claridad. */
+.hero-chip.red{background:var(--red);color:#fff}
+.hero-chip.amber{background:var(--amber);color:#fff}
+.hero-chip.green{background:var(--green);color:#fff}
+a.hero-chip:hover{filter:brightness(1.1)}
+a.hero-chip:active{transform:scale(.96)}
 
 /* PERIOD TOGGLE — controls both the hero totals AND the sparkline below */
 .hero-period-toggle{position:absolute;top:14px;right:14px;display:flex;gap:4px;z-index:2;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 28px)}
@@ -87,54 +91,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;max-
 /* SECTION LABEL */
 .section-label{font-size:13px;font-weight:800;color:var(--text2);display:flex;align-items:center;gap:6px;margin-bottom:10px}
 .section-label i{font-size:16px}
-
-/* ALERT CARD */
-.alert-card{border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--sh)}
-.alert-card-header{padding:13px 16px;display:flex;align-items:center;justify-content:space-between}
-.alert-card-header.critical{background:linear-gradient(135deg,#ff1a44,#ff4d6d)}
-.alert-card-header.warning{background:linear-gradient(135deg,#d97706,#f59e0b)}
-.alert-card-title{font-size:14px;font-weight:900;color:#fff;display:flex;align-items:center;gap:7px}
-.alert-card-title i{font-size:18px}
-.alert-card-cta{font-size:12px;font-weight:800;color:rgba(255,255,255,.9);background:rgba(255,255,255,.2);padding:5px 10px;border-radius:20px;text-decoration:none;white-space:nowrap}
-.alert-items{background:var(--bg2)}
-.alert-row{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--border)}
-.alert-row:last-child{border-bottom:none}
-.alert-dot-big{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.alert-dot-big.critical{background:var(--red)}
-.alert-dot-big.warning{background:var(--amber)}
-.alert-row-name{flex:1;font-size:13px;font-weight:800}
-.alert-row-brand{font-size:11px;color:var(--text3);font-weight:600;margin-top:1px}
-.alert-bar-wrap{width:72px}
-.alert-bar-track{height:5px;background:var(--bg3);border-radius:20px;overflow:hidden}
-.alert-bar-fill{height:100%;border-radius:20px}
-.alert-bar-fill.critical{background:var(--red)}
-.alert-bar-fill.warning{background:var(--amber)}
-.alert-stock-num{font-size:13px;font-weight:900;min-width:28px;text-align:right}
-.alert-stock-num.critical{color:var(--red)}
-.alert-stock-num.warning{color:var(--amber-dark)}
-.alert-min{font-size:10px;color:var(--text3);font-weight:600;text-align:right}
-
-/* SUPPLIER INSIGHTS */
-.supplier-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-.supplier-scroll::-webkit-scrollbar{display:none}
-.supplier-card{flex-shrink:0;width:175px;background:var(--bg2);border-radius:var(--r-lg);padding:14px;box-shadow:var(--sh);border:1.5px solid var(--border)}
-.supplier-card.urgent{border-color:#ffc8d2}
-.supplier-card.soon{border-color:#fde68a}
-.supplier-brand{font-size:12px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-.supplier-prod{font-size:14px;font-weight:900;line-height:1.3;margin-bottom:8px}
-.supplier-badge{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:800;margin-bottom:10px}
-.supplier-badge.urgent{background:var(--red-light);color:var(--red)}
-.supplier-badge.soon{background:var(--amber-light);color:var(--amber-dark)}
-.supplier-stock{display:flex;align-items:center;gap:6px;margin-bottom:10px}
-.supplier-track{flex:1;height:5px;background:var(--bg3);border-radius:20px;overflow:hidden}
-.supplier-fill{height:100%;border-radius:20px}
-.supplier-fill.urgent{background:var(--red)}
-.supplier-fill.soon{background:var(--amber)}
-.supplier-nums{font-size:11px;color:var(--text3);font-weight:700;white-space:nowrap}
-.supplier-btn{display:block;width:100%;padding:8px;border-radius:9px;border:none;font-family:'Nunito',sans-serif;font-size:12px;font-weight:800;cursor:pointer;text-align:center;text-decoration:none;transition:all .15s}
-.supplier-btn.urgent{background:var(--red-light);color:var(--red)}
-.supplier-btn.soon{background:var(--amber-light);color:var(--amber-dark)}
-.supplier-btn:active{transform:scale(.97)}
 
 /* MODULE CARDS */
 .modules-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -198,9 +154,6 @@ body.embedded #modules-section,body.embedded .footer{display:none}
   /* Plenty of horizontal room here for the top-right period toggle to sit
      beside the greeting without overlapping it — undo the mobile clearance. */
   .hero-greeting{margin-top:0}
-
-  /* Alerts + suppliers side by side */
-  .desktop-split{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 
   /* Modules: 3 cols */
   .modules-grid{grid-template-columns:repeat(3,1fr)}
@@ -284,12 +237,6 @@ body.embedded #modules-section,body.embedded .footer{display:none}
     </div>
     <i class="ti ti-chevron-right" style="color:var(--text3);font-size:18px"></i>
   </a>
-
-  <!-- STOCK ALERTS + SUPPLIER INSIGHTS (side by side on desktop) -->
-  <div class="desktop-split">
-    <div id="alerts-section"></div>
-    <div id="suppliers-section"></div>
-  </div>
 
   <!-- ÚLTIMAS VENTAS -->
   <div id="recent-orders-section"></div>
@@ -395,7 +342,7 @@ let critical = [], warning = [], alertas = [];
   document.getElementById('hero-date').textContent = now.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 })();
 
-// renderHero, renderAlerts, renderOrders, renderModules
+// renderHero, renderOrders, renderModules
 // called by init() once API data arrives
 function renderHero() {
   document.getElementById('hero-ventas').textContent    = fmt(totalVentas);
@@ -434,9 +381,9 @@ function renderPedidosHuincha() {
   });
 
   document.getElementById('pedidos-huincha').innerHTML = `
-    <div class="hero-chip red"><i class="ti ti-alert-circle"></i> ${hoy} para hoy</div>
-    <div class="hero-chip amber"><i class="ti ti-clock"></i> ${manana} para mañana</div>
-    <div class="hero-chip green"><i class="ti ti-calendar"></i> ${resto} resto</div>`;
+    <a href="javascript:void(0)" onclick="navTo('ventas')" class="hero-chip red"><i class="ti ti-alert-circle"></i> ${hoy} para hoy</a>
+    <a href="javascript:void(0)" onclick="navTo('ventas')" class="hero-chip amber"><i class="ti ti-clock"></i> ${manana} para mañana</a>
+    <a href="javascript:void(0)" onclick="navTo('ventas')" class="hero-chip green"><i class="ti ti-calendar"></i> ${resto} resto</a>`;
 }
 
 // ── HERO TOTALS RANGE (Full / Mes Actual / Última Semana) ─────────────
@@ -605,54 +552,6 @@ function renderSparkline(range) {
   ).join('');
 }
 
-function renderAlerts() {
-  if (!alertas.length) { document.getElementById('alerts-section').innerHTML = ''; return; }
-  const hasCrit = critical.length > 0;
-  const rows = alertas.slice(0,4).map(p => {
-    const lvl = p.stock===0?'critical':'warning';
-    const pct = Math.round(p.stock/Math.max(p.threshold*2,1)*100);
-    return `<div class="alert-row">
-      <div class="alert-dot-big ${lvl}"></div>
-      <div style="flex:1;min-width:0"><div class="alert-row-name">${p.name}</div><div class="alert-row-brand">${p.brand}</div></div>
-      <div style="text-align:right">
-        <div class="alert-bar-wrap" style="margin-bottom:3px"><div class="alert-bar-track"><div class="alert-bar-fill ${lvl}" style="width:${pct}%"></div></div></div>
-        <div class="alert-stock-num ${lvl}">${p.stock}</div><div class="alert-min">mín ${p.threshold}</div>
-      </div></div>`;
-  }).join('');
-  document.getElementById('alerts-section').innerHTML = `
-    <div class="alert-card">
-      <div class="alert-card-header ${hasCrit?'critical':'warning'}">
-        <div class="alert-card-title"><i class="ti ti-${hasCrit?'circle-x':'alert-triangle'}"></i>
-          ${hasCrit?critical.length+' sin stock · ':''}${warning.length} bajo mínimo</div>
-        <a href="javascript:void(0)" onclick="navTo('inventory')" class="alert-card-cta">Ver inventario →</a>
-      </div>
-      <div class="alert-items">${rows}</div>
-    </div>`;
-}
-
-function renderSuppliers() {
-  const byBrand = {};
-  alertas.forEach(p => { if (!byBrand[p.brand]) byBrand[p.brand]=[]; byBrand[p.brand].push(p); });
-  const entries = Object.entries(byBrand);
-  if (!entries.length) { document.getElementById('suppliers-section').innerHTML = ''; return; }
-  const cards = entries.map(([brand, prods]) => {
-    const isUrgent = prods.some(p=>p.stock===0);
-    const cls = isUrgent?'urgent':'soon', label = isUrgent?'🔴 URGENTE':'🟡 Pronto';
-    const prod = prods[0], pct = Math.round(prod.stock/Math.max(prod.threshold*2,1)*100);
-    const action = isUrgent?'Cotizar urgente':'Reorden sugerida';
-    return `<div class="supplier-card ${cls}">
-      <div class="supplier-brand">${brand}</div>
-      <div class="supplier-prod">${prods.length>1?prods.map(p=>p.name).join(', '):prod.name}</div>
-      <div class="supplier-badge ${cls}">${label}</div>
-      <div class="supplier-stock"><div class="supplier-track"><div class="supplier-fill ${cls}" style="width:${pct}%"></div></div><div class="supplier-nums">${prod.stock}/${prod.threshold}</div></div>
-      <a href="javascript:void(0)" onclick="navTo('inventory')" class="supplier-btn ${cls}">${action}</a>
-    </div>`;
-  }).join('');
-  document.getElementById('suppliers-section').innerHTML = `
-    <div><div class="section-label"><i class="ti ti-building-warehouse" style="color:var(--amber-dark)"></i>Insights de proveedores</div>
-    <div class="supplier-scroll">${cards}</div></div>`;
-}
-
 function renderOrders() {
   if (!VENTAS.length) { document.getElementById('recent-orders-section').innerHTML = ''; return; }
   const rows = VENTAS.slice(0,5).map(v => {
@@ -736,8 +635,6 @@ function renderModules() {
   renderHero();
   renderPedidosHuincha();
   renderSparkline(heroRange);
-  renderAlerts();
-  renderSuppliers();
   renderOrders();
   renderModules();
 })();
