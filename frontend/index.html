@@ -1765,6 +1765,7 @@ const S = {
   warehouseId: '',             // currently selected warehouse in inventory view
   catTab: 'categorias',        // active sub-tab in Catálogo page
   prefsTab: 'visual',          // active sub-tab in Preferencias page: 'visual' | 'flujos' | 'datos'
+  materialesTab: 'templates',  // active sub-tab in Materiales page: 'templates' | 'fijas' | 'ordenes'
   _apiReady: false,
 };
 
@@ -4828,18 +4829,30 @@ function orderLabelsSection(v) {
 
 // ── MATERIALES ────────────────────────────────────────────────────────────
 // Sección propia (fuera de Catálogo) para todo lo relacionado a impresión
-// física: los templates de etiqueta (antes vivían en Catálogo → Etiquetas) y
-// la impresión masiva de etiquetas fijas, para adelantar trabajo antes de
-// que se agote el stock de logos/huinchas.
+// física: los templates de etiqueta (antes vivían en Catálogo → Etiquetas),
+// la impresión masiva de etiquetas fijas (adelantar trabajo antes de que se
+// agote el stock de logos/huinchas) y la impresión en lote de las etiquetas
+// ya elegidas en órdenes que todavía no se entregan.
+const MATERIALES_TABS = [
+  { key: 'templates', label: 'Templates' },
+  { key: 'fijas',      label: 'Etiquetas fijas' },
+  { key: 'ordenes',    label: 'Órdenes' },
+];
+function switchMaterialesTab(tab) {
+  S.materialesTab = tab;
+  renderMaterialesView(document.getElementById('cat-content'));
+}
 function renderMaterialesView(el) {
+  const tab = S.materialesTab || 'templates';
   el.innerHTML = `
-    <div class="section-label"><i class="ti ti-tag"></i> Templates de etiqueta</div>
-    <div id="materiales-templates"></div>
-    <div class="section-label" style="margin-top:24px"><i class="ti ti-printer"></i> Impresión masiva de etiquetas fijas</div>
-    <div style="font-size:12px;color:var(--text3);font-weight:600;margin:-4px 0 8px">Etiquetas fijas (logo, huincha de cierre) que se imprimen en la Cameo — prepara un lote de una vez para adelantar trabajo antes de que se agote el stock.</div>
-    <div id="materiales-bulk-print"></div>`;
-  renderLabelTemplatesView(document.getElementById('materiales-templates'));
-  renderFixedLabelBulkPrint(document.getElementById('materiales-bulk-print'));
+    <div class="tabs">
+      ${MATERIALES_TABS.map(t => `<div class="tab${t.key===tab?' active':''}" onclick="switchMaterialesTab('${t.key}')">${t.label}</div>`).join('')}
+    </div>
+    <div id="materiales-tab-content" style="margin-top:12px"></div>`;
+  const contentEl = document.getElementById('materiales-tab-content');
+  if      (tab === 'templates') renderLabelTemplatesView(contentEl);
+  else if (tab === 'fijas')     renderFixedLabelBulkPrint(contentEl);
+  else if (tab === 'ordenes')   renderMaterialesOrdersView(contentEl);
 }
 
 // Productos marcados "Es etiqueta fija", uno por SKU (prefiere la fila
@@ -4853,8 +4866,11 @@ function _fixedLabelProducts() {
 
 function renderFixedLabelBulkPrint(el) {
   const items = _fixedLabelProducts();
+  const intro = `<div class="info-box" style="background:var(--primary-light);color:var(--primary);border-radius:var(--radius);padding:10px 12px;font-size:12px;font-weight:700;margin-bottom:14px">
+    <i class="ti ti-info-circle"></i> Etiquetas fijas (logo, huincha de cierre) que se imprimen en la Cameo — prepara un lote de una vez para adelantar trabajo antes de que se agote el stock.
+  </div>`;
   if (!items.length) {
-    el.innerHTML = `<div class="empty-state"><i class="ti ti-printer"></i><p>Sin etiquetas fijas registradas.<br>Marca un insumo como "Es etiqueta fija" en Catálogo → Productos para que aparezca acá.</p></div>`;
+    el.innerHTML = intro + `<div class="empty-state"><i class="ti ti-printer"></i><p>Sin etiquetas fijas registradas.<br>Marca un insumo como "Es etiqueta fija" en Catálogo → Productos para que aparezca acá.</p></div>`;
     return;
   }
   const templates = S.labelTemplates || [];
@@ -4882,7 +4898,7 @@ function renderFixedLabelBulkPrint(el) {
       </div>
     </div>`;
   }).join('');
-  el.innerHTML = `${rows}
+  el.innerHTML = `${intro}${rows}
     <button class="btn btn-primary" style="width:auto" onclick="printFixedLabelsBulk()"><i class="ti ti-printer"></i> Imprimir seleccionadas</button>`;
 }
 
@@ -4903,6 +4919,49 @@ async function setFixedLabelTemplate(sku, templateId) {
   } catch (e) {
     toast('❌ ' + (e.message || 'No se pudo guardar'));
   }
+}
+
+// ── Impresión en lote (compartida entre Etiquetas fijas y Órdenes) ────────
+// Una "celda" es una etiqueta individual a imprimir: su template + una
+// etiqueta de texto opcional debajo (ej. "ORD-0019 · Tarjeta de instrucciones")
+// para poder distinguirla del resto una vez impresa.
+function _bulkPrintLabelCell(tpl, tagText) {
+  const sizeCss = tpl.auto_size || !tpl.width_mm || !tpl.height_mm
+    ? `max-width:45mm;width:100%;height:auto`
+    : `width:${tpl.width_mm}mm;height:${tpl.height_mm}mm;object-fit:contain`;
+  const safeText = tpl.content_text ? _sanitizeLtplHtml(tpl.content_text) : '';
+  return `<div class="bulk-label" style="font-family:'${(tpl.font||'Nunito').replace(/'/g,"\\'")}',sans-serif">
+    ${tpl.image_url
+      ? `<div class="label-stage"><img src="${tpl.image_url}" style="${sizeCss}">${safeText ? `<div class="content-text">${safeText}</div>` : ''}</div>`
+      : (safeText ? `<div class="content-text" style="margin-bottom:4px">${safeText}</div>` : '')}
+    ${tagText ? `<div class="bulk-label-tag">${tagText}</div>` : ''}
+  </div>`;
+}
+// `sectionsHtml` = uno o más `.bulk-group` (título + `.bulk-grid` de celdas).
+function _openBulkPrintWindow(title, sectionsHtml, fonts) {
+  const fontLinks = (fonts || []).map(f => `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${encodeURIComponent(f)}:wght@400;700&display=swap">`).join('');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title>
+${fontLinks}
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito',sans-serif;color:#000;background:#fff;padding:16px}
+.bulk-group{margin-bottom:24px}
+.bulk-group-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:8px;border-bottom:1px solid #ddd;padding-bottom:4px}
+.bulk-grid{display:flex;flex-wrap:wrap;gap:10px}
+.bulk-label{width:120px;text-align:center}
+.bulk-label-tag{font-size:9px;color:#999;margin-top:4px}
+.label-stage{position:relative;display:flex;align-items:center;justify-content:center}
+.label-stage img{display:block}
+.content-text{font-size:11px;line-height:1.3;white-space:pre-wrap}
+.label-stage .content-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:8%;margin:0}
+@media print{@page{margin:8mm}body{padding:0}.bulk-group{page-break-inside:avoid}}
+</style></head><body>
+${sectionsHtml}
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+  const win = window.open('', '_blank', 'width=700,height=600');
+  if (win) { win.document.write(html); win.document.close(); }
+  return win;
 }
 
 // Imprime, en una sola ventana, N copias de cada etiqueta fija seleccionada
@@ -4928,47 +4987,87 @@ function printFixedLabelsBulk() {
   if (!jobs.length) return;
 
   const fonts = [...new Set(jobs.map(j => j.tpl.font || 'Nunito'))];
-  const fontLinks = fonts.map(f => `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${encodeURIComponent(f)}:wght@400;700&display=swap">`).join('');
-
-  const labelHtml = (tpl) => {
-    const sizeCss = tpl.auto_size || !tpl.width_mm || !tpl.height_mm
-      ? `max-width:45mm;width:100%;height:auto`
-      : `width:${tpl.width_mm}mm;height:${tpl.height_mm}mm;object-fit:contain`;
-    const safeText = tpl.content_text ? _sanitizeLtplHtml(tpl.content_text) : '';
-    return `<div class="bulk-label" style="font-family:'${(tpl.font||'Nunito').replace(/'/g,"\\'")}',sans-serif">
-      ${tpl.image_url
-        ? `<div class="label-stage"><img src="${tpl.image_url}" style="${sizeCss}">${safeText ? `<div class="content-text">${safeText}</div>` : ''}</div>`
-        : (safeText ? `<div class="content-text" style="margin-bottom:4px">${safeText}</div>` : '')}
-    </div>`;
-  };
-
   const sections = jobs.map(j => `
     <div class="bulk-group">
       <div class="bulk-group-title">${j.name} — ${j.qty} copias</div>
-      <div class="bulk-grid">${Array.from({ length: j.qty }).map(() => labelHtml(j.tpl)).join('')}</div>
+      <div class="bulk-grid">${Array.from({ length: j.qty }).map(() => _bulkPrintLabelCell(j.tpl)).join('')}</div>
     </div>`).join('');
 
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Impresión masiva de etiquetas</title>
-${fontLinks}
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Nunito',sans-serif;color:#000;background:#fff;padding:16px}
-.bulk-group{margin-bottom:24px}
-.bulk-group-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:8px;border-bottom:1px solid #ddd;padding-bottom:4px}
-.bulk-grid{display:flex;flex-wrap:wrap;gap:10px}
-.bulk-label{width:120px;text-align:center}
-.label-stage{position:relative;display:flex;align-items:center;justify-content:center}
-.label-stage img{display:block}
-.content-text{font-size:11px;line-height:1.3;white-space:pre-wrap}
-.label-stage .content-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:8%;margin:0}
-@media print{@page{margin:8mm}body{padding:0}.bulk-group{page-break-inside:avoid}}
-</style></head><body>
-${sections}
-<script>window.onload=function(){window.print();}<\/script>
-</body></html>`;
+  _openBulkPrintWindow('Impresión masiva de etiquetas', sections, fonts);
+}
 
-  const win = window.open('', '_blank', 'width=700,height=600');
-  if (win) { win.document.write(html); win.document.close(); }
+// ── ÓRDENES: imprimir en lote las etiquetas ya elegidas en órdenes que aún
+// no se entregan, agrupadas por tipo de papel (para cargar la hoja correcta
+// una sola vez e imprimir todo de un tirón).
+function _materialesPendingLabelOrders() {
+  return (S.ventas || [])
+    .filter(v => v.status !== 'entregada' && v.status !== 'cancelled')
+    .map(v => ({ v, items: _orderLabelItems(v) }))
+    .filter(x => x.items.length > 0)
+    .sort((a, b) => String(b.v.id||'').localeCompare(String(a.v.id||'')));
+}
+
+function renderMaterialesOrdersView(el) {
+  const rows = _materialesPendingLabelOrders();
+  const intro = `<div class="info-box" style="background:var(--primary-light);color:var(--primary);border-radius:var(--radius);padding:10px 12px;font-size:12px;font-weight:700;margin-bottom:14px">
+    <i class="ti ti-info-circle"></i> Órdenes no entregadas con al menos un template de etiqueta ya elegido. Selecciona cuáles imprimir — se agrupan por tipo de papel.
+  </div>`;
+  if (!rows.length) {
+    el.innerHTML = intro + `<div class="empty-state"><i class="ti ti-shopping-bag"></i><p>Sin órdenes pendientes con etiquetas seleccionadas.</p></div>`;
+    return;
+  }
+  const list = rows.map(({ v, items }) => `
+    <div class="card" style="padding:12px 14px;margin-bottom:8px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" class="materiales-order-cb" data-order-id="${String(v.id).replace(/'/g,"&#39;")}" style="width:16px;height:16px;flex-shrink:0">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:800">${v.id} — ${v.cliente||'Cliente'}</div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3)">${v.fecha||''}</div>
+        </div>
+        ${statusBadge(v.status)}
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding-left:26px">
+        ${items.map(t => `<span style="font-size:11px;font-weight:700;background:var(--bg3);color:var(--text2);padding:3px 9px;border-radius:20px">${t.label}: ${t.tpl.name}</span>`).join('')}
+      </div>
+    </div>`).join('');
+  el.innerHTML = `${intro}
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="btn btn-outline btn-sm" style="width:auto" onclick="_toggleAllMaterialesOrders(true)">Seleccionar todas</button>
+      <button class="btn btn-outline btn-sm" style="width:auto" onclick="_toggleAllMaterialesOrders(false)">Ninguna</button>
+    </div>
+    ${list}
+    <button class="btn btn-primary" style="width:auto;margin-top:6px" onclick="printMaterialesOrderLabels()"><i class="ti ti-printer"></i> Imprimir seleccionadas por tipo de papel</button>`;
+}
+function _toggleAllMaterialesOrders(val) {
+  document.querySelectorAll('.materiales-order-cb').forEach(cb => cb.checked = val);
+}
+
+function printMaterialesOrderLabels() {
+  const orderIds = [...document.querySelectorAll('.materiales-order-cb:checked')].map(cb => cb.dataset.orderId);
+  if (!orderIds.length) { toast('⚠️ Selecciona al menos una orden'); return; }
+
+  const flat = [];
+  _materialesPendingLabelOrders()
+    .filter(({ v }) => orderIds.includes(String(v.id)))
+    .forEach(({ v, items }) => {
+      items.forEach(t => flat.push({ orderId: v.id, typeLabel: t.label, tpl: t.tpl, paperType: t.tpl.paper_type || 'adhesivo' }));
+    });
+  if (!flat.length) return;
+
+  const groups = new Map();
+  flat.forEach(item => {
+    if (!groups.has(item.paperType)) groups.set(item.paperType, []);
+    groups.get(item.paperType).push(item);
+  });
+
+  const fonts = [...new Set(flat.map(f => f.tpl.font || 'Nunito'))];
+  const sections = [...groups.entries()].map(([paperType, list]) => `
+    <div class="bulk-group">
+      <div class="bulk-group-title">${LABEL_PAPER_TYPE_LABELS[paperType] || paperType} — ${list.length} etiqueta${list.length===1?'':'s'}</div>
+      <div class="bulk-grid">${list.map(item => _bulkPrintLabelCell(item.tpl, `${item.orderId} · ${item.typeLabel}`)).join('')}</div>
+    </div>`).join('');
+
+  _openBulkPrintWindow('Etiquetas de órdenes pendientes', sections, fonts);
 }
 
 function renderLabelTemplatesView(el) {
