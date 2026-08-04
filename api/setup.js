@@ -133,6 +133,8 @@ module.exports = async (req, res) => {
     await sql`ALTER TABLE kits ADD COLUMN IF NOT EXISTS updated_by  TEXT DEFAULT ''`;
     await sql`ALTER TABLE kits ADD COLUMN IF NOT EXISTS tenant_id   TEXT NOT NULL DEFAULT 'TEN-001'`;
     await sql`ALTER TABLE kits ADD COLUMN IF NOT EXISTS warehouse_id TEXT NOT NULL DEFAULT ''`;
+    // 'producto' (Venta) | 'insumo' — filtro Kit de Venta vs Kit de Insumo en Inventario
+    await sql`ALTER TABLE kits ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'producto'`;
     // Grupos de Productos que determinan el stock/disponibilidad del KIT.
     // Vacío ([]) = comportamiento actual: todos los componentes cuentan.
     await sql`ALTER TABLE kits ADD COLUMN IF NOT EXISTS stock_group_ids JSONB NOT NULL DEFAULT '[]'`;

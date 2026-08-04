@@ -25,7 +25,7 @@ module.exports = async (req, res) => {
 
     // ── POST — create kit ─────────────────────────────────────────────────
     if (req.method === 'POST') {
-      const { name, price = 0, items = [], sku: customSku, warehouse_id = '', stock_group_ids = [] } = req.body || {};
+      const { name, price = 0, items = [], sku: customSku, warehouse_id = '', stock_group_ids = [], tipo = 'producto' } = req.body || {};
       if (!name) return res.status(400).json({ error: 'name is required' });
       if (!Array.isArray(stock_group_ids)) return res.status(400).json({ error: 'stock_group_ids must be an array' });
 
@@ -42,8 +42,8 @@ module.exports = async (req, res) => {
       }
 
       const [row] = await sql`
-        INSERT INTO kits (sku, name, price, items, stock_group_ids, created_by, tenant_id, warehouse_id)
-        VALUES (${sku}, ${name}, ${price}, ${JSON.stringify(items)}, ${JSON.stringify(stock_group_ids)}, ${actor}, ${tenantId}, ${warehouse_id})
+        INSERT INTO kits (sku, name, price, items, stock_group_ids, created_by, tenant_id, warehouse_id, tipo)
+        VALUES (${sku}, ${name}, ${price}, ${JSON.stringify(items)}, ${JSON.stringify(stock_group_ids)}, ${actor}, ${tenantId}, ${warehouse_id}, ${tipo})
         RETURNING *
       `;
 
