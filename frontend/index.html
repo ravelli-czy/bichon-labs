@@ -977,6 +977,13 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <input type="hidden" id="p-tipo" value="producto">
       </div>
 
+      <div class="form-group" id="p-fixed-label-group" style="display:none">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="p-fixed-label" style="width:16px;height:16px" onchange="onFixedLabelToggle()">
+          <span style="font-size:13px;font-weight:700">Es etiqueta fija (logo, huincha de cierre) <span style="font-weight:600;color:var(--text3)">— se imprime en la Cameo, Bichon solo avisa cuando queda poco stock</span></span>
+        </label>
+      </div>
+
       <div class="form-row">
         <div class="form-group"><div class="form-label">Precio costo</div><input class="form-input" type="number" id="p-cost" placeholder="$0"></div>
         <div class="form-group"><div class="form-label" id="price-label">Precio venta</div><input class="form-input" type="number" id="p-price" placeholder="$0"></div>
@@ -2929,6 +2936,23 @@ function selectTipo(tipo, el) {
     document.getElementById('price-label').textContent = 'Precio venta';
     if (priceGroup) priceGroup.style.display = '';
   }
+  // "Etiqueta fija" (item 8.1) solo aplica a insumos
+  const fixedLabelGroup = document.getElementById('p-fixed-label-group');
+  if (fixedLabelGroup) fixedLabelGroup.style.display = tipo === 'insumo' ? '' : 'none';
+  if (tipo !== 'insumo') {
+    const cb = document.getElementById('p-fixed-label');
+    if (cb) cb.checked = false;
+  }
+}
+// Al marcar "Es etiqueta fija" en un producto nuevo, sugiere el umbral de
+// alerta por defecto (5) que pide el item 8.1 — sin pisar un valor que el
+// usuario ya haya personalizado.
+function onFixedLabelToggle() {
+  const cb = document.getElementById('p-fixed-label');
+  const thresholdEl = document.getElementById('p-threshold');
+  if (cb?.checked && thresholdEl && !S.editingProdSku && (thresholdEl.value === '' || thresholdEl.value === '10')) {
+    thresholdEl.value = 5;
+  }
 }
 function _populateWarehouseSelect(selectedId, readonly, excludeIds) {
   const warehouses = getWarehouses();
@@ -3106,6 +3130,8 @@ function editProd(sku, warehouseId, pushURL = true) {
   const tipoIndex = {insumo:0, producto:1, ambos:2};
   const idx = tipoIndex[p.tipo] ?? 1;
   selectTipo(p.tipo, document.querySelectorAll('.tipo-option')[idx]);
+  const fixedLabelCb = document.getElementById('p-fixed-label');
+  if (fixedLabelCb) fixedLabelCb.checked = !!p.is_fixed_label;
   const metaEl = document.getElementById('prod-meta');
   const metaHtml = buildEntityMeta(p);
   metaEl.innerHTML  = metaHtml;
@@ -3269,6 +3295,7 @@ async function _saveProdImpl() {
     barcode,
     warehouse_id,
     groups:    isAddSku ? (S._addSkuData.groups || []) : (S.tempProdGroups || []),
+    is_fixed_label: isAddSku ? !!S._addSkuData.is_fixed_label : !!document.getElementById('p-fixed-label')?.checked,
     ...(isAddSku ? { sku: S._addSkuData.sku } : {}), // explicit SKU for add-SKU mode
   };
   if (S.editingProdSku) {
