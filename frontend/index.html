@@ -218,6 +218,12 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .chip-group.selected{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
 .chip-group i{font-size:14px}
 
+/* PREP CHECKLIST (Iniciar Preparación) */
+.prep-check-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius);margin-bottom:10px;cursor:pointer;transition:all .15s}
+.prep-check-row.done{border-color:var(--green);background:var(--green-light)}
+.prep-check-icon{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:transparent;transition:all .15s}
+.prep-check-row.done .prep-check-icon{border-color:var(--green);background:var(--green);color:#fff}
+
 /* KIT BUILD */
 .kit-build-item{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg3);border-radius:var(--radius);margin-bottom:6px}
 .qty-ctrl{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1.5px solid var(--border);border-radius:8px;padding:2px 6px;flex-shrink:0}
@@ -563,26 +569,32 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 
   <!-- INVENTARIO -->
   <div class="page" id="page-inventory">
-    <div class="section-title">Inventario</div>
-    <div class="section-sub">Productos, insumos y KITs</div>
-    <div style="display:flex;gap:8px;margin-bottom:12px">
-      <button class="btn btn-outline btn-sm" onclick="exportProductsXlsx()" title="Exportar productos a Excel">
-        <i class="ti ti-file-export"></i> Exportar
-      </button>
-      <button class="btn btn-outline btn-sm" onclick="document.getElementById('import-products-file').click()" title="Importar productos desde Excel">
-        <i class="ti ti-file-import"></i> Importar
-      </button>
-      <input type="file" id="import-products-file" accept=".xlsx,.xls" style="display:none" onchange="importProductsXlsx(this.files[0]);this.value=''">
+    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+      <div class="section-title" style="margin-bottom:0">Inventario</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-outline btn-sm" onclick="exportProductsXlsx()" title="Exportar productos a Excel">
+          <i class="ti ti-file-export"></i> Exportar
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('import-products-file').click()" title="Importar productos desde Excel">
+          <i class="ti ti-file-import"></i> Importar
+        </button>
+        <input type="file" id="import-products-file" accept=".xlsx,.xls" style="display:none" onchange="importProductsXlsx(this.files[0]);this.value=''">
+      </div>
     </div>
-    <div id="inv-warehouse-bar" style="display:none;margin-bottom:10px"></div>
-    <div class="search-bar" id="inv-search-bar">
+    <div class="section-sub">Productos, insumos y KITs</div>
+    <div class="chip-group-wrap" id="inv-type-filter">
+      <div class="chip-group selected" id="itype-venta" onclick="switchInvTypeFilter('venta')"><i class="ti ti-shopping-cart"></i>Venta</div>
+      <div class="chip-group" id="itype-insumos" onclick="switchInvTypeFilter('insumos')"><i class="ti ti-tool"></i>Insumos</div>
+    </div>
+    <div id="inv-warehouse-bar" style="display:none;margin-top:10px"></div>
+    <div class="search-bar" id="inv-search-bar" style="margin-top:10px">
       <i class="ti ti-search" style="color:var(--text3);font-size:20px"></i>
       <input type="text" placeholder="Buscar..." oninput="S.invQ=this.value;renderInventory()">
     </div>
     <div class="tabs">
-      <div class="tab" id="itab-todos" onclick="switchInvTab('todos',this)">Todos</div>
       <div class="tab" id="itab-alertas" onclick="switchInvTab('alertas',this)">Alertas<span class="tbadge" id="alert-tab-count" style="display:none">0</span></div>
       <div class="tab" id="itab-kits" onclick="switchInvTab('kits',this)">KITs<span class="tbadge" id="kit-alert-tab-count" style="display:none">0</span></div>
+      <div class="tab" id="itab-todos" onclick="switchInvTab('todos',this)">Todos</div>
     </div>
     <div id="inv-content"></div>
     <div id="kits-content" style="display:none"></div>
@@ -1054,6 +1066,25 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   </div>
 </div>
 
+<!-- SHEET: CHECKLIST INICIAR PREPARACIÓN -->
+<div class="sheet-overlay hidden" id="sheet-prep-checklist" onclick="if(event.target===this)closeSheet('sheet-prep-checklist')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-clipboard-check" style="color:var(--primary)"></i> Iniciar preparación</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-prep-checklist')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content">
+      <div class="pref-hint" style="margin-bottom:14px">Antes de empezar, completa estos pasos para la orden <strong id="prep-checklist-order-id"></strong>.</div>
+      <div id="prep-checklist-items"></div>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-prep-checklist')" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarIniciarPreparacion()" style="flex:2"><i class="ti ti-arrow-right"></i> Iniciar preparación</button>
+    </div>
+  </div>
+</div>
+
 <!-- SHEET: CONFIRMAR DUPLICAR ORDEN -->
 <div class="overlay-page hidden" id="sheet-duplicar">
   <div class="overlay-topbar">
@@ -1258,14 +1289,14 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div class="pref-group-title">Inventario</div>
         <div class="pref-label">Vista inicial al abrir inventario</div>
         <div class="pref-options" id="pref-inv-tab">
-          <button class="pref-opt" data-val="todos" onclick="setPrefInvTab('todos')">
-            <i class="ti ti-list"></i>Todos
-          </button>
           <button class="pref-opt" data-val="alertas" onclick="setPrefInvTab('alertas')">
             <i class="ti ti-bell"></i>Alertas
           </button>
           <button class="pref-opt" data-val="kits" onclick="setPrefInvTab('kits')">
             <i class="ti ti-stack-2"></i>KITs
+          </button>
+          <button class="pref-opt" data-val="todos" onclick="setPrefInvTab('todos')">
+            <i class="ti ti-list"></i>Todos
           </button>
         </div>
         <div class="pref-hint">Se aplica al iniciar la app o abrir Inventario.</div>
@@ -1518,7 +1549,8 @@ const S = {
   _eliminando: false,
   tempVentaItems: [],
   tempVentaDelivery: {},
-  invTab: _initPrefs.invDefaultTab || 'todos',
+  invTab: _initPrefs.invDefaultTab || 'alertas',
+  invTypeFilter: 'venta', // 'venta' | 'insumos' — filtro de Inventario (item 1 del doc de requerimientos)
   invQ: '',
   ventasQ: '',
   ventasFilter: null,
@@ -1614,6 +1646,57 @@ async function advanceOrderStatus(id) {
     if (S.currentPage === 'ventas') renderVentas();
     if (currentDetalleId === id) openOrdenDetalle(id, false);
   } catch(e) { toast('⚠️ Error al actualizar estado'); }
+}
+
+// ── CHECKLIST "INICIAR PREPARACIÓN" ───────────
+// Se muestra antes de pasar una orden de "Por hacer" a "En preparación".
+let _prepChecklistOrderId = null;
+const _prepChecklistState = { comanda: false, etiquetas: false };
+
+function openPrepChecklist(id) {
+  const v = S.ventas.find(x => x.id === id);
+  if (!v) return;
+  _prepChecklistOrderId = id;
+  _prepChecklistState.comanda = false;
+  _prepChecklistState.etiquetas = false;
+
+  // Nombres de las etiquetas vigentes para esta orden. El módulo de templates
+  // de etiquetas (imagen + tipografía por producto) todavía no existe — hasta
+  // que se implemente, se listan los productos de la orden como referencia
+  // de qué hay que etiquetar.
+  const etiquetaNames = [...new Set((v.items || []).map(i => i.name || i.sku))];
+
+  document.getElementById('prep-checklist-order-id').textContent = v.id;
+  document.getElementById('prep-checklist-items').innerHTML = `
+    <div class="prep-check-row" id="prep-check-comanda" onclick="togglePrepCheck('comanda')">
+      <div class="prep-check-icon"><i class="ti ti-check" style="font-size:14px"></i></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:14px">Imprimir comanda</div>
+        <div style="font-size:12px;color:var(--text3);font-weight:600">Comanda de pedido para ${v.id}</div>
+      </div>
+      <button class="btn btn-outline btn-sm" style="width:auto" onclick="event.stopPropagation();printComanda('${v.id}');markPrepCheck('comanda')" title="Imprimir comanda"><i class="ti ti-printer"></i></button>
+    </div>
+    <div class="prep-check-row" id="prep-check-etiquetas" onclick="togglePrepCheck('etiquetas')">
+      <div class="prep-check-icon"><i class="ti ti-check" style="font-size:14px"></i></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:14px">Imprimir etiquetas</div>
+        <div style="font-size:12px;color:var(--text3);font-weight:600">${etiquetaNames.length ? etiquetaNames.join(', ') : 'Sin ítems en esta orden'}</div>
+      </div>
+    </div>`;
+  openSheet('sheet-prep-checklist');
+}
+function togglePrepCheck(key) {
+  _prepChecklistState[key] = !_prepChecklistState[key];
+  document.getElementById('prep-check-' + key).classList.toggle('done', _prepChecklistState[key]);
+}
+function markPrepCheck(key) {
+  _prepChecklistState[key] = true;
+  document.getElementById('prep-check-' + key).classList.add('done');
+}
+function confirmarIniciarPreparacion() {
+  const id = _prepChecklistOrderId;
+  closeSheet('sheet-prep-checklist');
+  if (id) advanceOrderStatus(id);
 }
 
 // ── SHIPMENT STATUS META ──────────────────────
@@ -1938,15 +2021,20 @@ function showPage(id, el, pushURL = true) {
     const invContent  = document.getElementById('inv-content');
     const kitsContent = document.getElementById('kits-content');
     const searchBar   = document.getElementById('inv-search-bar');
+    const typeFilter  = document.getElementById('inv-type-filter');
+    document.getElementById('itype-venta').classList.toggle('selected', S.invTypeFilter === 'venta');
+    document.getElementById('itype-insumos').classList.toggle('selected', S.invTypeFilter === 'insumos');
     if (S.invTab === 'kits') {
       if (invContent)  invContent.style.display  = 'none';
       if (kitsContent) kitsContent.style.display = '';
       if (searchBar)   searchBar.style.display   = 'none';
+      if (typeFilter)  typeFilter.style.display  = 'none';
       renderKits();
     } else {
       if (invContent)  invContent.style.display  = '';
       if (kitsContent) kitsContent.style.display = 'none';
       if (searchBar)   searchBar.style.display   = '';
+      if (typeFilter)  typeFilter.style.display  = '';
       renderInventory();
     }
   }
@@ -1969,19 +2057,31 @@ function switchInvTab(tab, el) {
   const invContent  = document.getElementById('inv-content');
   const kitsContent = document.getElementById('kits-content');
   const searchBar   = document.getElementById('inv-search-bar');
+  const typeFilter  = document.getElementById('inv-type-filter');
   if (tab === 'kits') {
     if (invContent)  invContent.style.display  = 'none';
     if (kitsContent) kitsContent.style.display = '';
     if (searchBar)   searchBar.style.display   = 'none';
+    if (typeFilter)  typeFilter.style.display  = 'none'; // KITs no tienen flag Venta/Insumo
     if (S.currentPage === 'inventory') renderKits();
     else showPage('inventory');
   } else {
     if (invContent)  invContent.style.display  = '';
     if (kitsContent) kitsContent.style.display = 'none';
     if (searchBar)   searchBar.style.display   = '';
+    if (typeFilter)  typeFilter.style.display  = '';
     if (S.currentPage === 'inventory') renderInventory();
     else showPage('inventory');
   }
+}
+
+// Filtro Venta/Insumos de Inventario (item 1) — filtra sobre S.products ya
+// cargado, sin refetch. 'ambos' cuenta para las dos vistas.
+function switchInvTypeFilter(type) {
+  S.invTypeFilter = type;
+  document.getElementById('itype-venta').classList.toggle('selected', type === 'venta');
+  document.getElementById('itype-insumos').classList.toggle('selected', type === 'insumos');
+  renderInventory();
 }
 
 // ── HOME ──────────────────────────────────────
@@ -2179,6 +2279,10 @@ async function clearTenantData() {
   }
 }
 
+function _prodAlphaCompare(a, b) {
+  return (a.name||'').localeCompare(b.name||'', 'es') || (a.sku||'').localeCompare(b.sku||'', 'es');
+}
+
 function renderInventory() {
   initInvWarehouseBar();
   const alerts = getAlerts();
@@ -2192,6 +2296,10 @@ function renderInventory() {
   let items = S.warehouseId
     ? S.products.filter(p => (p.warehouse_id || '') === S.warehouseId)
     : S.products.filter(p => (p.warehouse_id || '') !== '');
+  // Filtro Venta/Insumos (item 1) — 'ambos' cuenta en las dos vistas
+  items = items.filter(p => S.invTypeFilter === 'insumos'
+    ? (p.tipo === 'insumo' || p.tipo === 'ambos')
+    : (p.tipo !== 'insumo'));
   if (S.invQ) items = items.filter(p => {
     const q = S.invQ.toLowerCase();
     return p.name.toLowerCase().includes(q) ||
@@ -2210,8 +2318,9 @@ function renderInventory() {
     return;
   }
 
-  const alerted  = items.filter(p => alertLevel(p)).sort((a,b) => a.stock-b.stock);
-  const normal   = items.filter(p => !alertLevel(p));
+  // Orden default de la tabla: alfabético por nombre, luego por SKU (item 2)
+  const alerted  = items.filter(p => alertLevel(p)).sort(_prodAlphaCompare);
+  const normal   = items.filter(p => !alertLevel(p)).sort(_prodAlphaCompare);
   let html = '';
   if (alerted.length) {
     html += `<div class="section-label"><i class="ti ti-alert-triangle" style="color:var(--red);font-size:13px"></i>Requieren atención (${alerted.length})</div>`;
@@ -4899,7 +5008,7 @@ function openOrdenDetalle(id, pushURL = true) {
         ${v.sales_channel?`<div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:3px;display:flex;align-items:center;gap:5px"><i class="ti ti-broadcast" style="font-size:13px;color:var(--text3)"></i>${v.sales_channel}</div>`:''}
         <div style="margin-top:8px">${statusBadge(v.status||'por_hacer')}</div>
         ${STATUS_NEXT[v.status]
-          ? `<button class="advance-btn" onclick="event.stopPropagation();advanceOrderStatus('${v.id}')" style="margin-top:10px;width:100%;justify-content:center">
+          ? `<button class="advance-btn" onclick="event.stopPropagation();${(v.status==='por_hacer'||v.status==='pending') ? `openPrepChecklist('${v.id}')` : `advanceOrderStatus('${v.id}')`}" style="margin-top:10px;width:100%;justify-content:center">
                <i class="ti ti-arrow-right"></i>${STATUS_NEXT_LABEL[v.status]||'Avanzar'}
              </button>`
           : (v.status==='lista_para_enviar'

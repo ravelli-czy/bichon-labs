@@ -64,6 +64,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;max-
 .hero-chip i{font-size:14px}
 .hero-chip.red{background:rgba(255,77,109,.3)}
 .hero-chip.amber{background:rgba(245,158,11,.3)}
+.hero-chip.green{background:rgba(22,201,141,.3)}
 
 /* PERIOD TOGGLE — controls both the hero totals AND the sparkline below */
 .hero-period-toggle{position:absolute;top:14px;right:14px;display:flex;gap:4px;z-index:2;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 28px)}
@@ -265,12 +266,7 @@ body.embedded #modules-section,body.embedded .footer{display:none}
     </div>
     <div class="hero-divider" style="margin-top:12px"></div>
     <div class="hero-chips" style="justify-content:space-between">
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <div class="hero-chip"><i class="ti ti-box"></i> <span id="chip-prods">0</span> productos</div>
-        <div class="hero-chip"><i class="ti ti-stack-2"></i> <span id="chip-kits">0</span> KITs</div>
-        <div class="hero-chip" id="chip-orders"><i class="ti ti-shopping-bag"></i> <span id="chip-orders-n">0</span> órdenes</div>
-        <div class="hero-chip" id="chip-alerts" style="display:none"><i class="ti ti-alert-triangle"></i> <span id="chip-alerts-n">0</span> alertas</div>
-      </div>
+      <div id="pedidos-huincha" style="display:flex;gap:8px;flex-wrap:wrap"></div>
       <button onclick="viewSalesKPIs()" style="position:relative;z-index:2;display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;border:none;font-family:'Nunito',sans-serif;font-size:12px;font-weight:800;cursor:pointer;background:rgba(255,255,255,.92);color:var(--primary);white-space:nowrap">
         Ver más <i class="ti ti-arrow-right" style="font-size:13px"></i>
       </button>
@@ -405,15 +401,6 @@ function renderHero() {
   document.getElementById('hero-ventas').textContent    = fmt(totalVentas);
   document.getElementById('hero-util').textContent      = fmt(utilidad);
   document.getElementById('hero-margin').textContent    = margen + '% margen';
-  document.getElementById('chip-prods').textContent     = PRODUCTS.length;
-  document.getElementById('chip-kits').textContent      = KITS_LIST.length;
-  document.getElementById('chip-orders-n').textContent  = VENTAS.length;
-  const chipAl = document.getElementById('chip-alerts');
-  if (alertas.length) {
-    chipAl.style.display = '';
-    chipAl.className = 'hero-chip ' + (critical.length ? 'red' : 'amber');
-    document.getElementById('chip-alerts-n').textContent = alertas.length;
-  } else { chipAl.style.display = 'none'; }
   const varEl = document.getElementById('hero-ventas-var');
   if (heroRange !== 'full' && varPct !== 0) {
     const prevLabel = heroRange === 'today' ? 'ayer' : heroRange === 'week' ? 'sem. ant.' : 'mes ant.';
@@ -423,6 +410,33 @@ function renderHero() {
   } else {
     varEl.style.display = 'none';
   }
+}
+
+// ── HUINCHA DE PEDIDOS POR HACER — semáforo por fecha de entrega ──────
+// Reemplaza la antigua línea "x productos, y KITs, z órdenes, p alertas".
+const PEDIDOS_HUINCHA_DONE_STATUSES = ['entregada', 'no_entregada', 'cancelled'];
+function _localDateStr(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function renderPedidosHuincha() {
+  const now = new Date();
+  const todayStr = _localDateStr(now);
+  const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = _localDateStr(tomorrow);
+
+  const pendientes = VENTAS.filter(v => !PEDIDOS_HUINCHA_DONE_STATUSES.includes(v.status));
+  let hoy = 0, manana = 0, resto = 0;
+  pendientes.forEach(v => {
+    const d = v.delivery && v.delivery.date;
+    if (d === todayStr) hoy++;
+    else if (d === tomorrowStr) manana++;
+    else resto++;
+  });
+
+  document.getElementById('pedidos-huincha').innerHTML = `
+    <div class="hero-chip red"><i class="ti ti-alert-circle"></i> ${hoy} para hoy</div>
+    <div class="hero-chip amber"><i class="ti ti-clock"></i> ${manana} para mañana</div>
+    <div class="hero-chip green"><i class="ti ti-calendar"></i> ${resto} resto</div>`;
 }
 
 // ── HERO TOTALS RANGE (Full / Mes Actual / Última Semana) ─────────────
@@ -641,7 +655,7 @@ function renderSuppliers() {
 
 function renderOrders() {
   if (!VENTAS.length) { document.getElementById('recent-orders-section').innerHTML = ''; return; }
-  const rows = VENTAS.slice(0,4).map(v => {
+  const rows = VENTAS.slice(0,5).map(v => {
     const initials = (v.cliente||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     const itemsStr = Array.isArray(v.items) ? v.items.map(i=>`${i.name||i.sku} ×${i.qty}`).join(' · ') : (v.items||'');
     return `<div class="order-row">
@@ -720,6 +734,7 @@ function renderModules() {
 
   // Render all sections
   renderHero();
+  renderPedidosHuincha();
   renderSparkline(heroRange);
   renderAlerts();
   renderSuppliers();
