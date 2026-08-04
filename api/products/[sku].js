@@ -150,12 +150,16 @@ module.exports = async (req, res) => {
 
     // ── PUT — update product ──────────────────────────────────────────────
     if (req.method === 'PUT') {
-      const { name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, new_warehouse_id, is_fixed_label } = req.body || {};
+      const { name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, new_warehouse_id, is_fixed_label, label_template_id } = req.body || {};
       if (groups !== undefined && !Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
       const groupsJson = groups !== undefined ? JSON.stringify(groups) : null;
-      // is_fixed_label es una columna nueva (migración vía POST /api/setup) —
-      // si todavía no se corrió en esta base, se sigue de largo sin ella en
-      // vez de romper la edición de productos por completo.
+      // label_template_id sí necesita poder "limpiarse" a null (desvincular el
+      // template), a diferencia del resto de los campos — por eso usa un CASE
+      // WHEN con un flag aparte en vez de COALESCE (que nunca podría poner null).
+      const hasLabelTemplateId = Object.prototype.hasOwnProperty.call(req.body || {}, 'label_template_id');
+      // is_fixed_label/label_template_id son columnas nuevas (migración vía
+      // POST /api/setup) — si todavía no se corrió en esta base, se sigue de
+      // largo sin ellas en vez de romper la edición de productos por completo.
       let row;
       try {
         [row] = await sql`
@@ -172,6 +176,7 @@ module.exports = async (req, res) => {
             groups       = COALESCE(${groupsJson}::jsonb, groups),
             warehouse_id = COALESCE(${new_warehouse_id ?? null}, warehouse_id),
             is_fixed_label = COALESCE(${is_fixed_label ?? null}, is_fixed_label),
+            label_template_id = CASE WHEN ${hasLabelTemplateId} THEN ${label_template_id || null} ELSE label_template_id END,
             updated_by = ${actor},
             updated_at = NOW()
           WHERE sku = ${sku} AND warehouse_id = ${warehouse_id} AND tenant_id = ${tenantId}
@@ -179,7 +184,7 @@ module.exports = async (req, res) => {
         `;
       } catch (updateErr) {
         if (updateErr.code !== '42703') throw updateErr;
-        console.warn('[products/[sku]] is_fixed_label column not migrated yet, updating without it');
+        console.warn('[products/[sku]] is_fixed_label/label_template_id column not migrated yet, updating without them');
         [row] = await sql`
           UPDATE products SET
             name         = COALESCE(${name         ?? null}, name),
@@ -201,13 +206,24 @@ module.exports = async (req, res) => {
       }
       if (!row) return res.status(404).json({ error: 'Product not found' });
 
-      // El Grupo de Productos es una propiedad del producto, no del almacén:
-      // se sincroniza a todas las filas (SKUs por almacén) de este mismo sku.
+      // El Grupo de Productos y el template de etiqueta fija son propiedades
+      // del producto, no del almacén: se sincronizan a todas las filas (SKUs
+      // por almacén) de este mismo sku.
       if (groups !== undefined) {
         await sql`
           UPDATE products SET groups = ${groupsJson}::jsonb
           WHERE sku = ${sku} AND tenant_id = ${tenantId} AND warehouse_id != ${warehouse_id}
         `;
+      }
+      if (hasLabelTemplateId) {
+        try {
+          await sql`
+            UPDATE products SET label_template_id = ${label_template_id || null}
+            WHERE sku = ${sku} AND tenant_id = ${tenantId} AND warehouse_id != ${warehouse_id}
+          `;
+        } catch (syncErr) {
+          if (syncErr.code !== '42703') throw syncErr;
+        }
       }
 
       await writeLog(sql, {

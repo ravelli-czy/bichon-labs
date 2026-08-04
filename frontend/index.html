@@ -716,7 +716,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div class="tab" id="ctab-grupos" onclick="switchCatTab('grupos',this)">Grupos</div>
         <div class="tab" id="ctab-productos" onclick="switchCatTab('productos',this)">Productos</div>
         <div class="tab" id="ctab-skus" onclick="switchCatTab('skus',this)">SKUs</div>
-        <div class="tab" id="ctab-etiquetas" onclick="switchCatTab('etiquetas',this)">Etiquetas</div>
       </div>
     </div>
     <div id="cat-content" style="margin-top:10px"></div>
@@ -860,7 +859,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="pref-group" style="margin-top:18px">
         <div class="pref-group-title">Etiquetado</div>
         <div class="pref-label">¿Elegir un template de etiqueta es obligatorio al vender?</div>
-        <div class="pref-hint" style="margin-bottom:10px">Si lo activas, no se puede completar una venta sin seleccionar un template de etiqueta ya cargado en Catálogo. Si no hay ningún template cargado, no bloquea igual.</div>
+        <div class="pref-hint" style="margin-bottom:10px">Si lo activas, no se puede completar una venta sin seleccionar un template de etiqueta ya cargado en Materiales. Si no hay ningún template cargado, no bloquea igual.</div>
         <div class="pref-options" id="pref-etiqueta-obligatoria">
           <button class="pref-opt" data-val="si" onclick="setEtiquetaObligatoria(true)">
             <i class="ti ti-check"></i>Obligatorio
@@ -906,6 +905,9 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <button class="nav-tab sidebar-only-item" onclick="showPage('locales',this)" title="Locales">
     <i class="ti ti-building-store"></i><span>Locales</span>
   </button>
+  <button class="nav-tab sidebar-only-item" onclick="openCatalogTab('materiales')" title="Materiales">
+    <i class="ti ti-printer"></i><span>Materiales</span>
+  </button>
   <button class="nav-tab sidebar-only-item" onclick="openCatalogTab('pagos')" title="Medios de pago">
     <i class="ti ti-credit-card"></i><span>Pagos</span>
   </button>
@@ -940,6 +942,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div class="sheet-handle"></div>
     <div class="sheet-content" style="padding:16px 20px 28px;display:flex;flex-direction:column;gap:10px">
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('locales',navTabEl('locales'))"><i class="ti ti-building-store"></i> Locales</button>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('materiales')"><i class="ti ti-printer"></i> Materiales</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('pagos')"><i class="ti ti-credit-card"></i> Pagos</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('canales')"><i class="ti ti-broadcast"></i> Canales</button>
       <a href="/finanzas" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-heart nav-fin-icon"></i> Finanzas</a>
@@ -4074,16 +4077,17 @@ function renderCatalogo() {
   const activeEl = document.getElementById('ctab-' + tab);
   if (activeEl) activeEl.classList.add('active');
 
-  // Pagos/Canales live outside the tab bar now (sidebar/hamburger only) —
-  // show them as their own standalone section instead of "Catálogo".
-  const isStandalone = tab === 'pagos' || tab === 'canales';
+  // Pagos/Canales/Materiales viven fuera de la barra de tabs (sidebar/hamburger
+  // solamente) — se muestran como su propia sección en vez de "Catálogo".
+  const isStandalone = tab === 'pagos' || tab === 'canales' || tab === 'materiales';
   const titleEl = document.getElementById('cat-page-title');
   const subEl   = document.getElementById('cat-page-sub');
   const tabsSec = document.getElementById('cat-tabs-section');
   if (tabsSec) tabsSec.style.display = isStandalone ? 'none' : '';
-  if (titleEl) titleEl.textContent = tab === 'pagos' ? 'Medios de pago' : tab === 'canales' ? 'Canales de Venta' : 'Catálogo';
+  if (titleEl) titleEl.textContent = tab === 'pagos' ? 'Medios de pago' : tab === 'canales' ? 'Canales de Venta' : tab === 'materiales' ? 'Materiales' : 'Catálogo';
   if (subEl)   subEl.textContent   = tab === 'pagos' ? 'Formas de pago disponibles para tus ventas'
                                     : tab === 'canales' ? 'Canales por los que llegan tus ventas'
+                                    : tab === 'materiales' ? 'Templates de etiqueta e impresión masiva de etiquetas fijas'
                                     : 'Categorías, marcas y maestro de productos';
 
   const el = document.getElementById('cat-content');
@@ -4093,7 +4097,7 @@ function renderCatalogo() {
   else if (tab === 'grupos')     renderProductGroupsView(el);
   else if (tab === 'productos')  renderCatalogProductsView(el);
   else if (tab === 'skus')       renderCatalogSKUsView(el);
-  else if (tab === 'etiquetas')  renderLabelTemplatesView(el);
+  else if (tab === 'materiales') renderMaterialesView(el);
   else if (tab === 'pagos')      renderCatalogList(el, 'paymentMethods', 'medios de pago', 'ti-credit-card', 'Ej: Efectivo, Transferencia, Tarjeta débito...');
   else if (tab === 'canales')    renderCatalogList(el, 'salesChannels', 'canales de venta', 'ti-broadcast', 'Ej: Tienda, WhatsApp, Instagram...');
 }
@@ -4820,6 +4824,151 @@ function orderLabelsSection(v) {
         <button onclick="printLabelTemplate('${t.tpl.id}',${orderCtxJson})" title="Imprimir ${t.label.toLowerCase()}" style="width:34px;height:34px;border-radius:9px;border:none;background:var(--primary-light);color:var(--primary);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-printer" style="font-size:15px"></i></button>
       </div>`).join('')}
     </div>`;
+}
+
+// ── MATERIALES ────────────────────────────────────────────────────────────
+// Sección propia (fuera de Catálogo) para todo lo relacionado a impresión
+// física: los templates de etiqueta (antes vivían en Catálogo → Etiquetas) y
+// la impresión masiva de etiquetas fijas, para adelantar trabajo antes de
+// que se agote el stock de logos/huinchas.
+function renderMaterialesView(el) {
+  el.innerHTML = `
+    <div class="section-label"><i class="ti ti-tag"></i> Templates de etiqueta</div>
+    <div id="materiales-templates"></div>
+    <div class="section-label" style="margin-top:24px"><i class="ti ti-printer"></i> Impresión masiva de etiquetas fijas</div>
+    <div style="font-size:12px;color:var(--text3);font-weight:600;margin:-4px 0 8px">Etiquetas fijas (logo, huincha de cierre) que se imprimen en la Cameo — prepara un lote de una vez para adelantar trabajo antes de que se agote el stock.</div>
+    <div id="materiales-bulk-print"></div>`;
+  renderLabelTemplatesView(document.getElementById('materiales-templates'));
+  renderFixedLabelBulkPrint(document.getElementById('materiales-bulk-print'));
+}
+
+// Productos marcados "Es etiqueta fija", uno por SKU (prefiere la fila
+// master warehouse_id='' como representante, igual que el resto de Catálogo).
+function _fixedLabelProducts() {
+  const seen = new Map();
+  (S.products || []).filter(p => p.is_fixed_label && (p.warehouse_id||'') === '').forEach(p => seen.set(p.sku, p));
+  (S.products || []).filter(p => p.is_fixed_label && !seen.has(p.sku)).forEach(p => seen.set(p.sku, p));
+  return [...seen.values()].sort((a,b) => a.name.localeCompare(b.name));
+}
+
+function renderFixedLabelBulkPrint(el) {
+  const items = _fixedLabelProducts();
+  if (!items.length) {
+    el.innerHTML = `<div class="empty-state"><i class="ti ti-printer"></i><p>Sin etiquetas fijas registradas.<br>Marca un insumo como "Es etiqueta fija" en Catálogo → Productos para que aparezca acá.</p></div>`;
+    return;
+  }
+  const templates = S.labelTemplates || [];
+  const rows = items.map(p => {
+    const skuEsc = String(p.sku).replace(/'/g,"&#39;");
+    const stock = p.stock || 0;
+    const threshold = p.threshold ?? 5;
+    const low = stock <= threshold;
+    const suggestedQty = Math.max(threshold * 2 - stock, 10);
+    const templateOptions = templates.map(t => `<option value="${t.id}"${String(t.id)===String(p.label_template_id)?' selected':''}>${t.name}</option>`).join('');
+    return `<div class="card" style="padding:12px 14px;margin-bottom:8px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" class="fixed-label-print-cb" data-sku="${skuEsc}" style="width:16px;height:16px;flex-shrink:0">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:800">${p.name}</div>
+          <div style="font-size:11px;font-weight:700;color:${low?'var(--red)':'var(--text3)'}">Stock: ${stock} / ${threshold} mín</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-left:26px">
+        <select class="form-input" style="flex:1;min-width:160px;height:38px" onchange="setFixedLabelTemplate('${skuEsc}',this.value)">
+          <option value="">Sin template vinculado</option>
+          ${templateOptions}
+        </select>
+        <input type="number" class="form-input fixed-label-print-qty" data-sku="${skuEsc}" value="${suggestedQty}" min="1" style="width:80px;height:38px" title="Cantidad a imprimir">
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `${rows}
+    <button class="btn btn-primary" style="width:auto" onclick="printFixedLabelsBulk()"><i class="ti ti-printer"></i> Imprimir seleccionadas</button>`;
+}
+
+// Vincula (o desvincula, si templateId es '') el template que representa el
+// diseño de una etiqueta fija — se sincroniza a todas las filas por almacén
+// del mismo sku, igual que el Grupo de Productos.
+async function setFixedLabelTemplate(sku, templateId) {
+  const rows = (S.products || []).filter(p => p.sku === sku);
+  if (!rows.length) return;
+  const wid = (rows.find(p => (p.warehouse_id||'')==='') || rows[0]).warehouse_id || '';
+  try {
+    await apiFetch(`/api/products/${encodeURIComponent(sku)}?warehouse_id=${encodeURIComponent(wid)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ label_template_id: templateId || null }),
+    });
+    rows.forEach(p => { p.label_template_id = templateId || null; });
+    toast(templateId ? '✅ Template vinculado' : '🗑 Template desvinculado');
+  } catch (e) {
+    toast('❌ ' + (e.message || 'No se pudo guardar'));
+  }
+}
+
+// Imprime, en una sola ventana, N copias de cada etiqueta fija seleccionada
+// (según su template vinculado) — para adelantar trabajo antes de imprimirlas
+// de a una en la Cameo.
+function printFixedLabelsBulk() {
+  const checkedSkus = [...document.querySelectorAll('.fixed-label-print-cb:checked')].map(cb => cb.dataset.sku);
+  if (!checkedSkus.length) { toast('⚠️ Selecciona al menos una etiqueta fija'); return; }
+
+  const items = _fixedLabelProducts();
+  const jobs = [];
+  let skippedNoTemplate = 0;
+  for (const sku of checkedSkus) {
+    const p = items.find(x => String(x.sku) === String(sku));
+    if (!p) continue;
+    const tpl = (S.labelTemplates || []).find(t => String(t.id) === String(p.label_template_id));
+    if (!tpl) { skippedNoTemplate++; continue; }
+    const qtyInput = document.querySelector(`.fixed-label-print-qty[data-sku="${CSS.escape(sku)}"]`);
+    const qty = Math.max(1, parseInt(qtyInput?.value, 10) || 0);
+    jobs.push({ tpl, qty, name: p.name });
+  }
+  if (skippedNoTemplate) toast(`⚠️ ${skippedNoTemplate} etiqueta(s) sin template vinculado — se omitieron`);
+  if (!jobs.length) return;
+
+  const fonts = [...new Set(jobs.map(j => j.tpl.font || 'Nunito'))];
+  const fontLinks = fonts.map(f => `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${encodeURIComponent(f)}:wght@400;700&display=swap">`).join('');
+
+  const labelHtml = (tpl) => {
+    const sizeCss = tpl.auto_size || !tpl.width_mm || !tpl.height_mm
+      ? `max-width:45mm;width:100%;height:auto`
+      : `width:${tpl.width_mm}mm;height:${tpl.height_mm}mm;object-fit:contain`;
+    const safeText = tpl.content_text ? _sanitizeLtplHtml(tpl.content_text) : '';
+    return `<div class="bulk-label" style="font-family:'${(tpl.font||'Nunito').replace(/'/g,"\\'")}',sans-serif">
+      ${tpl.image_url
+        ? `<div class="label-stage"><img src="${tpl.image_url}" style="${sizeCss}">${safeText ? `<div class="content-text">${safeText}</div>` : ''}</div>`
+        : (safeText ? `<div class="content-text" style="margin-bottom:4px">${safeText}</div>` : '')}
+    </div>`;
+  };
+
+  const sections = jobs.map(j => `
+    <div class="bulk-group">
+      <div class="bulk-group-title">${j.name} — ${j.qty} copias</div>
+      <div class="bulk-grid">${Array.from({ length: j.qty }).map(() => labelHtml(j.tpl)).join('')}</div>
+    </div>`).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Impresión masiva de etiquetas</title>
+${fontLinks}
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito',sans-serif;color:#000;background:#fff;padding:16px}
+.bulk-group{margin-bottom:24px}
+.bulk-group-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:8px;border-bottom:1px solid #ddd;padding-bottom:4px}
+.bulk-grid{display:flex;flex-wrap:wrap;gap:10px}
+.bulk-label{width:120px;text-align:center}
+.label-stage{position:relative;display:flex;align-items:center;justify-content:center}
+.label-stage img{display:block}
+.content-text{font-size:11px;line-height:1.3;white-space:pre-wrap}
+.label-stage .content-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:8%;margin:0}
+@media print{@page{margin:8mm}body{padding:0}.bulk-group{page-break-inside:avoid}}
+</style></head><body>
+${sections}
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=700,height=600');
+  if (win) { win.document.write(html); win.document.close(); }
 }
 
 function renderLabelTemplatesView(el) {
