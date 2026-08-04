@@ -103,23 +103,27 @@ module.exports = async (req, res) => {
       } = req.body || {};
 
       if (!rawItems.length) return res.status(400).json({ error: 'items is required' });
-      // Item 8.2: obligatorio elegir un template de etiqueta ya cargado para
-      // completar la venta — pero solo una vez que el tenant tiene al menos
-      // un template activo configurado. Si todavía no configuró ninguno (o si
-      // la tabla ni siquiera existe aún porque no se corrió la migración de
-      // /api/setup), no bloqueamos la venta — evita romper el flujo de ventas
-      // completo mientras se despliega esta función.
-      let labelTplCount = 0;
+      // Item 8.2: elegir un template de etiqueta ya cargado puede ser
+      // obligatorio para completar la venta — configurable por tenant en
+      // Preferencias → Flujos → Etiquetado (default: obligatorio). Solo
+      // bloquea si además el tenant tiene al menos un template activo
+      // configurado, y si la tabla/columna ya existen (no rompe la venta
+      // mientras se despliega esta función o si la migración no corrió).
+      let mustSelectLabel = false;
       try {
-        const [row] = await sql`
-          SELECT COUNT(*)::int AS label_tpl_count FROM label_templates
-          WHERE tenant_id = ${tenantId} AND type = 'etiqueta' AND active = true
-        `;
-        labelTplCount = row?.label_tpl_count || 0;
+        const [tenantRow] = await sql`SELECT settings FROM tenants WHERE id = ${tenantId}`;
+        const etiquetaObligatoria = tenantRow?.settings?.labelFlow?.etiquetaObligatoria !== false;
+        if (etiquetaObligatoria) {
+          const [row] = await sql`
+            SELECT COUNT(*)::int AS label_tpl_count FROM label_templates
+            WHERE tenant_id = ${tenantId} AND type = 'etiqueta' AND active = true
+          `;
+          mustSelectLabel = (row?.label_tpl_count || 0) > 0;
+        }
       } catch (labelErr) {
         console.warn('[orders] label_templates check skipped:', labelErr.message);
       }
-      if (labelTplCount > 0 && !label_selections.etiqueta) {
+      if (mustSelectLabel && !label_selections.etiqueta) {
         return res.status(400).json({ error: 'Selecciona un template de etiqueta' });
       }
       // Snapshot each item's current cost (and full financial snapshot for
