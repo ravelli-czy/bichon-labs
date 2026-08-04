@@ -4982,8 +4982,36 @@ function openSheetVenta(pushURL = true) {
   document.getElementById('venta-wa-results').style.display = 'none';
   document.getElementById('wa-chevron').className = 'ti ti-chevron-down';
   initVentaLocales();
+  populateVentaLabelSelects();
   openSheet('sheet-venta');
   if (pushURL) history.pushState({ ventaNew: true }, '', '/orders/new');
+}
+
+// Puebla los selects de templates de etiqueta (item 8.2) y muestra la
+// sección solo si el tenant tiene al menos un template cargado. El de
+// "etiqueta" es obligatorio únicamente si hay alguno activo de ese tipo.
+function populateVentaLabelSelects() {
+  const wrap = document.getElementById('venta-labels-wrap');
+  const all = S.labelTemplates || [];
+  if (!all.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+
+  const byType = (t) => all.filter(tpl => tpl.type === t && tpl.active !== false);
+  const etiquetas = byType('etiqueta');
+  const huinchas   = byType('huincha_sellado');
+  const tarjetas   = byType('tarjeta_instrucciones');
+
+  const fillSelect = (id, items, placeholder) => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = `<option value="">${placeholder}</option>` + items.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    sel.value = '';
+  };
+  fillSelect('venta-label-etiqueta', etiquetas, 'Selecciona un template...');
+  fillSelect('venta-label-huincha',  huinchas,   'Ninguna');
+  fillSelect('venta-label-tarjeta',  tarjetas,   'Ninguna');
+
+  document.getElementById('venta-etiqueta-required-mark').textContent = etiquetas.length ? '*' : '';
+  document.getElementById('venta-labels-optional-row').style.display = (huinchas.length || tarjetas.length) ? '' : 'none';
 }
 
 function selectDeliveryMethod(type, el, methodId, methodName) {
@@ -5439,6 +5467,16 @@ async function saveVenta() {
     if (!document.getElementById('venta-addr-street').value.trim()) { toast('⚠️ Ingresa la dirección'); return; }
     if (!document.getElementById('venta-addr-city').value.trim())   { toast('⚠️ Ingresa la ciudad'); return; }
   }
+  // Item 8.2: si hay al menos un template de etiqueta activo, elegir uno es obligatorio
+  const labelEtiquetaId = document.getElementById('venta-label-etiqueta')?.value || '';
+  if (document.getElementById('venta-etiqueta-required-mark')?.textContent === '*' && !labelEtiquetaId) {
+    toast('⚠️ Selecciona un template de etiqueta'); return;
+  }
+  const label_selections = {
+    etiqueta:              labelEtiquetaId || null,
+    huincha_sellado:       document.getElementById('venta-label-huincha')?.value || null,
+    tarjeta_instrucciones: document.getElementById('venta-label-tarjeta')?.value || null,
+  };
 
   const shipping = ventaShippingCost();
   const total = S.tempVentaItems.reduce((s,i) => s+i.qty*i.price, 0) + shipping;
@@ -5470,6 +5508,7 @@ async function saveVenta() {
     warehouse_id:   S.warehouseId || '',  // order-level warehouse (fallback for kit components)
     payment_method: document.getElementById('venta-payment-method').value || '',
     sales_channel:  document.getElementById('venta-sales-channel').value || '',
+    label_selections,
   };
 
   // Loading state — prevent double-submit
@@ -6546,6 +6585,11 @@ window.addEventListener('message', async (e) => {
     if (page === 'reportes') { openReportesPage(); return; }
     if (page === 'ventas' && e.data.ventasDateFilter) {
       setVentasDateFilter(e.data.ventasDateFilter);
+      return;
+    }
+    if (page === 'ventas' && e.data.orderId) {
+      showPage('ventas', navTabEl('ventas'), true);
+      openOrdenDetalle(e.data.orderId, true);
       return;
     }
     showPage(page, navTabEl(page), true);
