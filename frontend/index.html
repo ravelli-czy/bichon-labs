@@ -224,6 +224,18 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .prep-check-icon{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:transparent;transition:all .15s}
 .prep-check-row.done .prep-check-icon{border-color:var(--green);background:var(--green);color:#fff}
 
+/* FLUJO DE ESTADOS (Preferencias) */
+.flow-chain{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.flow-chain-badge{font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;background:var(--bg3);color:var(--text2);white-space:nowrap}
+.flow-chain-badge.anchor{background:var(--primary-light);color:var(--primary)}
+.flow-chain-arrow{color:var(--text3);font-size:14px}
+.flow-step-row{display:flex;align-items:center;gap:8px;padding:9px 10px;background:var(--bg3);border-radius:var(--radius);margin-bottom:6px}
+.flow-step-controls{display:flex;flex-direction:column;gap:1px}
+.flow-step-move{width:20px;height:16px;border:none;background:none;color:var(--text3);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.flow-step-move:hover{color:var(--primary)}
+.flow-step-move:disabled{opacity:.3;cursor:default}
+.flow-step-move:disabled:hover{color:var(--text3)}
+
 /* KIT BUILD */
 .kit-build-item{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg3);border-radius:var(--radius);margin-bottom:6px}
 .qty-ctrl{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1.5px solid var(--border);border-radius:8px;padding:2px 6px;flex-shrink:0}
@@ -765,6 +777,29 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         </button>
       </div>
       <div class="pref-hint">Se aplica al iniciar la app o abrir Inventario.</div>
+    </div>
+    <div class="pref-group" style="margin-top:18px">
+      <div class="pref-group-title">Flujo de estados de las órdenes</div>
+      <div class="pref-hint" style="margin-bottom:10px">Define qué pasos ve tu equipo entre "Por hacer" y "Lista p/ enviar" — y en qué orden. Los pasos de envío (en camino, entregada) los sigue manejando Delivery.</div>
+      <div class="pref-options" style="margin-bottom:14px">
+        <button class="pref-opt" onclick="applyOrderFlowTemplate('estandar')" title="Por hacer → En preparación → Lista p/ facturar → Facturada → Lista p/ enviar">
+          <i class="ti ti-list-check"></i>Estándar
+        </button>
+        <button class="pref-opt" onclick="applyOrderFlowTemplate('flota_propia')" title="Por hacer → En preparación → Lista p/ enviar (sin pasos de facturación)">
+          <i class="ti ti-truck-delivery"></i>Flota propia
+        </button>
+        <button class="pref-opt" onclick="applyOrderFlowTemplate('vacio')" title="Empezar desde cero: solo Por hacer → Lista p/ enviar">
+          <i class="ti ti-sparkles"></i>Personalizado
+        </button>
+      </div>
+      <div id="order-flow-chain" style="margin-bottom:14px"></div>
+      <div class="pref-label">Pasos intermedios (en orden)</div>
+      <div id="order-flow-steps" style="margin-bottom:8px"></div>
+      <div class="add-row">
+        <select id="order-flow-add-select" class="form-input" style="flex:1;font-size:13px"><option value="">Agregar paso...</option></select>
+        <button class="add-row-btn" onclick="addOrderFlowStep()"><i class="ti ti-plus"></i></button>
+      </div>
+      <button id="order-flow-save-btn" class="btn btn-primary mt-3" onclick="saveOrderFlow()"><i class="ti ti-check"></i> Guardar flujo</button>
     </div>
     <div class="pref-group" style="margin-top:18px">
       <div class="pref-group-title">Personalización de marca</div>
@@ -1625,23 +1660,69 @@ const ORDER_STATUS_META = {
   pending:             { label:'Por hacer',          css:'ord-pending',            icon:'ti-circle' },
   cancelled:           { label:'Cancelada',          css:'ord-cancelled',          icon:'ti-ban' },
 };
-// Manual progression (first 5 statuses — rest are driven by shipment)
-const STATUS_NEXT = {
-  por_hacer:           'en_preparacion',
-  en_preparacion:      'lista_para_facturar',
-  lista_para_facturar: 'facturada',
-  facturada:           'lista_para_enviar',
-  pending:             'en_preparacion',
+// ── FLUJO DE ESTADOS CONFIGURABLE POR TENANT ──
+// Cada tenant puede definir qué pasos manuales de preparación quiere entre la
+// creación de la orden ("por_hacer") y el envío ("lista_para_enviar", que
+// siempre queda al final porque es el puente hacia Delivery/Shipments).
+// Sin configuración guardada, se usa la plantilla "Estándar" — mismo
+// comportamiento que tenía la app antes de esto.
+const ORDER_FLOW_MIDDLE_KEYS = ['en_preparacion', 'lista_para_facturar', 'facturada'];
+const ORDER_FLOW_TEMPLATES = {
+  estandar:     ['en_preparacion', 'lista_para_facturar', 'facturada'],
+  flota_propia: ['en_preparacion'],
+  vacio:        [],
 };
-const STATUS_NEXT_LABEL = {
-  por_hacer:           'Iniciar preparación',
-  en_preparacion:      'Marcar lista p/ facturar',
-  lista_para_facturar: 'Marcar como facturada',
-  facturada:           'Marcar lista p/ enviar',
-  pending:             'Iniciar preparación',
+const ORDER_FLOW_ACTION_LABEL_BY_TARGET = {
+  en_preparacion:      'Iniciar preparación',
+  lista_para_facturar: 'Marcar lista p/ facturar',
+  facturada:           'Marcar como facturada',
+  lista_para_enviar:   'Marcar lista p/ enviar',
 };
+let STATUS_NEXT = {};
+let STATUS_NEXT_LABEL = {};
+
+// Recalcula STATUS_NEXT/STATUS_NEXT_LABEL/S._orderFlowLabels a partir de
+// S._tenantSettings.orderFlow.steps (o la plantilla Estándar si no hay nada
+// guardado). Se llama al cargar la app y cada vez que se guarda un flujo
+// nuevo desde Preferencias.
+function computeOrderFlow() {
+  const saved = S._tenantSettings && S._tenantSettings.orderFlow && Array.isArray(S._tenantSettings.orderFlow.steps)
+    ? S._tenantSettings.orderFlow.steps
+    : ORDER_FLOW_TEMPLATES.estandar.map(key => ({ key }));
+  // Solo se aceptan keys conocidas del vocabulario de estados manuales —
+  // cualquier otra cosa guardada (o corrupta) se ignora en vez de romper el flujo.
+  const middle = saved.filter(s => s && ORDER_FLOW_MIDDLE_KEYS.includes(s.key));
+  const fullFlow = ['por_hacer', ...middle.map(s => s.key), 'lista_para_enviar'];
+
+  S._orderFlowSteps  = fullFlow;
+  S._orderFlowLabels = {};
+  middle.forEach(s => { if (s.label && s.label.trim()) S._orderFlowLabels[s.key] = s.label.trim(); });
+
+  STATUS_NEXT = {};
+  STATUS_NEXT_LABEL = {};
+  for (let i = 0; i < fullFlow.length - 1; i++) {
+    const from = fullFlow[i], to = fullFlow[i+1];
+    STATUS_NEXT[from] = to;
+    const custom = S._orderFlowLabels[to];
+    STATUS_NEXT_LABEL[from] = custom
+      ? (to === 'en_preparacion' ? `Iniciar: ${custom}` : `Marcar: ${custom}`)
+      : ORDER_FLOW_ACTION_LABEL_BY_TARGET[to] || 'Avanzar';
+  }
+  // 'pending' es un alias legado de 'por_hacer' (algunas órdenes viejas lo usan)
+  if (STATUS_NEXT.por_hacer) {
+    STATUS_NEXT.pending = STATUS_NEXT.por_hacer;
+    STATUS_NEXT_LABEL.pending = STATUS_NEXT_LABEL.por_hacer;
+  }
+}
+computeOrderFlow(); // valores por defecto disponibles antes de que cargue la API
+
+function statusMeta(status) {
+  const base = ORDER_STATUS_META[status] || ORDER_STATUS_META.por_hacer;
+  const custom = (S._orderFlowLabels || {})[status];
+  return custom ? { ...base, label: custom } : base;
+}
 function statusBadge(status) {
-  const m = ORDER_STATUS_META[status] || ORDER_STATUS_META.por_hacer;
+  const m = statusMeta(status);
   return `<span class="ord-status ${m.css}"><i class="ti ${m.icon}" style="font-size:10px"></i>${m.label}</span>`;
 }
 async function advanceOrderStatus(id) {
@@ -1796,6 +1877,7 @@ async function initApp() {
       if (dbTab) { savePref('invDefaultTab', dbTab); S.invTab = dbTab; }
       _populateCatalogLists();
     }
+    computeOrderFlow();
     S._apiReady = true;
   } catch (e) {
     console.warn('[StockFlow] API not available — using local state.', e.message);
@@ -1914,6 +1996,99 @@ function renderPrefsPage() {
   document.getElementById('brand-color3').value = localStorage.getItem('sf_tenant_color3') || '#4c3fff';
   S._brandLogoDataUrl = null;
   _renderBrandLogoPreview(localStorage.getItem('sf_tenant_logo_url') || '');
+  initOrderFlowEditor();
+}
+
+// ── Flujo de estados configurable (Preferencias) ───────────────────────────
+// S._editingOrderFlow: copia de trabajo [{key,label}] de los pasos
+// intermedios — se guarda recién al tocar "Guardar flujo".
+function initOrderFlowEditor() {
+  const saved = S._tenantSettings && S._tenantSettings.orderFlow && Array.isArray(S._tenantSettings.orderFlow.steps)
+    ? S._tenantSettings.orderFlow.steps
+    : ORDER_FLOW_TEMPLATES.estandar.map(key => ({ key }));
+  S._editingOrderFlow = saved
+    .filter(s => s && ORDER_FLOW_MIDDLE_KEYS.includes(s.key))
+    .map(s => ({ key: s.key, label: s.label || '' }));
+  renderOrderFlowEditor();
+}
+function applyOrderFlowTemplate(name) {
+  S._editingOrderFlow = (ORDER_FLOW_TEMPLATES[name] || []).map(key => ({ key, label: '' }));
+  renderOrderFlowEditor();
+}
+function addOrderFlowStep() {
+  const sel = document.getElementById('order-flow-add-select');
+  const key = sel.value;
+  if (!key) return;
+  S._editingOrderFlow.push({ key, label: '' });
+  sel.value = '';
+  renderOrderFlowEditor();
+}
+function removeOrderFlowStep(key) {
+  S._editingOrderFlow = S._editingOrderFlow.filter(s => s.key !== key);
+  renderOrderFlowEditor();
+}
+function moveOrderFlowStep(key, dir) {
+  const i = S._editingOrderFlow.findIndex(s => s.key === key);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= S._editingOrderFlow.length) return;
+  [S._editingOrderFlow[i], S._editingOrderFlow[j]] = [S._editingOrderFlow[j], S._editingOrderFlow[i]];
+  renderOrderFlowEditor();
+}
+function renameOrderFlowStep(key, value) {
+  const s = S._editingOrderFlow.find(s => s.key === key);
+  if (s) s.label = value;
+  // No re-render acá: perdería el foco del input mientras se escribe.
+}
+function renderOrderFlowEditor() {
+  const chainEl = document.getElementById('order-flow-chain');
+  const stepsEl = document.getElementById('order-flow-steps');
+  const addSel  = document.getElementById('order-flow-add-select');
+  if (!chainEl || !stepsEl || !addSel) return;
+
+  const middleLabels = S._editingOrderFlow.map(s => s.label.trim() || ORDER_STATUS_META[s.key].label);
+  chainEl.innerHTML = `<div class="flow-chain">
+    <span class="flow-chain-badge anchor">Por hacer</span>
+    ${middleLabels.map(l => `<span class="flow-chain-arrow"><i class="ti ti-arrow-right"></i></span><span class="flow-chain-badge">${l}</span>`).join('')}
+    <span class="flow-chain-arrow"><i class="ti ti-arrow-right"></i></span>
+    <span class="flow-chain-badge anchor">Lista p/ enviar</span>
+  </div>`;
+
+  stepsEl.innerHTML = S._editingOrderFlow.length ? S._editingOrderFlow.map((s, i) => {
+    const def = ORDER_STATUS_META[s.key].label;
+    return `<div class="flow-step-row">
+      <div class="flow-step-controls">
+        <button class="flow-step-move" onclick="moveOrderFlowStep('${s.key}',-1)" ${i===0?'disabled':''} title="Subir"><i class="ti ti-chevron-up"></i></button>
+        <button class="flow-step-move" onclick="moveOrderFlowStep('${s.key}',1)" ${i===S._editingOrderFlow.length-1?'disabled':''} title="Bajar"><i class="ti ti-chevron-down"></i></button>
+      </div>
+      <input class="form-input" style="flex:1;font-size:13px;padding:8px 10px" value="${(s.label||'').replace(/"/g,'&quot;')}" placeholder="${def}" oninput="renameOrderFlowStep('${s.key}',this.value)">
+      <button onclick="removeOrderFlowStep('${s.key}')" style="width:30px;height:30px;border-radius:8px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-trash" style="font-size:13px"></i></button>
+    </div>`;
+  }).join('') : `<div class="pref-hint">Sin pasos intermedios — la orden pasa directo de "Por hacer" a "Lista p/ enviar".</div>`;
+
+  const used = new Set(S._editingOrderFlow.map(s => s.key));
+  const available = ORDER_FLOW_MIDDLE_KEYS.filter(k => !used.has(k));
+  addSel.innerHTML = '<option value="">Agregar paso...</option>' + available.map(k => `<option value="${k}">${ORDER_STATUS_META[k].label}</option>`).join('');
+  addSel.parentElement.style.display = available.length ? '' : 'none';
+}
+async function saveOrderFlow() {
+  const btn = document.getElementById('order-flow-save-btn');
+  if (btn) btn.disabled = true;
+  try {
+    const steps = S._editingOrderFlow.map(s => ({ key: s.key, label: (s.label||'').trim() }));
+    const settings = await apiFetch('/api/users?action=settings', {
+      method: 'PUT',
+      body: JSON.stringify({ settings: { orderFlow: { steps } } }),
+    });
+    S._tenantSettings = settings;
+    computeOrderFlow();
+    toast('✅ Flujo de estados guardado');
+    if (S.currentPage === 'ventas') renderVentas();
+    if (currentDetalleId) openOrdenDetalle(currentDetalleId, false);
+  } catch (e) {
+    toast('❌ ' + (e.message || 'No se pudo guardar el flujo'));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 // ── Personalización de marca (nombre, colores, logo) — solo admin ─────────
@@ -5087,7 +5262,7 @@ function openOrdenDetalle(id, pushURL = true) {
         ${v.sales_channel?`<div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:3px;display:flex;align-items:center;gap:5px"><i class="ti ti-broadcast" style="font-size:13px;color:var(--text3)"></i>${v.sales_channel}</div>`:''}
         <div style="margin-top:8px">${statusBadge(v.status||'por_hacer')}</div>
         ${STATUS_NEXT[v.status]
-          ? `<button class="advance-btn" onclick="event.stopPropagation();${(v.status==='por_hacer'||v.status==='pending') ? `openPrepChecklist('${v.id}')` : `advanceOrderStatus('${v.id}')`}" style="margin-top:10px;width:100%;justify-content:center">
+          ? `<button class="advance-btn" onclick="event.stopPropagation();${STATUS_NEXT[v.status]==='en_preparacion' ? `openPrepChecklist('${v.id}')` : `advanceOrderStatus('${v.id}')`}" style="margin-top:10px;width:100%;justify-content:center">
                <i class="ti ti-arrow-right"></i>${STATUS_NEXT_LABEL[v.status]||'Avanzar'}
              </button>`
           : (v.status==='lista_para_enviar'
