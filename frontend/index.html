@@ -535,6 +535,16 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 /* Delivery card hover when clickable */
 .delivery-card-clickable{cursor:pointer!important;border-color:var(--amber)!important}
 .delivery-card-clickable:hover{background:var(--amber-light)!important;border-color:var(--amber-dark)!important;transform:translateY(-1px);box-shadow:0 4px 16px rgba(217,119,6,.15)}
+
+/* Template de etiqueta: campos + vista previa en vivo */
+.ltpl-grid{display:grid;grid-template-columns:1fr;gap:24px}
+@media(min-width:768px){.ltpl-grid{grid-template-columns:1fr 340px;align-items:start}}
+.ltpl-preview-col{position:sticky;top:16px}
+#ltpl-preview{border:1.5px dashed var(--border);border-radius:var(--r-lg,16px);padding:24px 18px;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;background:var(--bg2)}
+#ltpl-preview img{max-width:100%;display:block;border-radius:6px}
+#ltpl-preview .ltpl-preview-text{white-space:pre-wrap;word-break:break-word;font-size:15px;line-height:1.4;color:var(--text)}
+#ltpl-preview .ltpl-preview-empty{color:var(--text3);font-size:12px;font-weight:600}
+#ltpl-preview .ltpl-preview-paper{font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px}
 </style>
 </head>
 <body>
@@ -1116,41 +1126,48 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div class="overlay-topbar-title sheet-title" id="ltpl-sheet-title"><i class="ti ti-tag" style="color:var(--primary)"></i> Nuevo template</div>
   </div>
   <div class="overlay-scroll">
-    <div class="page-form-wrap">
-      <div class="form-group"><div class="form-label">Nombre *</div><input class="form-input" id="ltpl-name" placeholder="Ej: Etiqueta redonda logo"></div>
-      <div class="form-group">
-        <div class="form-label">Imagen</div>
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
-          <div id="ltpl-image-preview" style="width:80px;height:80px;border-radius:10px;background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;border:1.5px solid var(--border)">
-            <i class="ti ti-photo" style="color:var(--text3);font-size:26px"></i>
+    <div class="page-form-wrap ltpl-grid">
+      <div class="ltpl-fields">
+        <div class="form-group"><div class="form-label">Nombre *</div><input class="form-input" id="ltpl-name" placeholder="Ej: Etiqueta redonda logo" oninput="renderLtplPreview()"></div>
+        <div class="form-group">
+          <div class="form-label">Imagen</div>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+            <div id="ltpl-image-preview" style="width:80px;height:80px;border-radius:10px;background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;border:1.5px solid var(--border)">
+              <i class="ti ti-photo" style="color:var(--text3);font-size:26px"></i>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('ltpl-image-file').click()" style="width:auto"><i class="ti ti-upload"></i> Subir imagen</button>
+            <input type="file" id="ltpl-image-file" accept="image/*" style="display:none" onchange="onLabelTemplateImageFile(this.files[0])">
           </div>
-          <button class="btn btn-outline btn-sm" onclick="document.getElementById('ltpl-image-file').click()" style="width:auto"><i class="ti ti-upload"></i> Subir imagen</button>
-          <input type="file" id="ltpl-image-file" accept="image/*" style="display:none" onchange="onLabelTemplateImageFile(this.files[0])">
+        </div>
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Fuente</div><select class="form-input" id="ltpl-font" onchange="renderLtplPreview()"></select></div>
+          <div class="form-group"><div class="form-label">Tipo de papel</div>
+            <select class="form-input" id="ltpl-paper-type" onchange="renderLtplPreview()">
+              <option value="normal">Hoja normal</option>
+              <option value="adhesivo">Adhesivo</option>
+              <option value="mate300">Mate 300</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="form-label" id="ltpl-content-label">Texto (opcional)</div>
+          <textarea class="form-input" id="ltpl-content-text" rows="3" placeholder="Se imprime debajo de la imagen, en la fuente elegida" oninput="renderLtplPreview()"></textarea>
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="ltpl-auto-size" checked style="width:16px;height:16px" onchange="toggleLtplAutoSize()">
+            <span style="font-size:13px;font-weight:700">Tamaño automático (según la imagen cargada)</span>
+          </label>
+        </div>
+        <div class="form-row" id="ltpl-size-row" style="display:none">
+          <div class="form-group"><div class="form-label">Ancho (mm)</div><input class="form-input" type="number" id="ltpl-width" placeholder="40" oninput="renderLtplPreview()"></div>
+          <div class="form-group"><div class="form-label">Alto (mm)</div><input class="form-input" type="number" id="ltpl-height" placeholder="30" oninput="renderLtplPreview()"></div>
         </div>
       </div>
-      <div class="form-row">
-        <div class="form-group"><div class="form-label">Fuente</div><select class="form-input" id="ltpl-font"></select></div>
-        <div class="form-group"><div class="form-label">Tipo de papel</div>
-          <select class="form-input" id="ltpl-paper-type">
-            <option value="normal">Hoja normal</option>
-            <option value="adhesivo">Adhesivo</option>
-            <option value="mate300">Mate 300</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-group">
-        <div class="form-label" id="ltpl-content-label">Texto (opcional)</div>
-        <textarea class="form-input" id="ltpl-content-text" rows="3" placeholder="Se imprime debajo de la imagen, en la fuente elegida"></textarea>
-      </div>
-      <div class="form-group">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-          <input type="checkbox" id="ltpl-auto-size" checked style="width:16px;height:16px" onchange="toggleLtplAutoSize()">
-          <span style="font-size:13px;font-weight:700">Tamaño automático (según la imagen cargada)</span>
-        </label>
-      </div>
-      <div class="form-row" id="ltpl-size-row" style="display:none">
-        <div class="form-group"><div class="form-label">Ancho (mm)</div><input class="form-input" type="number" id="ltpl-width" placeholder="40"></div>
-        <div class="form-group"><div class="form-label">Alto (mm)</div><input class="form-input" type="number" id="ltpl-height" placeholder="30"></div>
+      <div class="ltpl-preview-col">
+        <div class="form-label">Vista previa</div>
+        <div id="ltpl-preview"></div>
+        <div class="pref-hint" style="margin-top:8px">Referencial — el tamaño real y la fuente exacta dependen de tu impresora.</div>
       </div>
     </div>
   </div>
@@ -4765,6 +4782,7 @@ function openLabelTemplateSheet(type, id) {
   _editingLabelTemplateId = id || null;
   S._ltplImageDataUrl = null;
   S._ltplImageNatural = null;
+  S._ltplExistingImageUrl = '';
 
   const fontSel = document.getElementById('ltpl-font');
   fontSel.innerHTML = LABEL_TEMPLATE_FONTS.map(f => `<option value="${f}" style="font-family:'${f}'">${f}</option>`).join('');
@@ -4785,6 +4803,7 @@ function openLabelTemplateSheet(type, id) {
     document.getElementById('ltpl-auto-size').checked = tpl.auto_size !== false;
     document.getElementById('ltpl-width').value = tpl.width_mm || '';
     document.getElementById('ltpl-height').value = tpl.height_mm || '';
+    S._ltplExistingImageUrl = tpl.image_url || '';
     _renderLtplImagePreview(tpl.image_url || '');
   } else {
     document.getElementById('ltpl-sheet-title').innerHTML = `<i class="ti ${typeMeta.icon}" style="color:var(--primary)"></i> Nueva ${typeMeta.label.toLowerCase()}`;
@@ -4798,6 +4817,7 @@ function openLabelTemplateSheet(type, id) {
     _renderLtplImagePreview('');
   }
   toggleLtplAutoSize();
+  renderLtplPreview();
   openSheet('sheet-label-template');
 }
 function closeLabelTemplateSheet() {
@@ -4806,12 +4826,54 @@ function closeLabelTemplateSheet() {
 function toggleLtplAutoSize() {
   const auto = document.getElementById('ltpl-auto-size').checked;
   document.getElementById('ltpl-size-row').style.display = auto ? 'none' : '';
+  renderLtplPreview();
 }
 function _renderLtplImagePreview(url) {
   const el = document.getElementById('ltpl-image-preview');
   el.innerHTML = url
     ? `<img src="${url}" style="width:100%;height:100%;object-fit:cover">`
     : `<i class="ti ti-photo" style="color:var(--text3);font-size:26px"></i>`;
+}
+
+// Inyecta un <link> de Google Fonts para poder previsualizar la fuente
+// elegida en vivo dentro de la app (no solo al imprimir).
+const _loadedGoogleFonts = new Set();
+function _ensureGoogleFont(font) {
+  if (!font || _loadedGoogleFonts.has(font)) return;
+  _loadedGoogleFonts.add(font);
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(font)}:wght@400;700&display=swap`;
+  document.head.appendChild(link);
+}
+
+// Vista previa en vivo del template — se actualiza en cada cambio de imagen,
+// texto, fuente o tamaño (item 8.2, pedido explícito de vista previa).
+function renderLtplPreview() {
+  const el = document.getElementById('ltpl-preview');
+  if (!el) return;
+  const font = document.getElementById('ltpl-font').value || 'Nunito';
+  _ensureGoogleFont(font);
+  const contentText = document.getElementById('ltpl-content-text').value;
+  const imageUrl = S._ltplImageDataUrl || S._ltplExistingImageUrl || '';
+  const autoSize = document.getElementById('ltpl-auto-size').checked;
+  const widthMm  = parseFloat(document.getElementById('ltpl-width').value) || null;
+  const heightMm = parseFloat(document.getElementById('ltpl-height').value) || null;
+  const paperType = document.getElementById('ltpl-paper-type').value;
+  const paperLabel = LABEL_PAPER_TYPE_LABELS[paperType] || paperType;
+
+  const imgStyle = (!autoSize && widthMm && heightMm)
+    ? `width:${Math.min(widthMm, 260)}px;height:${Math.min(heightMm, 260)}px;object-fit:contain`
+    : `max-width:100%;max-height:220px`;
+
+  if (!imageUrl && !contentText.trim()) {
+    el.innerHTML = `<i class="ti ti-photo" style="font-size:28px;color:var(--text3)"></i><div class="ltpl-preview-empty">La vista previa aparece acá a medida que cargas la imagen y el texto</div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="ltpl-preview-paper">Papel: ${paperLabel}</div>
+    ${imageUrl ? `<img src="${imageUrl}" style="${imgStyle}">` : ''}
+    ${contentText.trim() ? `<div class="ltpl-preview-text" style="font-family:'${font.replace(/'/g,"\\'")}',sans-serif">${contentText.replace(/</g,'&lt;')}</div>` : ''}`;
 }
 function onLabelTemplateImageFile(file) {
   if (!file) return;
@@ -4834,6 +4896,7 @@ function onLabelTemplateImageFile(file) {
       S._ltplImageDataUrl = canvas.toDataURL('image/png', 0.9);
       S._ltplImageNatural = { width: img.width, height: img.height };
       _renderLtplImagePreview(S._ltplImageDataUrl);
+      renderLtplPreview();
     };
     img.src = reader.result;
   };
