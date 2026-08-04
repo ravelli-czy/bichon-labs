@@ -239,6 +239,9 @@ body.embedded #modules-section,body.embedded .footer{display:none}
     <i class="ti ti-chevron-right" style="color:var(--text3);font-size:18px"></i>
   </a>
 
+  <!-- ETIQUETAS FIJAS BAJO STOCK (item 8.1) -->
+  <div id="fixed-label-alert-section"></div>
+
   <!-- ÚLTIMAS VENTAS -->
   <div id="recent-orders-section"></div>
 
@@ -569,6 +572,30 @@ function renderSparkline(range) {
   ).join('');
 }
 
+// Etiquetas fijas (logo, huincha de cierre) con poco stock — item 8.1.
+// Se imprimen en la Cameo, fuera de Bichon; acá solo se avisa cuando queda
+// poco (umbral configurable por producto, sugerido en 5 al marcarlo como
+// etiqueta fija).
+function renderFixedLabelAlert() {
+  const el = document.getElementById('fixed-label-alert-section');
+  if (!el) return;
+  const alerts = PRODUCTS.filter(p => p.is_fixed_label && p.stock <= (p.threshold ?? 5));
+  if (!alerts.length) { el.innerHTML = ''; return; }
+  const rows = alerts.map(p => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:700">${p.name}</div>
+      <div style="font-size:12px;font-weight:800;color:${p.stock===0?'var(--red)':'var(--amber-dark)'}">${p.stock} / ${p.threshold} mín</div>
+    </div>`).join('');
+  el.innerHTML = `
+    <div class="card" style="border:1.5px solid var(--red);background:var(--red-light)">
+      <div class="card-header" style="margin-bottom:4px">
+        <div class="card-title" style="color:var(--red)"><i class="ti ti-printer"></i> Etiquetas fijas bajo stock</div>
+        <a href="javascript:void(0)" onclick="navTo('inventory')" class="card-link" style="color:var(--red)">Ver inventario →</a>
+      </div>
+      ${rows}
+    </div>`;
+}
+
 function renderOrders() {
   if (!VENTAS.length) { document.getElementById('recent-orders-section').innerHTML = ''; return; }
   const rows = VENTAS.slice(0,5).map(v => {
@@ -652,6 +679,7 @@ function renderModules() {
   renderHero();
   renderPedidosHuincha();
   renderSparkline(heroRange);
+  renderFixedLabelAlert();
   renderOrders();
   renderModules();
 })();
