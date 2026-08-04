@@ -693,6 +693,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div class="tab" id="ctab-grupos" onclick="switchCatTab('grupos',this)">Grupos</div>
         <div class="tab" id="ctab-productos" onclick="switchCatTab('productos',this)">Productos</div>
         <div class="tab" id="ctab-skus" onclick="switchCatTab('skus',this)">SKUs</div>
+        <div class="tab" id="ctab-etiquetas" onclick="switchCatTab('etiquetas',this)">Etiquetas</div>
       </div>
     </div>
     <div id="cat-content" style="margin-top:10px"></div>
@@ -1086,6 +1087,57 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   </div>
 </div>
 
+<!-- SHEET: TEMPLATE DE ETIQUETA/TARJETA -->
+<div class="overlay-page hidden" id="sheet-label-template">
+  <div class="overlay-topbar">
+    <button class="icon-btn" onclick="closeLabelTemplateSheet()" title="Volver"><i class="ti ti-arrow-left"></i></button>
+    <div class="overlay-topbar-title sheet-title" id="ltpl-sheet-title"><i class="ti ti-tag" style="color:var(--primary)"></i> Nuevo template</div>
+  </div>
+  <div class="overlay-scroll">
+    <div class="page-form-wrap">
+      <div class="form-group"><div class="form-label">Nombre *</div><input class="form-input" id="ltpl-name" placeholder="Ej: Etiqueta redonda logo"></div>
+      <div class="form-group">
+        <div class="form-label">Imagen</div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+          <div id="ltpl-image-preview" style="width:80px;height:80px;border-radius:10px;background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;border:1.5px solid var(--border)">
+            <i class="ti ti-photo" style="color:var(--text3);font-size:26px"></i>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('ltpl-image-file').click()" style="width:auto"><i class="ti ti-upload"></i> Subir imagen</button>
+          <input type="file" id="ltpl-image-file" accept="image/*" style="display:none" onchange="onLabelTemplateImageFile(this.files[0])">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">Fuente</div><select class="form-input" id="ltpl-font"></select></div>
+        <div class="form-group"><div class="form-label">Tipo de papel</div>
+          <select class="form-input" id="ltpl-paper-type">
+            <option value="normal">Hoja normal</option>
+            <option value="adhesivo">Adhesivo</option>
+            <option value="mate300">Mate 300</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-label" id="ltpl-content-label">Texto (opcional)</div>
+        <textarea class="form-input" id="ltpl-content-text" rows="3" placeholder="Se imprime debajo de la imagen, en la fuente elegida"></textarea>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="ltpl-auto-size" checked style="width:16px;height:16px" onchange="toggleLtplAutoSize()">
+          <span style="font-size:13px;font-weight:700">Tamaño automático (según la imagen cargada)</span>
+        </label>
+      </div>
+      <div class="form-row" id="ltpl-size-row" style="display:none">
+        <div class="form-group"><div class="form-label">Ancho (mm)</div><input class="form-input" type="number" id="ltpl-width" placeholder="40"></div>
+        <div class="form-group"><div class="form-label">Alto (mm)</div><input class="form-input" type="number" id="ltpl-height" placeholder="30"></div>
+      </div>
+    </div>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-outline" onclick="closeLabelTemplateSheet()" style="flex:1;width:auto">Cancelar</button>
+    <button class="btn btn-primary" id="ltpl-save-btn" onclick="saveLabelTemplate()" style="flex:2"><i class="ti ti-check"></i> Guardar template</button>
+  </div>
+</div>
+
 <!-- SHEET: EDITAR ORDEN -->
 <div class="overlay-page hidden" id="sheet-orden-edit">
   <div class="overlay-topbar">
@@ -1331,6 +1383,19 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="section-label" style="margin-top:14px"><i class="ti ti-heart"></i> Dedicatoria (opcional)</div>
       <div class="form-group">
         <textarea class="form-input" id="venta-dedicatoria" placeholder="Ej: Para mamá con todo nuestro cariño..." rows="2" style="resize:none"></textarea>
+      </div>
+
+      <!-- ETIQUETAS -->
+      <div id="venta-labels-wrap" style="display:none">
+        <div class="section-label" style="margin-top:14px"><i class="ti ti-tag"></i> Etiquetas</div>
+        <div class="form-group">
+          <div class="form-label">Template de etiqueta <span id="venta-etiqueta-required-mark" style="color:var(--red)"></span></div>
+          <select class="form-input" id="venta-label-etiqueta"><option value="">Selecciona un template...</option></select>
+        </div>
+        <div class="form-row" id="venta-labels-optional-row" style="display:none">
+          <div class="form-group"><div class="form-label">Huincha de sellado</div><select class="form-input" id="venta-label-huincha"><option value="">Ninguna</option></select></div>
+          <div class="form-group"><div class="form-label">Tarjeta de instrucciones</div><select class="form-input" id="venta-label-tarjeta"><option value="">Ninguna</option></select></div>
+        </div>
       </div>
 
       <!-- TOTAL -->
@@ -1591,6 +1656,7 @@ const S = {
   ventas: [],
   locales: [],
   productGroups: [],
+  labelTemplates: [],
   tempProdGroups: [],
   tempKitGroups: [],
   tempKitItems: [],
@@ -1863,29 +1929,49 @@ function openShipmentFromOrder(shpId) {
   location.href = '/shipments/' + shpId;
 }
 
-function openCreateShipmentFromOrder(orderId) {
-  // Navigate to delivery hub, which will open the new shipment sheet
-  // Pass the order_id as a query param so delivery.html can pre-fill it
-  closeOrdenDetalle();
-  location.href = '/shipments?new_for=' + encodeURIComponent(orderId);
+// El envío ya se crea automáticamente al registrar la venta (con los datos
+// originales de la orden) — acá solo marcamos la entrega como completada,
+// sincronizando el envío asociado si existe para que quede consistente.
+async function markOrderDelivered(orderId) {
+  try {
+    let synced = false;
+    try {
+      const shipments = await apiFetch(`/api/shipments?order_id=${orderId}`);
+      const shp = Array.isArray(shipments) ? shipments[0] : null;
+      if (shp) {
+        await apiFetch(`/api/shipments/${shp.id}`, { method:'PUT', body: JSON.stringify({ status:'delivered' }) });
+        synced = true;
+      }
+    } catch (e) { /* sin envío asociado o no disponible — sigue con la orden directo */ }
+    const updated = synced
+      ? await apiFetch(`/api/orders/${orderId}`)
+      : await apiFetch(`/api/orders/${orderId}`, { method:'PUT', body: JSON.stringify({ status:'entregada' }) });
+    const v = S.ventas.find(x => x.id === orderId);
+    if (v) Object.assign(v, updated);
+    toast('✅ Orden marcada como entregada');
+    if (S.currentPage === 'ventas') renderVentas();
+    if (currentDetalleId === orderId) openOrdenDetalle(orderId, false);
+  } catch (e) { toast('⚠️ Error al marcar como entregada'); }
 }
 
 // ── Load all data from API on startup ─────────
 async function initApp() {
   try {
-    const [products, kits, orders, tenantSettings, productGroups, locales] = await Promise.all([
+    const [products, kits, orders, tenantSettings, productGroups, locales, labelTemplates] = await Promise.all([
       apiFetch('/api/products'),
       apiFetch('/api/kits'),
       apiFetch('/api/orders'),
       apiFetch('/api/users?action=settings').catch(() => null),
       apiFetch('/api/products?groups=1').catch(() => []),
       apiFetch('/api/locales').catch(() => []),
+      apiFetch('/api/products?labels=1').catch(() => []),
     ]);
     S.products = Array.isArray(products) ? products : [];
     S.kits = Array.isArray(kits) ? kits : [];
     S.ventas = Array.isArray(orders) ? orders : [];
     S.productGroups = Array.isArray(productGroups) ? productGroups : [];
     S.locales = Array.isArray(locales) ? locales : [];
+    S.labelTemplates = Array.isArray(labelTemplates) ? labelTemplates : [];
     if (tenantSettings && typeof tenantSettings === 'object') {
       S._tenantSettings = tenantSettings;
       const dbTab = tenantSettings.invDefaultTab;
@@ -3878,6 +3964,7 @@ function renderCatalogo() {
   else if (tab === 'grupos')     renderProductGroupsView(el);
   else if (tab === 'productos')  renderCatalogProductsView(el);
   else if (tab === 'skus')       renderCatalogSKUsView(el);
+  else if (tab === 'etiquetas')  renderLabelTemplatesView(el);
   else if (tab === 'pagos')      renderCatalogList(el, 'paymentMethods', 'medios de pago', 'ti-credit-card', 'Ej: Efectivo, Transferencia, Tarjeta débito...');
   else if (tab === 'canales')    renderCatalogList(el, 'salesChannels', 'canales de venta', 'ti-broadcast', 'Ej: Tienda, WhatsApp, Instagram...');
 }
@@ -4520,6 +4607,220 @@ function renderCatalogSKUsView(el) {
         </div>`;
       }).join('')}
     </div>`;
+}
+
+// ── CATÁLOGO: Templates de etiqueta/tarjeta (item 8) ──────────────────────
+const LABEL_TEMPLATE_TYPES = [
+  { key:'etiqueta',              label:'Etiqueta adhesiva',      icon:'ti-tag',       desc:'Obligatoria al crear una venta (si hay al menos una activa).' },
+  { key:'huincha_sellado',       label:'Huincha de sellado',     icon:'ti-ribbon',    desc:'Opcional — se elige al vender o después, desde la orden.' },
+  { key:'tarjeta_instrucciones', label:'Tarjeta de instrucciones', icon:'ti-file-text', desc:'Opcional — instrucciones de uso del producto.' },
+];
+const LABEL_TEMPLATE_FONTS = ['Nunito', 'Poppins', 'Playfair Display', 'Caveat', 'Georgia', 'Courier New', 'Arial'];
+const LABEL_PAPER_TYPE_LABELS = { normal:'Hoja normal', adhesivo:'Adhesivo', mate300:'Mate 300' };
+
+function renderLabelTemplatesView(el) {
+  el.innerHTML = `
+    <div class="info-box" style="background:var(--primary-light);color:var(--primary);border-radius:var(--radius);padding:10px 12px;font-size:12px;font-weight:700;margin-bottom:14px">
+      <i class="ti ti-info-circle"></i> Estos templates se seleccionan (no se crean al vuelo) al registrar una venta, y se pueden imprimir desde el detalle de la orden.
+    </div>
+    ${LABEL_TEMPLATE_TYPES.map(t => {
+      const items = (S.labelTemplates || []).filter(tpl => tpl.type === t.key);
+      return `
+      <div class="section-label" style="margin-top:6px"><i class="ti ${t.icon}" style="color:var(--primary)"></i>${t.label}</div>
+      <div style="font-size:12px;color:var(--text3);font-weight:600;margin:-4px 0 8px">${t.desc}</div>
+      <button class="btn btn-outline btn-sm" style="width:auto;margin-bottom:10px" onclick="openLabelTemplateSheet('${t.key}')"><i class="ti ti-plus"></i> Nuevo template</button>
+      ${items.length
+        ? `<div class="card" style="padding:4px 0;margin-bottom:8px">${items.map(labelTemplateRow).join('')}</div>`
+        : `<div class="empty-state" style="padding:20px 16px;margin-bottom:8px"><p>Sin templates de este tipo aún.</p></div>`}
+      `;
+    }).join('')}`;
+}
+
+function labelTemplateRow(tpl) {
+  const paperLabel = LABEL_PAPER_TYPE_LABELS[tpl.paper_type] || tpl.paper_type;
+  const sizeInfo = tpl.auto_size ? 'tamaño automático' : (tpl.width_mm && tpl.height_mm ? `${tpl.width_mm}×${tpl.height_mm}mm` : 'sin tamaño definido');
+  const idEsc = String(tpl.id).replace(/'/g,"&#39;");
+  return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border)">
+    <div style="width:44px;height:44px;border-radius:10px;background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+      ${tpl.image_url ? `<img src="${tpl.image_url}" style="width:100%;height:100%;object-fit:cover">` : `<i class="ti ti-photo" style="color:var(--text3)"></i>`}
+    </div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${tpl.name}${tpl.active===false?' <span style="color:var(--text3);font-weight:700;font-size:11px">(inactivo)</span>':''}</div>
+      <div style="font-size:11px;color:var(--text3);font-weight:600">${paperLabel} · ${tpl.font||'Nunito'} · ${sizeInfo}</div>
+    </div>
+    <button onclick="printLabelTemplate('${idEsc}')" title="Imprimir" style="width:30px;height:30px;border-radius:8px;border:none;background:var(--primary-light);color:var(--primary);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-printer" style="font-size:13px"></i></button>
+    <button onclick="openLabelTemplateSheet('${tpl.type}','${idEsc}')" title="Editar" style="width:30px;height:30px;border-radius:8px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-pencil" style="font-size:13px"></i></button>
+    <button onclick="deleteLabelTemplate('${idEsc}')" title="Eliminar" style="width:30px;height:30px;border-radius:8px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-trash" style="font-size:13px"></i></button>
+  </div>`;
+}
+
+let _editingLabelTemplateId = null;
+let _editingLabelTemplateType = 'etiqueta';
+
+function openLabelTemplateSheet(type, id) {
+  _editingLabelTemplateType = type;
+  _editingLabelTemplateId = id || null;
+  S._ltplImageDataUrl = null;
+  S._ltplImageNatural = null;
+
+  const fontSel = document.getElementById('ltpl-font');
+  fontSel.innerHTML = LABEL_TEMPLATE_FONTS.map(f => `<option value="${f}" style="font-family:'${f}'">${f}</option>`).join('');
+
+  const typeMeta = LABEL_TEMPLATE_TYPES.find(t => t.key === type) || LABEL_TEMPLATE_TYPES[0];
+  document.getElementById('ltpl-content-label').textContent = type === 'tarjeta_instrucciones'
+    ? 'Instrucciones de uso *'
+    : 'Texto (opcional)';
+
+  if (id) {
+    const tpl = (S.labelTemplates || []).find(t => String(t.id) === String(id));
+    if (!tpl) return;
+    document.getElementById('ltpl-sheet-title').innerHTML = `<i class="ti ${typeMeta.icon}" style="color:var(--primary)"></i> Editar ${typeMeta.label.toLowerCase()}`;
+    document.getElementById('ltpl-name').value = tpl.name || '';
+    document.getElementById('ltpl-font').value = tpl.font || 'Nunito';
+    document.getElementById('ltpl-paper-type').value = tpl.paper_type || 'adhesivo';
+    document.getElementById('ltpl-content-text').value = tpl.content_text || '';
+    document.getElementById('ltpl-auto-size').checked = tpl.auto_size !== false;
+    document.getElementById('ltpl-width').value = tpl.width_mm || '';
+    document.getElementById('ltpl-height').value = tpl.height_mm || '';
+    _renderLtplImagePreview(tpl.image_url || '');
+  } else {
+    document.getElementById('ltpl-sheet-title').innerHTML = `<i class="ti ${typeMeta.icon}" style="color:var(--primary)"></i> Nueva ${typeMeta.label.toLowerCase()}`;
+    document.getElementById('ltpl-name').value = '';
+    document.getElementById('ltpl-font').value = 'Nunito';
+    document.getElementById('ltpl-paper-type').value = 'adhesivo';
+    document.getElementById('ltpl-content-text').value = '';
+    document.getElementById('ltpl-auto-size').checked = true;
+    document.getElementById('ltpl-width').value = '';
+    document.getElementById('ltpl-height').value = '';
+    _renderLtplImagePreview('');
+  }
+  toggleLtplAutoSize();
+  openSheet('sheet-label-template');
+}
+function closeLabelTemplateSheet() {
+  closeSheet('sheet-label-template');
+}
+function toggleLtplAutoSize() {
+  const auto = document.getElementById('ltpl-auto-size').checked;
+  document.getElementById('ltpl-size-row').style.display = auto ? 'none' : '';
+}
+function _renderLtplImagePreview(url) {
+  const el = document.getElementById('ltpl-image-preview');
+  el.innerHTML = url
+    ? `<img src="${url}" style="width:100%;height:100%;object-fit:cover">`
+    : `<i class="ti ti-photo" style="color:var(--text3);font-size:26px"></i>`;
+}
+function onLabelTemplateImageFile(file) {
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { toast('⚠️ Selecciona un archivo de imagen'); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      // Preserva la proporción (a diferencia del logo, una etiqueta no es
+      // necesariamente cuadrada) — solo achica si es más grande de lo razonable.
+      const maxDim = 900;
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        const scale = maxDim / Math.max(w, h);
+        w = Math.round(w * scale); h = Math.round(h * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      S._ltplImageDataUrl = canvas.toDataURL('image/png', 0.9);
+      S._ltplImageNatural = { width: img.width, height: img.height };
+      _renderLtplImagePreview(S._ltplImageDataUrl);
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+async function saveLabelTemplate() {
+  const name = document.getElementById('ltpl-name').value.trim();
+  if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
+  const contentText = document.getElementById('ltpl-content-text').value.trim();
+  if (_editingLabelTemplateType === 'tarjeta_instrucciones' && !contentText && !S._ltplImageDataUrl) {
+    toast('⚠️ Escribe las instrucciones o sube una imagen'); return;
+  }
+  const autoSize = document.getElementById('ltpl-auto-size').checked;
+  const payload = {
+    type: _editingLabelTemplateType,
+    name,
+    font: document.getElementById('ltpl-font').value,
+    paper_type: document.getElementById('ltpl-paper-type').value,
+    content_text: contentText,
+    auto_size: autoSize,
+    width_mm: autoSize ? null : (parseFloat(document.getElementById('ltpl-width').value) || null),
+    height_mm: autoSize ? null : (parseFloat(document.getElementById('ltpl-height').value) || null),
+  };
+  if (S._ltplImageDataUrl) payload.image_url = S._ltplImageDataUrl;
+
+  const btn = document.getElementById('ltpl-save-btn');
+  if (btn) btn.disabled = true;
+  try {
+    if (_editingLabelTemplateId) {
+      const updated = await apiFetch(`/api/products/${_editingLabelTemplateId}?labels=1`, { method:'PUT', body: JSON.stringify(payload) });
+      S.labelTemplates = S.labelTemplates.map(t => String(t.id) === String(_editingLabelTemplateId) ? updated : t);
+      toast('✅ Template actualizado');
+    } else {
+      if (!payload.image_url) payload.image_url = '';
+      const created = await apiFetch('/api/products?labels=1', { method:'POST', body: JSON.stringify(payload) });
+      S.labelTemplates.push(created);
+      toast('✅ Template creado');
+    }
+    closeLabelTemplateSheet();
+    if (S.currentPage === 'catalogo') renderCatalogo();
+  } catch (e) {
+    toast('❌ ' + (e.message || 'No se pudo guardar el template'));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+async function deleteLabelTemplate(id) {
+  if (!confirm('¿Eliminar este template? Las órdenes que ya lo tenían seleccionado conservan el registro, pero no podrás elegirlo en ventas nuevas.')) return;
+  try {
+    await apiFetch(`/api/products/${id}?labels=1`, { method: 'DELETE' });
+    S.labelTemplates = S.labelTemplates.filter(t => String(t.id) !== String(id));
+    toast('✅ Template eliminado');
+    if (S.currentPage === 'catalogo') renderCatalogo();
+  } catch (e) {
+    toast('❌ ' + (e.message || 'No se pudo eliminar'));
+  }
+}
+
+// Ventana de impresión de un template — opcionalmente con contexto de una
+// orden (id, fecha) para etiqueta/huincha de sellado impresas desde el detalle.
+function printLabelTemplate(id, orderCtx) {
+  const tpl = (S.labelTemplates || []).find(t => String(t.id) === String(id));
+  if (!tpl) { toast('⚠️ Template no encontrado'); return; }
+  const font = tpl.font || 'Nunito';
+  const googleFontHref = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(font)}:wght@400;700&display=swap`;
+  const sizeCss = tpl.auto_size || !tpl.width_mm || !tpl.height_mm
+    ? `max-width:50mm;width:100%;height:auto`
+    : `width:${tpl.width_mm}mm;height:${tpl.height_mm}mm;object-fit:contain`;
+  const paperLabel = LABEL_PAPER_TYPE_LABELS[tpl.paper_type] || tpl.paper_type;
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${tpl.name}</title>
+<link rel="stylesheet" href="${googleFontHref}">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'${font}',sans-serif;color:#000;background:#fff;padding:16px;max-width:400px;margin:0 auto;text-align:center}
+.paper-note{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+img{display:block;margin:0 auto 10px}
+.content-text{font-size:14px;line-height:1.5;white-space:pre-wrap}
+.order-ctx{font-size:10px;color:#999;margin-top:10px}
+@media print{@page{margin:8mm}body{padding:0}}
+</style></head><body>
+<div class="paper-note">Papel: ${paperLabel}</div>
+${tpl.image_url ? `<img src="${tpl.image_url}" style="${sizeCss}">` : ''}
+${tpl.content_text ? `<div class="content-text">${tpl.content_text.replace(/</g,'&lt;')}</div>` : ''}
+${orderCtx ? `<div class="order-ctx">${orderCtx.id} · ${orderCtx.fecha||''}</div>` : ''}
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=420,height=560');
+  if (win) { win.document.write(html); win.document.close(); }
 }
 
 // Locales/almacenes/formas de entrega — cargados desde la API en initApp()
@@ -5296,9 +5597,9 @@ function openOrdenDetalle(id, pushURL = true) {
           ? `<button class="advance-btn" onclick="event.stopPropagation();${STATUS_NEXT[v.status]==='en_preparacion' ? `openPrepChecklist('${v.id}')` : `advanceOrderStatus('${v.id}')`}" style="margin-top:10px;width:100%;justify-content:center">
                <i class="ti ti-arrow-right"></i>${STATUS_NEXT_LABEL[v.status]||'Avanzar'}
              </button>`
-          : (v.status==='lista_para_enviar'
-              ? `<button class="advance-btn" onclick="event.stopPropagation();openCreateShipmentFromOrder('${v.id}')" style="margin-top:10px;width:100%;justify-content:center;background:var(--primary-light);border-color:var(--primary);color:var(--primary)">
-                   <i class="ti ti-truck-delivery"></i> Crear envío
+          : ((v.status==='lista_para_enviar' || v.status==='en_camino')
+              ? `<button class="advance-btn" onclick="event.stopPropagation();markOrderDelivered('${v.id}')" style="margin-top:10px;width:100%;justify-content:center;background:var(--green-light);border-color:var(--green);color:var(--green-dark)">
+                   <i class="ti ti-circle-check"></i> Marcar como entregado
                  </button>`
               : (v.status==='entregada'
                   ? `<div style="margin-top:8px;font-size:12px;font-weight:700;color:var(--green-dark);display:flex;align-items:center;gap:5px"><i class="ti ti-circle-check"></i>Completada</div>`
@@ -5877,6 +6178,7 @@ async function confirmarDuplicarOrden() {
     warehouse_id:   v.warehouse_id || '',
     payment_method: v.payment_method || '',
     sales_channel:  v.sales_channel || '',
+    label_selections: v.label_selections || {}, // hereda los templates de la orden original
   };
   if (S._apiReady) {
     try {

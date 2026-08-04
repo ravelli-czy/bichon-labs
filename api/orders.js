@@ -99,9 +99,29 @@ module.exports = async (req, res) => {
         total = 0, items: rawItems = [], delivery = {}, warehouse_id: orderWarehouseId = '',
         payment_method = '', sales_channel = '',
         discount_amount = 0, refund_amount = 0,
+        label_selections = {},
       } = req.body || {};
 
       if (!rawItems.length) return res.status(400).json({ error: 'items is required' });
+      // Item 8.2: obligatorio elegir un template de etiqueta ya cargado para
+      // completar la venta — pero solo una vez que el tenant tiene al menos
+      // un template activo configurado. Si todavía no configuró ninguno (o si
+      // la tabla ni siquiera existe aún porque no se corrió la migración de
+      // /api/setup), no bloqueamos la venta — evita romper el flujo de ventas
+      // completo mientras se despliega esta función.
+      let labelTplCount = 0;
+      try {
+        const [row] = await sql`
+          SELECT COUNT(*)::int AS label_tpl_count FROM label_templates
+          WHERE tenant_id = ${tenantId} AND type = 'etiqueta' AND active = true
+        `;
+        labelTplCount = row?.label_tpl_count || 0;
+      } catch (labelErr) {
+        console.warn('[orders] label_templates check skipped:', labelErr.message);
+      }
+      if (labelTplCount > 0 && !label_selections.etiqueta) {
+        return res.status(400).json({ error: 'Selecciona un template de etiqueta' });
+      }
       // Snapshot each item's current cost (and full financial snapshot for
       // Finanzas) so it survives future cost/price changes
       const items = _withCostSnapshot(rawItems, await _loadCostMaps(sql, tenantId));
@@ -126,21 +146,43 @@ module.exports = async (req, res) => {
         } catch { /* non-fatal — location filter just won't apply to this order */ }
       }
 
-      // Insert order
-      const [order] = await sql`
-        INSERT INTO orders (
-          id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
-          created_by, tenant_id, payment_method, sales_channel,
-          discount_amount, refund_amount, location_id
-        )
-        VALUES (
-          ${id}, ${cliente}, ${telefono}, ${total},
-          ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
-          ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
-          ${discount_amount || 0}, ${refund_amount || 0}, ${locationId}
-        )
-        RETURNING *
-      `;
+      // Insert order. label_selections is a brand-new column (migration via
+      // POST /api/setup) — falls back to inserting without it if that hasn't
+      // run yet on this database, so a pending migration never blocks sales.
+      let order;
+      try {
+        [order] = await sql`
+          INSERT INTO orders (
+            id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
+            created_by, tenant_id, payment_method, sales_channel,
+            discount_amount, refund_amount, location_id, label_selections
+          )
+          VALUES (
+            ${id}, ${cliente}, ${telefono}, ${total},
+            ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
+            ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
+            ${discount_amount || 0}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}
+          )
+          RETURNING *
+        `;
+      } catch (insertErr) {
+        if (insertErr.code !== '42703') throw insertErr; // no es "columna no existe" — error real, no lo ocultamos
+        console.warn('[orders] label_selections column not migrated yet, inserting without it');
+        [order] = await sql`
+          INSERT INTO orders (
+            id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
+            created_by, tenant_id, payment_method, sales_channel,
+            discount_amount, refund_amount, location_id
+          )
+          VALUES (
+            ${id}, ${cliente}, ${telefono}, ${total},
+            ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
+            ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
+            ${discount_amount || 0}, ${refund_amount || 0}, ${locationId}
+          )
+          RETURNING *
+        `;
+      }
 
       // Decrement stock for each sold item (scoped to tenant + warehouse)
       for (const item of items) {
