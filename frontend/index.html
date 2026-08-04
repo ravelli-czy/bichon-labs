@@ -594,11 +594,13 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       </div>
     </div>
     <div class="section-sub">Productos, insumos y KITs</div>
-    <div class="chip-group-wrap" id="inv-type-filter">
-      <div class="chip-group selected" id="itype-venta" onclick="switchInvTypeFilter('venta')"><i class="ti ti-shopping-cart"></i>Venta</div>
-      <div class="chip-group" id="itype-insumos" onclick="switchInvTypeFilter('insumos')"><i class="ti ti-tool"></i>Insumos</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div class="chip-group-wrap" id="inv-type-filter">
+        <div class="chip-group selected" id="itype-venta" onclick="switchInvTypeFilter('venta')"><i class="ti ti-shopping-cart"></i>Venta</div>
+        <div class="chip-group" id="itype-insumos" onclick="switchInvTypeFilter('insumos')"><i class="ti ti-tool"></i>Insumos</div>
+      </div>
+      <div id="inv-warehouse-bar" style="display:none"></div>
     </div>
-    <div id="inv-warehouse-bar" style="display:none;margin-top:10px"></div>
     <div class="search-bar" id="inv-search-bar" style="margin-top:10px">
       <i class="ti ti-search" style="color:var(--text3);font-size:20px"></i>
       <input type="text" placeholder="Buscar..." oninput="S.invQ=this.value;renderInventory()">
@@ -1832,11 +1834,16 @@ function openPrepChecklist(id) {
   _prepChecklistState.comanda = false;
   _prepChecklistState.etiquetas = false;
 
-  // Nombres de las etiquetas vigentes para esta orden. El módulo de templates
-  // de etiquetas (imagen + tipografía por producto) todavía no existe — hasta
-  // que se implemente, se listan los productos de la orden como referencia
-  // de qué hay que etiquetar.
-  const etiquetaNames = [...new Set((v.items || []).map(i => i.name || i.sku))];
+  // Nombres de las etiquetas vigentes para esta orden (item 8) — los
+  // templates seleccionados al vender. Si la orden no tiene ninguno elegido
+  // (tenant sin templates configurados, u orden creada antes de esta
+  // función), cae a listar los productos como referencia de qué etiquetar.
+  const labelItems = _orderLabelItems(v);
+  const etiquetaNames = labelItems.length
+    ? labelItems.map(l => l.tpl.name)
+    : [...new Set((v.items || []).map(i => i.name || i.sku))];
+  const primaryLabel = labelItems.find(l => l.key === 'etiqueta') || labelItems[0];
+  const orderCtxJson = JSON.stringify({ id: v.id, fecha: v.fecha || '' }).replace(/"/g, '&quot;');
 
   document.getElementById('prep-checklist-order-id').textContent = v.id;
   document.getElementById('prep-checklist-items').innerHTML = `
@@ -1854,6 +1861,7 @@ function openPrepChecklist(id) {
         <div style="font-weight:800;font-size:14px">Imprimir etiquetas</div>
         <div style="font-size:12px;color:var(--text3);font-weight:600">${etiquetaNames.length ? etiquetaNames.join(', ') : 'Sin ítems en esta orden'}</div>
       </div>
+      ${primaryLabel ? `<button class="btn btn-outline btn-sm" style="width:auto" onclick="event.stopPropagation();printLabelTemplate('${primaryLabel.tpl.id}',${orderCtxJson});markPrepCheck('etiquetas')" title="Imprimir etiqueta"><i class="ti ti-printer"></i></button>` : ''}
     </div>`;
   openSheet('sheet-prep-checklist');
 }
@@ -2551,11 +2559,10 @@ function initInvWarehouseBar() {
   if (!warehouses.length) { bar.style.display = 'none'; return; }
   bar.style.display = '';
   bar.innerHTML = `
-    <div style="font-size:11px;font-weight:800;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px">Almacén</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="tab${S.warehouseId===''?' active':''}" onclick="setWarehouse('')" style="font-size:12px;padding:5px 12px">Todos</button>
-      ${warehouses.map(wh => `<button class="tab${S.warehouseId===wh.id?' active':''}" onclick="setWarehouse('${wh.id}')" style="font-size:12px;padding:5px 12px"><i class="ti ti-building-warehouse" style="font-size:11px"></i> ${wh.name}</button>`).join('')}
-    </div>`;
+    <select class="form-input" style="font-size:12px;font-weight:700;padding:8px 30px 8px 12px;width:auto" onchange="setWarehouse(this.value)">
+      <option value="">Almacén: Todos</option>
+      ${warehouses.map(wh => `<option value="${wh.id}" ${S.warehouseId===wh.id?'selected':''}>${wh.name}</option>`).join('')}
+    </select>`;
 }
 
 function setWarehouse(id) {
@@ -4618,6 +4625,31 @@ const LABEL_TEMPLATE_TYPES = [
 const LABEL_TEMPLATE_FONTS = ['Nunito', 'Poppins', 'Playfair Display', 'Caveat', 'Georgia', 'Courier New', 'Arial'];
 const LABEL_PAPER_TYPE_LABELS = { normal:'Hoja normal', adhesivo:'Adhesivo', mate300:'Mate 300' };
 
+// Resuelve los templates de etiqueta elegidos para una orden (item 8.5) a
+// partir de v.label_selections — usado tanto en el checklist de "Iniciar
+// preparación" como en el detalle de la orden para imprimir cada una.
+function _orderLabelItems(v) {
+  const sel = v.label_selections || {};
+  return LABEL_TEMPLATE_TYPES
+    .map(t => ({ key: t.key, label: t.label, tpl: sel[t.key] ? (S.labelTemplates||[]).find(x => String(x.id) === String(sel[t.key])) : null }))
+    .filter(t => t.tpl);
+}
+function orderLabelsSection(v) {
+  const items = _orderLabelItems(v);
+  if (!items.length) return '';
+  const orderCtxJson = JSON.stringify({ id: v.id, fecha: v.fecha || '' }).replace(/"/g, '&quot;');
+  return `<div class="section-label"><i class="ti ti-tag"></i> Etiquetas</div>
+    <div class="card" style="padding:4px 0;margin-bottom:14px">
+      ${items.map(t => `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px">${t.label}</div>
+          <div style="font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.tpl.name}</div>
+        </div>
+        <button onclick="printLabelTemplate('${t.tpl.id}',${orderCtxJson})" title="Imprimir ${t.label.toLowerCase()}" style="width:34px;height:34px;border-radius:9px;border:none;background:var(--primary-light);color:var(--primary);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-printer" style="font-size:15px"></i></button>
+      </div>`).join('')}
+    </div>`;
+}
+
 function renderLabelTemplatesView(el) {
   el.innerHTML = `
     <div class="info-box" style="background:var(--primary-light);color:var(--primary);border-radius:var(--radius);padding:10px 12px;font-size:12px;font-weight:700;margin-bottom:14px">
@@ -5694,6 +5726,7 @@ function openOrdenDetalle(id, pushURL = true) {
       <span style="font-size:22px;font-weight:900;color:var(--green-dark)">${fmt(v.total)}</span>
     </div>
 
+    ${orderLabelsSection(v)}
     ${buildEntityMeta(v)}`;
 
   document.getElementById('overlay-orden').classList.remove('hidden');
