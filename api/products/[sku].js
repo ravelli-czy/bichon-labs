@@ -21,6 +21,65 @@ module.exports = async (req, res) => {
   const { sku, warehouse_id = '' } = req.query;
 
   try {
+    // ── /api/products/:id?labels=1 — Templates de etiqueta/tarjeta ──────────
+    if (req.query?.labels === '1') {
+      const id = sku;
+
+      if (req.method === 'GET') {
+        const [row] = await sql`SELECT * FROM label_templates WHERE id = ${id} AND tenant_id = ${tenantId}`;
+        if (!row) return res.status(404).json({ error: 'Template no encontrado' });
+        return res.json(row);
+      }
+
+      if (req.method === 'PUT') {
+        const { type, name, image_url, font, width_mm, height_mm, auto_size, paper_type, content_text, active } = req.body || {};
+        if (type !== undefined && !['etiqueta', 'huincha_sellado', 'tarjeta_instrucciones'].includes(type)) {
+          return res.status(400).json({ error: 'type inválido' });
+        }
+        // Nota: igual que en el resto de la API, un campo omitido deja el
+        // valor actual sin tocar (no hay forma de "limpiar" a null vía PUT).
+        // auto_size=true simplemente hace que width_mm/height_mm se ignoren
+        // al imprimir, así que no hace falta poder limpiarlos.
+        const [row] = await sql`
+          UPDATE label_templates SET
+            type         = COALESCE(${type         ?? null}, type),
+            name         = COALESCE(${name         ?? null}, name),
+            image_url    = COALESCE(${image_url     ?? null}, image_url),
+            font         = COALESCE(${font          ?? null}, font),
+            width_mm     = COALESCE(${width_mm      ?? null}, width_mm),
+            height_mm    = COALESCE(${height_mm     ?? null}, height_mm),
+            auto_size    = COALESCE(${auto_size     ?? null}, auto_size),
+            paper_type   = COALESCE(${paper_type    ?? null}, paper_type),
+            content_text = COALESCE(${content_text  ?? null}, content_text),
+            active       = COALESCE(${active        ?? null}, active),
+            updated_by = ${actor},
+            updated_at = NOW()
+          WHERE id = ${id} AND tenant_id = ${tenantId}
+          RETURNING *
+        `;
+        if (!row) return res.status(404).json({ error: 'Template no encontrado' });
+        await writeLog(sql, {
+          tenant_id: tenantId, actor, action: 'label_template.editado',
+          entity_type: 'label_template', entity_id: id, entity_name: `${id} — ${row.name}`,
+          details: { id, name: row.name },
+        });
+        return res.json(row);
+      }
+
+      if (req.method === 'DELETE') {
+        const [row] = await sql`DELETE FROM label_templates WHERE id = ${id} AND tenant_id = ${tenantId} RETURNING *`;
+        if (!row) return res.status(404).json({ error: 'Template no encontrado' });
+        await writeLog(sql, {
+          tenant_id: tenantId, actor, action: 'label_template.eliminado',
+          entity_type: 'label_template', entity_id: id, entity_name: `${id} — ${row.name}`,
+          details: { id, name: row.name },
+        });
+        return res.json({ ok: true, deleted: id });
+      }
+
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
     // ── /api/products/:id?groups=1 — Grupo de Productos ─────────────────────
     if (req.query?.groups === '1') {
       const groupId = sku;
@@ -90,7 +149,7 @@ module.exports = async (req, res) => {
 
     // ── PUT — update product ──────────────────────────────────────────────
     if (req.method === 'PUT') {
-      const { name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, new_warehouse_id } = req.body || {};
+      const { name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, new_warehouse_id, is_fixed_label } = req.body || {};
       if (groups !== undefined && !Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
       const groupsJson = groups !== undefined ? JSON.stringify(groups) : null;
       const [row] = await sql`
@@ -106,6 +165,7 @@ module.exports = async (req, res) => {
           barcode      = COALESCE(${barcode      ?? null}, barcode),
           groups       = COALESCE(${groupsJson}::jsonb, groups),
           warehouse_id = COALESCE(${new_warehouse_id ?? null}, warehouse_id),
+          is_fixed_label = COALESCE(${is_fixed_label ?? null}, is_fixed_label),
           updated_by = ${actor},
           updated_at = NOW()
         WHERE sku = ${sku} AND warehouse_id = ${warehouse_id} AND tenant_id = ${tenantId}

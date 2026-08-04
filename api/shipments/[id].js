@@ -163,8 +163,17 @@ module.exports = async (req, res) => {
         const orderStatus = SHIPMENT_TO_ORDER[status];
         const isReschedule = status === 'ready' && current.status === 'not_delivered';
         if (orderStatus && (status !== 'ready' || isReschedule)) {
+          // Igual que en api/orders/[id].js: delivered_at es la fecha real en
+          // que la orden queda "entregada" — Finanzas solo reconoce ingresos
+          // de órdenes con delivered_at seteado, así que también hay que
+          // fijarlo acá (antes solo se hacía si el estado se cambiaba directo
+          // por PUT /api/orders/:id, dejando huérfanas las entregas marcadas
+          // desde el envío/ruteo).
+          const setsDeliveredAt = orderStatus === 'entregada';
           await sql`
-            UPDATE orders SET status = ${orderStatus}
+            UPDATE orders SET
+              status       = ${orderStatus},
+              delivered_at = CASE WHEN ${setsDeliveredAt} AND delivered_at IS NULL THEN NOW() ELSE delivered_at END
             WHERE id = ${row.order_id} AND tenant_id = ${tenantId}
           `.catch(err => console.error('Order sync failed (non-fatal):', err.message));
         }

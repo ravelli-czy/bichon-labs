@@ -99,9 +99,22 @@ module.exports = async (req, res) => {
         total = 0, items: rawItems = [], delivery = {}, warehouse_id: orderWarehouseId = '',
         payment_method = '', sales_channel = '',
         discount_amount = 0, refund_amount = 0,
+        label_selections = {},
       } = req.body || {};
 
       if (!rawItems.length) return res.status(400).json({ error: 'items is required' });
+      // Item 8.2: obligatorio elegir un template de etiqueta ya cargado para
+      // completar la venta — pero solo una vez que el tenant tiene al menos
+      // un template activo configurado. Si todavía no configuró ninguno, no
+      // bloqueamos la venta (evita romper el flujo para cuentas existentes
+      // que recién estrenan esta función).
+      const [{ label_tpl_count }] = await sql`
+        SELECT COUNT(*)::int AS label_tpl_count FROM label_templates
+        WHERE tenant_id = ${tenantId} AND type = 'etiqueta' AND active = true
+      `;
+      if (label_tpl_count > 0 && !label_selections.etiqueta) {
+        return res.status(400).json({ error: 'Selecciona un template de etiqueta' });
+      }
       // Snapshot each item's current cost (and full financial snapshot for
       // Finanzas) so it survives future cost/price changes
       const items = _withCostSnapshot(rawItems, await _loadCostMaps(sql, tenantId));
@@ -131,13 +144,13 @@ module.exports = async (req, res) => {
         INSERT INTO orders (
           id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
           created_by, tenant_id, payment_method, sales_channel,
-          discount_amount, refund_amount, location_id
+          discount_amount, refund_amount, location_id, label_selections
         )
         VALUES (
           ${id}, ${cliente}, ${telefono}, ${total},
           ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
           ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
-          ${discount_amount || 0}, ${refund_amount || 0}, ${locationId}
+          ${discount_amount || 0}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}
         )
         RETURNING *
       `;

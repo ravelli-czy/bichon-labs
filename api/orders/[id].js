@@ -31,7 +31,7 @@ module.exports = async (req, res) => {
       const {
         status, action, cliente, telefono, dedicatoria, receptor, receptor_telefono,
         payment_method, sales_channel, delivery_update, total,
-        discount_amount, refund_amount,
+        discount_amount, refund_amount, label_selections,
       } = req.body || {};
 
       // Update customer-facing info fields
@@ -53,6 +53,7 @@ module.exports = async (req, res) => {
             total            = COALESCE(${total ?? null}, total),
             discount_amount  = COALESCE(${discount_amount ?? null}, discount_amount),
             refund_amount    = COALESCE(${refund_amount ?? null}, refund_amount),
+            label_selections = label_selections || ${JSON.stringify(label_selections || {})}::jsonb,
             updated_by       = ${actor},
             updated_at       = NOW()
           WHERE id = ${id} AND tenant_id = ${tenantId}

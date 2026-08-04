@@ -19,6 +19,45 @@ module.exports = async (req, res) => {
   const actor = session?.username || 'sistema';
 
   try {
+    // ── /api/products?labels=1 — Templates de etiqueta/tarjeta (item 8) ────
+    if (req.query?.labels === '1') {
+      if (req.method === 'GET') {
+        const rows = await sql`SELECT * FROM label_templates WHERE tenant_id = ${tenantId} ORDER BY type, name`;
+        return res.json(rows);
+      }
+      if (req.method === 'POST') {
+        const {
+          type = 'etiqueta', name, image_url = '', font = 'Nunito',
+          width_mm = null, height_mm = null, auto_size = true,
+          paper_type = 'adhesivo', content_text = '',
+        } = req.body || {};
+        if (!name) return res.status(400).json({ error: 'name is required' });
+        if (!['etiqueta', 'huincha_sellado', 'tarjeta_instrucciones'].includes(type)) {
+          return res.status(400).json({ error: 'type inválido' });
+        }
+        const [{ max_num }] = await sql`
+          SELECT COALESCE(MAX(CAST(SUBSTRING(id FROM 5) AS INTEGER)), 0) AS max_num
+          FROM label_templates
+          WHERE id ~ '^LBL-[0-9]+$' AND tenant_id = ${tenantId}
+        `;
+        const id = 'LBL-' + String(parseInt(max_num) + 1).padStart(3, '0');
+        const [row] = await sql`
+          INSERT INTO label_templates
+            (id, tenant_id, type, name, image_url, font, width_mm, height_mm, auto_size, paper_type, content_text, created_by)
+          VALUES
+            (${id}, ${tenantId}, ${type}, ${name}, ${image_url}, ${font}, ${width_mm}, ${height_mm}, ${auto_size}, ${paper_type}, ${content_text}, ${actor})
+          RETURNING *
+        `;
+        await writeLog(sql, {
+          tenant_id: tenantId, actor, action: 'label_template.creado',
+          entity_type: 'label_template', entity_id: id, entity_name: `${id} — ${name}`,
+          details: { id, type, name, paper_type },
+        });
+        return res.status(201).json(row);
+      }
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
     // ── /api/products?groups=1 — Grupo de Productos ─────────────────────────
     if (req.query?.groups === '1') {
       if (req.method === 'GET') {
@@ -69,7 +108,7 @@ module.exports = async (req, res) => {
         name, brand = 'Sin marca', cat = 'General',
         tipo = 'producto', cost = 0, price = 0,
         stock = 0, threshold = 10, warehouse_id = '', barcode = '',
-        groups = [], sku: explicitSku,
+        groups = [], sku: explicitSku, is_fixed_label = false,
       } = req.body || {};
 
       if (!name) return res.status(400).json({ error: 'name is required' });
@@ -92,8 +131,8 @@ module.exports = async (req, res) => {
       }
 
       const [row] = await sql`
-        INSERT INTO products (sku, name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, created_by, tenant_id, warehouse_id)
-        VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${cost}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${actor}, ${tenantId}, ${warehouse_id})
+        INSERT INTO products (sku, name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, created_by, tenant_id, warehouse_id, is_fixed_label)
+        VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${cost}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${actor}, ${tenantId}, ${warehouse_id}, ${is_fixed_label})
         RETURNING *
       `;
 

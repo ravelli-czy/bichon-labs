@@ -109,6 +109,9 @@ module.exports = async (req, res) => {
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS warehouse_id TEXT NOT NULL DEFAULT ''`;
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode      TEXT DEFAULT ''`;
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS groups       JSONB NOT NULL DEFAULT '[]'`;
+    // Etiqueta fija (logo, huincha de cierre) — se imprime fuera de Bichon (Cameo),
+    // pero se controla su stock acá para poder alertar cuando queda poco (item 8.1).
+    await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_fixed_label BOOLEAN NOT NULL DEFAULT false`;
     // Migrate PK from global sku → composite (sku, warehouse_id, tenant_id)
     try {
       await sql`ALTER TABLE products DROP CONSTRAINT IF EXISTS products_pkey CASCADE`;
@@ -160,6 +163,31 @@ module.exports = async (req, res) => {
       )
     `;
 
+    // Templates de etiqueta/tarjeta (item 8): etiqueta adhesiva, huincha de
+    // sellado, tarjeta de instrucciones de producto. Se seleccionan (no se
+    // crean al vuelo) al crear una venta y se imprimen desde la orden.
+    await sql`
+      CREATE TABLE IF NOT EXISTS label_templates (
+        id          TEXT PRIMARY KEY,
+        tenant_id   TEXT NOT NULL DEFAULT 'TEN-001',
+        type        TEXT NOT NULL DEFAULT 'etiqueta',
+        name        TEXT NOT NULL,
+        image_url   TEXT DEFAULT '',
+        font        TEXT DEFAULT 'Nunito',
+        width_mm    NUMERIC,
+        height_mm   NUMERIC,
+        auto_size   BOOLEAN NOT NULL DEFAULT true,
+        paper_type  TEXT NOT NULL DEFAULT 'adhesivo',
+        content_text TEXT DEFAULT '',
+        active      BOOLEAN NOT NULL DEFAULT true,
+        created_by  TEXT DEFAULT '',
+        updated_by  TEXT DEFAULT '',
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS label_templates_tenant_idx ON label_templates (tenant_id)`;
+
     await sql`
       CREATE TABLE IF NOT EXISTS orders (
         id          TEXT PRIMARY KEY,
@@ -199,6 +227,9 @@ module.exports = async (req, res) => {
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at    TIMESTAMPTZ`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS location_id     TEXT NOT NULL DEFAULT ''`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tax_amount      INTEGER`;
+    // Templates de etiqueta elegidos para esta orden (item 8) — { etiqueta,
+    // huincha_sellado, tarjeta_instrucciones } con el id de label_templates o null.
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS label_selections JSONB NOT NULL DEFAULT '{}'`;
     await sql`CREATE INDEX IF NOT EXISTS orders_tenant_status_idx    ON orders (tenant_id, status)`;
     await sql`CREATE INDEX IF NOT EXISTS orders_delivered_at_idx     ON orders (delivered_at)`;
     await sql`CREATE INDEX IF NOT EXISTS orders_tenant_delivered_idx ON orders (tenant_id, delivered_at)`;
