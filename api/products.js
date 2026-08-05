@@ -111,7 +111,7 @@ module.exports = async (req, res) => {
         name, brand = 'Sin marca', cat = 'General',
         tipo = 'producto', cost = 0, price = 0,
         stock = 0, threshold = 10, warehouse_id = '', barcode = '',
-        groups = [], sku: explicitSku, is_fixed_label = false,
+        groups = [], sku: explicitSku,
       } = req.body || {};
 
       if (!name) return res.status(400).json({ error: 'name is required' });
@@ -133,25 +133,11 @@ module.exports = async (req, res) => {
         sku = 'PRD-' + String(parseInt(max_num) + 1).padStart(3, '0');
       }
 
-      // is_fixed_label es una columna nueva (migración vía POST /api/setup) —
-      // si todavía no se corrió en esta base, se sigue de largo sin ella en
-      // vez de romper la creación de productos por completo.
-      let row;
-      try {
-        [row] = await sql`
-          INSERT INTO products (sku, name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, created_by, tenant_id, warehouse_id, is_fixed_label)
-          VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${cost}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${actor}, ${tenantId}, ${warehouse_id}, ${is_fixed_label})
-          RETURNING *
-        `;
-      } catch (insertErr) {
-        if (insertErr.code !== '42703') throw insertErr;
-        console.warn('[products] is_fixed_label column not migrated yet, inserting without it');
-        [row] = await sql`
-          INSERT INTO products (sku, name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, created_by, tenant_id, warehouse_id)
-          VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${cost}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${actor}, ${tenantId}, ${warehouse_id})
-          RETURNING *
-        `;
-      }
+      const [row] = await sql`
+        INSERT INTO products (sku, name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, created_by, tenant_id, warehouse_id)
+        VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${cost}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${actor}, ${tenantId}, ${warehouse_id})
+        RETURNING *
+      `;
 
       // El Grupo de Productos es una propiedad del producto, no del almacén:
       // se sincroniza a todas las filas (SKUs por almacén) de este mismo sku.

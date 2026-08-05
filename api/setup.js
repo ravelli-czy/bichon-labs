@@ -109,14 +109,6 @@ module.exports = async (req, res) => {
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS warehouse_id TEXT NOT NULL DEFAULT ''`;
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode      TEXT DEFAULT ''`;
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS groups       JSONB NOT NULL DEFAULT '[]'`;
-    // Etiqueta fija (logo, huincha de cierre) — se imprime fuera de Bichon (Cameo),
-    // pero se controla su stock acá para poder alertar cuando queda poco (item 8.1).
-    await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_fixed_label BOOLEAN NOT NULL DEFAULT false`;
-    // Vincula un producto "etiqueta fija" al template (label_templates.id) que
-    // representa su diseño, para poder imprimirlo en lote desde Materiales
-    // antes de que se agote el stock. Sin FK real porque label_templates.id
-    // puede eliminarse independientemente.
-    await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS label_template_id TEXT DEFAULT NULL`;
     // Migrate PK from global sku → composite (sku, warehouse_id, tenant_id)
     try {
       await sql`ALTER TABLE products DROP CONSTRAINT IF EXISTS products_pkey CASCADE`;
