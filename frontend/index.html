@@ -629,7 +629,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     </div>
     <div class="search-bar" id="inv-search-bar" style="margin-top:10px">
       <i class="ti ti-search" style="color:var(--text3);font-size:20px"></i>
-      <input type="text" placeholder="Buscar..." oninput="S.invQ=this.value;renderInventory()">
+      <input type="text" placeholder="Buscar..." oninput="S.invQ=this.value;(S.invTab==='kits'?renderKits:renderInventory)()">
     </div>
     <div id="inv-content"></div>
     <div id="kits-content" style="display:none"></div>
@@ -2443,15 +2443,14 @@ function showPage(id, el, pushURL = true) {
     const searchBar   = document.getElementById('inv-search-bar');
     document.getElementById('itype-venta').classList.toggle('selected', S.invTypeFilter === 'venta');
     document.getElementById('itype-insumos').classList.toggle('selected', S.invTypeFilter === 'insumos');
+    if (searchBar) searchBar.style.display = '';
     if (S.invTab === 'kits') {
       if (invContent)  invContent.style.display  = 'none';
       if (kitsContent) kitsContent.style.display = '';
-      if (searchBar)   searchBar.style.display   = 'none';
       renderKits();
     } else {
       if (invContent)  invContent.style.display  = '';
       if (kitsContent) kitsContent.style.display = 'none';
-      if (searchBar)   searchBar.style.display   = '';
       renderInventory();
     }
   }
@@ -2475,16 +2474,15 @@ function switchInvTab(tab, el) {
   const invContent  = document.getElementById('inv-content');
   const kitsContent = document.getElementById('kits-content');
   const searchBar   = document.getElementById('inv-search-bar');
+  if (searchBar) searchBar.style.display = '';
   if (tab === 'kits') {
     if (invContent)  invContent.style.display  = 'none';
     if (kitsContent) kitsContent.style.display = '';
-    if (searchBar)   searchBar.style.display   = 'none';
     if (S.currentPage === 'inventory') renderKits();
     else showPage('inventory');
   } else {
     if (invContent)  invContent.style.display  = '';
     if (kitsContent) kitsContent.style.display = 'none';
-    if (searchBar)   searchBar.style.display   = '';
     if (S.currentPage === 'inventory') renderInventory();
     else showPage('inventory');
   }
@@ -2795,15 +2793,21 @@ function renderKits() {
   const el = document.getElementById('kits-content');
   const allMasters = S.kits.filter(k => (k.warehouse_id||'') === '');
   // Filtro Venta/Insumos (item 1) — mismo chip que Inventario/Alertas/Todos
-  const masters = allMasters.filter(k =>
+  let masters = allMasters.filter(k =>
     S.invTypeFilter === 'insumos' ? k.tipo === 'insumo' : k.tipo !== 'insumo'
   );
+  if (S.invQ) {
+    const q = S.invQ.toLowerCase();
+    masters = masters.filter(k => k.name.toLowerCase().includes(q) || (k.sku && k.sku.toLowerCase().includes(q)));
+  }
   if (!allMasters.length) {
     el.innerHTML = `<div class="empty-state"><i class="ti ti-stack-2"></i><p>Sin KITs. Toca + para crear.</p></div>`;
     return;
   }
   if (!masters.length) {
-    el.innerHTML = `<div class="empty-state"><i class="ti ti-stack-2"></i><p>Sin KITs de ${S.invTypeFilter === 'insumos' ? 'insumo' : 'venta'}.</p></div>`;
+    el.innerHTML = S.invQ
+      ? `<div class="empty-state"><i class="ti ti-search"></i><p>Sin resultados para "${S.invQ.replace(/</g,'&lt;')}"</p></div>`
+      : `<div class="empty-state"><i class="ti ti-stack-2"></i><p>Sin KITs de ${S.invTypeFilter === 'insumos' ? 'insumo' : 'venta'}.</p></div>`;
     return;
   }
   const whs = getWarehouses();
