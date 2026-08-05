@@ -239,7 +239,7 @@ body.embedded .embed-page-header{display:block}
 <body>
 
 <div class="topbar">
-  <button onclick="history.length>1?history.back():location.href='/'" style="background:var(--bg3);border:none;border-radius:9px;padding:6px 10px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:5px;flex-shrink:0"><i class="ti ti-arrow-left" style="font-size:15px"></i> Volver</button>
+  <button onclick="history.length>1?history.back():(window.top!==window.self?window.top:window).location.href='/'" style="background:var(--bg3);border:none;border-radius:9px;padding:6px 10px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:5px;flex-shrink:0"><i class="ti ti-arrow-left" style="font-size:15px"></i> Volver</button>
   <div class="topbar-title">Locales & Entrega</div>
 </div>
 
