@@ -615,7 +615,12 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       </div>
     </div>
     <div class="section-sub">Productos, insumos y KITs</div>
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div class="tabs">
+      <div class="tab" id="itab-alertas" onclick="switchInvTab('alertas',this)">Alertas<span class="tbadge" id="alert-tab-count" style="display:none">0</span></div>
+      <div class="tab" id="itab-kits" onclick="switchInvTab('kits',this)">KITs<span class="tbadge" id="kit-alert-tab-count" style="display:none">0</span></div>
+      <div class="tab" id="itab-todos" onclick="switchInvTab('todos',this)">Todos</div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:10px">
       <div class="chip-group-wrap" id="inv-type-filter">
         <div class="chip-group selected" id="itype-venta" onclick="switchInvTypeFilter('venta')"><i class="ti ti-shopping-cart"></i>Venta</div>
         <div class="chip-group" id="itype-insumos" onclick="switchInvTypeFilter('insumos')"><i class="ti ti-tool"></i>Insumos</div>
@@ -625,11 +630,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div class="search-bar" id="inv-search-bar" style="margin-top:10px">
       <i class="ti ti-search" style="color:var(--text3);font-size:20px"></i>
       <input type="text" placeholder="Buscar..." oninput="S.invQ=this.value;renderInventory()">
-    </div>
-    <div class="tabs">
-      <div class="tab" id="itab-alertas" onclick="switchInvTab('alertas',this)">Alertas<span class="tbadge" id="alert-tab-count" style="display:none">0</span></div>
-      <div class="tab" id="itab-kits" onclick="switchInvTab('kits',this)">KITs<span class="tbadge" id="kit-alert-tab-count" style="display:none">0</span></div>
-      <div class="tab" id="itab-todos" onclick="switchInvTab('todos',this)">Todos</div>
     </div>
     <div id="inv-content"></div>
     <div id="kits-content" style="display:none"></div>
