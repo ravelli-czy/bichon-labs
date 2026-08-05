@@ -1014,13 +1014,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <input type="hidden" id="p-tipo" value="producto">
       </div>
 
-      <div class="form-group" id="p-fixed-label-group" style="display:none">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-          <input type="checkbox" id="p-fixed-label" style="width:16px;height:16px" onchange="onFixedLabelToggle()">
-          <span style="font-size:13px;font-weight:700">Es etiqueta fija (logo, huincha de cierre) <span style="font-weight:600;color:var(--text3)">— se imprime en la Cameo, Bichon solo avisa cuando queda poco stock</span></span>
-        </label>
-      </div>
-
       <div class="form-row">
         <div class="form-group"><div class="form-label">Precio costo</div><input class="form-input" type="number" id="p-cost" placeholder="$0"></div>
         <div class="form-group"><div class="form-label" id="price-label">Precio venta</div><input class="form-input" type="number" id="p-price" placeholder="$0"></div>
@@ -3044,23 +3037,6 @@ function selectTipo(tipo, el) {
     document.getElementById('price-label').textContent = 'Precio venta';
     if (priceGroup) priceGroup.style.display = '';
   }
-  // "Etiqueta fija" (item 8.1) solo aplica a insumos
-  const fixedLabelGroup = document.getElementById('p-fixed-label-group');
-  if (fixedLabelGroup) fixedLabelGroup.style.display = tipo === 'insumo' ? '' : 'none';
-  if (tipo !== 'insumo') {
-    const cb = document.getElementById('p-fixed-label');
-    if (cb) cb.checked = false;
-  }
-}
-// Al marcar "Es etiqueta fija" en un producto nuevo, sugiere el umbral de
-// alerta por defecto (5) que pide el item 8.1 — sin pisar un valor que el
-// usuario ya haya personalizado.
-function onFixedLabelToggle() {
-  const cb = document.getElementById('p-fixed-label');
-  const thresholdEl = document.getElementById('p-threshold');
-  if (cb?.checked && thresholdEl && !S.editingProdSku && (thresholdEl.value === '' || thresholdEl.value === '10')) {
-    thresholdEl.value = 5;
-  }
 }
 function _populateWarehouseSelect(selectedId, readonly, excludeIds) {
   const warehouses = getWarehouses();
@@ -3238,8 +3214,6 @@ function editProd(sku, warehouseId, pushURL = true) {
   const tipoIndex = {insumo:0, producto:1, ambos:2};
   const idx = tipoIndex[p.tipo] ?? 1;
   selectTipo(p.tipo, document.querySelectorAll('.tipo-option')[idx]);
-  const fixedLabelCb = document.getElementById('p-fixed-label');
-  if (fixedLabelCb) fixedLabelCb.checked = !!p.is_fixed_label;
   const metaEl = document.getElementById('prod-meta');
   const metaHtml = buildEntityMeta(p);
   metaEl.innerHTML  = metaHtml;
@@ -3403,7 +3377,6 @@ async function _saveProdImpl() {
     barcode,
     warehouse_id,
     groups:    isAddSku ? (S._addSkuData.groups || []) : (S.tempProdGroups || []),
-    is_fixed_label: isAddSku ? !!S._addSkuData.is_fixed_label : !!document.getElementById('p-fixed-label')?.checked,
     ...(isAddSku ? { sku: S._addSkuData.sku } : {}), // explicit SKU for add-SKU mode
   };
   if (S.editingProdSku) {
@@ -4844,7 +4817,6 @@ function orderLabelsSection(v) {
 // ya elegidas en órdenes que todavía no se entregan.
 const MATERIALES_TABS = [
   { key: 'templates', label: 'Templates' },
-  { key: 'fijas',      label: 'Etiquetas fijas' },
   { key: 'ordenes',    label: 'Órdenes' },
 ];
 function switchMaterialesTab(tab) {
@@ -4860,77 +4832,10 @@ function renderMaterialesView(el) {
     <div id="materiales-tab-content" style="margin-top:12px"></div>`;
   const contentEl = document.getElementById('materiales-tab-content');
   if      (tab === 'templates') renderLabelTemplatesView(contentEl);
-  else if (tab === 'fijas')     renderFixedLabelBulkPrint(contentEl);
   else if (tab === 'ordenes')   renderMaterialesOrdersView(contentEl);
 }
 
-// Productos marcados "Es etiqueta fija", uno por SKU (prefiere la fila
-// master warehouse_id='' como representante, igual que el resto de Catálogo).
-function _fixedLabelProducts() {
-  const seen = new Map();
-  (S.products || []).filter(p => p.is_fixed_label && (p.warehouse_id||'') === '').forEach(p => seen.set(p.sku, p));
-  (S.products || []).filter(p => p.is_fixed_label && !seen.has(p.sku)).forEach(p => seen.set(p.sku, p));
-  return [...seen.values()].sort((a,b) => a.name.localeCompare(b.name));
-}
-
-function renderFixedLabelBulkPrint(el) {
-  const items = _fixedLabelProducts();
-  const intro = `<div class="info-box" style="background:var(--primary-light);color:var(--primary);border-radius:var(--radius);padding:10px 12px;font-size:12px;font-weight:700;margin-bottom:14px">
-    <i class="ti ti-info-circle"></i> Etiquetas fijas (logo, huincha de cierre) que se imprimen en la Cameo — prepara un lote de una vez para adelantar trabajo antes de que se agote el stock.
-  </div>`;
-  if (!items.length) {
-    el.innerHTML = intro + `<div class="empty-state"><i class="ti ti-printer"></i><p>Sin etiquetas fijas registradas.<br>Marca un insumo como "Es etiqueta fija" en Catálogo → Productos para que aparezca acá.</p></div>`;
-    return;
-  }
-  const templates = S.labelTemplates || [];
-  const rows = items.map(p => {
-    const skuEsc = String(p.sku).replace(/'/g,"&#39;");
-    const stock = p.stock || 0;
-    const threshold = p.threshold ?? 5;
-    const low = stock <= threshold;
-    const suggestedQty = Math.max(threshold * 2 - stock, 10);
-    const templateOptions = templates.map(t => `<option value="${t.id}"${String(t.id)===String(p.label_template_id)?' selected':''}>${t.name}</option>`).join('');
-    return `<div class="card" style="padding:12px 14px;margin-bottom:8px;display:flex;flex-direction:column;gap:8px">
-      <div style="display:flex;align-items:center;gap:10px">
-        <input type="checkbox" class="fixed-label-print-cb" data-sku="${skuEsc}" style="width:16px;height:16px;flex-shrink:0">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:800">${p.name}</div>
-          <div style="font-size:11px;font-weight:700;color:${low?'var(--red)':'var(--text3)'}">Stock: ${stock} / ${threshold} mín</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-left:26px">
-        <select class="form-input" style="flex:1;min-width:160px;height:38px" onchange="setFixedLabelTemplate('${skuEsc}',this.value)">
-          <option value="">Sin template vinculado</option>
-          ${templateOptions}
-        </select>
-        <input type="number" class="form-input fixed-label-print-qty" data-sku="${skuEsc}" value="${suggestedQty}" min="1" style="width:80px;height:38px" title="Cantidad a imprimir">
-      </div>
-    </div>`;
-  }).join('');
-  el.innerHTML = `${intro}${rows}
-    <button class="btn btn-primary" style="width:auto" onclick="printFixedLabelsBulk()"><i class="ti ti-printer"></i> Imprimir seleccionadas</button>`;
-}
-
-// Vincula (o desvincula, si templateId es '') el template que representa el
-// diseño de una etiqueta fija — se sincroniza a todas las filas por almacén
-// del mismo sku, igual que el Grupo de Productos.
-async function setFixedLabelTemplate(sku, templateId) {
-  const rows = (S.products || []).filter(p => p.sku === sku);
-  if (!rows.length) return;
-  const wid = (rows.find(p => (p.warehouse_id||'')==='') || rows[0]).warehouse_id || '';
-  try {
-    await apiFetch(`/api/products/${encodeURIComponent(sku)}?warehouse_id=${encodeURIComponent(wid)}`, {
-      method: 'PUT',
-      body: JSON.stringify({ label_template_id: templateId || null }),
-    });
-    rows.forEach(p => { p.label_template_id = templateId || null; });
-    toast(templateId ? '✅ Template vinculado' : '🗑 Template desvinculado');
-  } catch (e) {
-    toast('❌ ' + (e.message || 'No se pudo guardar'));
-  }
-}
-
-// ── Impresión en lote (compartida entre Etiquetas fijas y Órdenes) ────────
+// ── Impresión en lote (usada por la tab Órdenes) ──────────────────────────
 // Una "celda" es una etiqueta individual a imprimir: su template + una
 // etiqueta de texto opcional debajo (ej. "ORD-0019 · Tarjeta de instrucciones")
 // para poder distinguirla del resto una vez impresa.
@@ -4971,38 +4876,6 @@ ${sectionsHtml}
   const win = window.open('', '_blank', 'width=700,height=600');
   if (win) { win.document.write(html); win.document.close(); }
   return win;
-}
-
-// Imprime, en una sola ventana, N copias de cada etiqueta fija seleccionada
-// (según su template vinculado) — para adelantar trabajo antes de imprimirlas
-// de a una en la Cameo.
-function printFixedLabelsBulk() {
-  const checkedSkus = [...document.querySelectorAll('.fixed-label-print-cb:checked')].map(cb => cb.dataset.sku);
-  if (!checkedSkus.length) { toast('⚠️ Selecciona al menos una etiqueta fija'); return; }
-
-  const items = _fixedLabelProducts();
-  const jobs = [];
-  let skippedNoTemplate = 0;
-  for (const sku of checkedSkus) {
-    const p = items.find(x => String(x.sku) === String(sku));
-    if (!p) continue;
-    const tpl = (S.labelTemplates || []).find(t => String(t.id) === String(p.label_template_id));
-    if (!tpl) { skippedNoTemplate++; continue; }
-    const qtyInput = document.querySelector(`.fixed-label-print-qty[data-sku="${CSS.escape(sku)}"]`);
-    const qty = Math.max(1, parseInt(qtyInput?.value, 10) || 0);
-    jobs.push({ tpl, qty, name: p.name });
-  }
-  if (skippedNoTemplate) toast(`⚠️ ${skippedNoTemplate} etiqueta(s) sin template vinculado — se omitieron`);
-  if (!jobs.length) return;
-
-  const fonts = [...new Set(jobs.map(j => j.tpl.font || 'Nunito'))];
-  const sections = jobs.map(j => `
-    <div class="bulk-group">
-      <div class="bulk-group-title">${j.name} — ${j.qty} copias</div>
-      <div class="bulk-grid">${Array.from({ length: j.qty }).map(() => _bulkPrintLabelCell(j.tpl)).join('')}</div>
-    </div>`).join('');
-
-  _openBulkPrintWindow('Impresión masiva de etiquetas', sections, fonts);
 }
 
 // ── ÓRDENES: imprimir en lote las etiquetas ya elegidas en órdenes que aún
