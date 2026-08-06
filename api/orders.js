@@ -23,6 +23,38 @@ async function _deductKit(sql, kitSku, qty, wid, tenantId) {
   }
 }
 
+// Resolves a warehouse_id to anchor an order's location_id backfill on
+// (ver ?action=backfill-location más abajo). KIT items are warehouse-
+// agnostic themselves (warehouse_id: '' by design — only their component
+// PRODUCTS carry one, resolved via the `products` table, see _deductKit
+// above), so a naive `items.find(i => i.warehouse_id)` always comes up
+// empty for KIT-only orders. Descends into each KIT's CURRENT component
+// list (up to a few levels, same depth guard as the frontend's
+// _kitComponentRows) looking up the first component product that has a
+// warehouse_id — an approximation using today's catalog, same caveat as
+// backfill-costs using today's cost.
+async function _resolveWarehouseIdFromItems(sql, tenantId, items, depth = 0) {
+  const direct = items.find(i => i.warehouse_id)?.warehouse_id;
+  if (direct) return direct;
+  if (depth > 6) return '';
+  for (const item of items) {
+    if (item.type === 'kit') {
+      const [kit] = await sql`SELECT items FROM kits WHERE sku = ${item.sku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
+      if (!kit?.items?.length) continue;
+      const found = await _resolveWarehouseIdFromItems(sql, tenantId, kit.items, depth + 1);
+      if (found) return found;
+    } else {
+      const [prod] = await sql`
+        SELECT warehouse_id FROM products
+        WHERE sku = ${item.sku} AND tenant_id = ${tenantId} AND warehouse_id != ''
+        LIMIT 1
+      `;
+      if (prod?.warehouse_id) return prod.warehouse_id;
+    }
+  }
+  return '';
+}
+
 // ── Cost snapshotting ────────────────────────────────────────────────────
 // An order item's cost at time of sale isn't tracked automatically (products'
 // cost can change later), so we snapshot it at creation time. `withFinancialSnapshot`
@@ -118,7 +150,7 @@ module.exports = async (req, res) => {
       let ordersUpdated = 0, ordersSkipped = 0;
       for (const order of orders) {
         const items = Array.isArray(order.items) ? order.items : [];
-        const firstWarehouseId = items.find(i => i.warehouse_id)?.warehouse_id || '';
+        const firstWarehouseId = await _resolveWarehouseIdFromItems(sql, tenantId, items);
         if (!firstWarehouseId) { ordersSkipped++; continue; }
         let locationId = '';
         try {
