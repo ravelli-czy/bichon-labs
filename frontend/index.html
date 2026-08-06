@@ -1264,6 +1264,11 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         </div>
         <div class="form-group"><div class="form-label">Referencia</div><input class="form-input" id="oe-addr-notes" placeholder="Depto, piso, timbre..."></div>
       </div>
+      <div class="section-label" style="margin-top:14px"><i class="ti ti-building-store"></i> Local / Sucursal</div>
+      <div class="form-group">
+        <select class="form-input" id="oe-location"><option value="">Sin especificar</option></select>
+        <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:4px">Determina el prefijo mostrado junto al ID de la orden y el filtro de sucursal en Finanzas.</div>
+      </div>
       <div class="section-label" style="margin-top:14px"><i class="ti ti-receipt-refund"></i> Finanzas</div>
       <div class="form-group">
         <div class="form-label">Código de cupón</div>
@@ -6334,6 +6339,11 @@ function openOrderEditSheet(id, pushURL = true) {
   _populateOptionSelect('oe-sales-channel', 'salesChannels', v.sales_channel || '');
   document.getElementById('oe-receptor').value = v.delivery?.receptor || '';
   document.getElementById('oe-receptor-tel').value = v.delivery?.receptor_telefono || '';
+  const oeLocationSel = document.getElementById('oe-location');
+  const locales = getLocalesData() || [];
+  oeLocationSel.innerHTML = '<option value="">Sin especificar</option>' +
+    locales.map(l => `<option value="${l.id}">${l.name}${l.prefix ? ' — ' + l.prefix : ''}</option>`).join('');
+  oeLocationSel.value = v.location_id || '';
   S._oeCoupon = null;
   S._oeCouponCleared = false;
   document.getElementById('oe-coupon-code').value = v.coupon_code || '';
@@ -6671,6 +6681,7 @@ async function saveOrderEdit() {
     receptor_telefono: document.getElementById('oe-receptor-tel').value.trim(),
     payment_method:    document.getElementById('oe-payment-method').value || '',
     sales_channel:     document.getElementById('oe-sales-channel').value || '',
+    location_id:       document.getElementById('oe-location').value || '',
     coupon_code:       couponCode,
     refund_amount:     Math.max(0, parseFloat(document.getElementById('oe-refund').value) || 0),
   };
@@ -6704,6 +6715,7 @@ async function saveOrderEdit() {
       ...S.ventas[idx],
       cliente: payload.cliente, telefono: payload.telefono, dedicatoria: payload.dedicatoria,
       payment_method: payload.payment_method, sales_channel: payload.sales_channel,
+      location_id: payload.location_id,
       coupon_code: couponCode, discount_amount: discountPreview, refund_amount: payload.refund_amount,
       total: totalPreview,
       delivery: { ...(S.ventas[idx].delivery||{}), receptor: payload.receptor, receptor_telefono: payload.receptor_telefono, ...(payload.delivery_update||{}) },

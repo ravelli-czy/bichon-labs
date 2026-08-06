@@ -31,7 +31,7 @@ module.exports = async (req, res) => {
     if (req.method === 'PUT') {
       const {
         status, action, cliente, telefono, dedicatoria, receptor, receptor_telefono,
-        payment_method, sales_channel, delivery_update,
+        payment_method, sales_channel, location_id, delivery_update,
         coupon_code, refund_amount, label_selections,
       } = req.body || {};
 
@@ -98,6 +98,7 @@ module.exports = async (req, res) => {
               delivery         = delivery || ${JSON.stringify(deliveryPatch)}::jsonb,
               payment_method   = ${payment_method ?? ''},
               sales_channel    = ${sales_channel ?? ''},
+              location_id      = ${location_id ?? ''},
               total            = ${total},
               coupon_id        = ${couponId},
               coupon_code      = ${couponCodeFinal},
@@ -121,6 +122,7 @@ module.exports = async (req, res) => {
                 delivery         = delivery || ${JSON.stringify(deliveryPatch)}::jsonb,
                 payment_method   = ${payment_method ?? ''},
                 sales_channel    = ${sales_channel ?? ''},
+                location_id      = ${location_id ?? ''},
                 total            = ${total},
                 discount_amount  = ${discountAmount},
                 refund_amount    = COALESCE(${refund_amount ?? null}, refund_amount),
@@ -140,6 +142,7 @@ module.exports = async (req, res) => {
                 delivery         = delivery || ${JSON.stringify(deliveryPatch)}::jsonb,
                 payment_method   = ${payment_method ?? ''},
                 sales_channel    = ${sales_channel ?? ''},
+                location_id      = ${location_id ?? ''},
                 total            = ${total},
                 discount_amount  = ${discountAmount},
                 refund_amount    = COALESCE(${refund_amount ?? null}, refund_amount),
