@@ -2160,14 +2160,27 @@ function kitStock(kit) {
   }));
 }
 
+// Local (tienda) al que pertenece un almacén — un local puede tener varios
+// almacenes (closets/bodegas, ver Locales → Editar local), así que esto NO
+// es 1:1 con warehouse_id.
+function warehouseLocaleId(warehouseId) {
+  if (!warehouseId) return '';
+  const loc = (getLocalesData() || []).find(l => (l.warehouses||[]).some(w => w.id === warehouseId));
+  return loc ? loc.id : '';
+}
+
 // El KIT no es de un almacén (existe una sola receta maestra), pero SÍ
-// existe como stock vendible en un almacén sólo si TODOS sus componentes
-// (recursivamente, incluidos los de sub-KITs) tienen ahí su propia fila de
-// producto — mismo criterio que api/orders.js (_resolveWarehouseIdFromItems)
-// usa para el backfill de local_id. kitStockForWarehouse calcula el mínimo
-// igual que kitStock, pero resolviendo cada componente contra ESE almacén en
-// vez de contra el warehouse_id que quedó fijado en la receta.
-function kitStockForWarehouse(kit, warehouseId) {
+// existe como stock vendible en una TIENDA (local) cuando todos sus
+// componentes (recursivamente, incluidos los de sub-KITs) tienen fila de
+// producto en ALGÚN almacén de esa tienda — los componentes pueden estar en
+// almacenes distintos dentro del mismo local (ej. uno en "Clóset Oficina",
+// otro en "Closet pasillo", ambos bajo "Tienda Principal"); no necesitan
+// compartir el mismo almacén literal. Mismo criterio que api/orders.js
+// (_resolveLocalIdFromItems) usa para el backfill de location_id.
+// kitStockForLocale calcula el mínimo igual que kitStock, pero resolviendo
+// cada componente contra la suma de stock de ESA tienda (todos sus
+// almacenes), en vez de contra el warehouse_id fijado en la receta.
+function kitStockForLocale(kit, localId) {
   const items = kitStockItems(kit);
   if (!items.length) return 0;
   let min = Infinity;
@@ -2175,18 +2188,19 @@ function kitStockForWarehouse(kit, warehouseId) {
     if (i.type === 'kit') {
       const sub = S.kits.find(k => k.sku === i.sku && (k.warehouse_id||'') === '');
       if (!sub) return 0;
-      min = Math.min(min, Math.floor(kitStockForWarehouse(sub, warehouseId) / i.qty));
+      min = Math.min(min, Math.floor(kitStockForLocale(sub, localId) / i.qty));
     } else {
-      const p = S.products.find(x => x.sku === i.sku && (x.warehouse_id||'') === warehouseId);
-      if (!p) return 0;
-      min = Math.min(min, Math.floor(p.stock / i.qty));
+      const rows = S.products.filter(x => x.sku === i.sku && x.warehouse_id && warehouseLocaleId(x.warehouse_id) === localId);
+      if (!rows.length) return 0;
+      const total = rows.reduce((s, p) => s + (p.stock||0), 0);
+      min = Math.min(min, Math.floor(total / i.qty));
     }
   }
   return min === Infinity ? 0 : min;
 }
 // SKUs hoja de un KIT (descendiendo por sub-KITs a profundidad completa,
-// mismo tope que _kitComponentRows) — usado para determinar en qué
-// almacenes el KIT tiene TODOS sus componentes.
+// mismo tope que _kitComponentRows) — usado para determinar en qué tiendas
+// el KIT tiene TODOS sus componentes.
 function _kitLeafSkus(kit, out = new Set(), depth = 0) {
   if (depth > 6) return out;
   kitStockItems(kit).forEach(i => {
@@ -2199,15 +2213,27 @@ function _kitLeafSkus(kit, out = new Set(), depth = 0) {
   });
   return out;
 }
-// Almacenes donde el KIT existe como stock vendible (ver kitStockForWarehouse
-// arriba) — todos aquellos donde TODOS sus componentes hoja tienen fila de
-// producto. [] si el catálogo no está lo bastante completo para determinarlo
-// sin ambigüedad — nunca se inventa uno.
-function kitQualifyingWarehouses(kit) {
+// Tiendas (locales) donde el KIT existe como stock vendible (ver
+// kitStockForLocale arriba): todo componente hoja CON algún almacén
+// asignado debe tener ahí una fila en esa misma tienda — un componente sin
+// ningún almacén asignado no descalifica, simplemente no aporta señal
+// (mismo criterio que _resolveLocalIdFromItems en el backend). [] si no hay
+// una tienda única que calce sin ambigüedad — nunca se inventa una.
+function kitQualifyingLocales(kit) {
   const skus = [..._kitLeafSkus(kit)];
   if (!skus.length) return [];
-  const candidates = new Set(S.products.filter(p => skus.includes(p.sku) && p.warehouse_id).map(p => p.warehouse_id));
-  return [...candidates].filter(wid => skus.every(sku => S.products.some(p => p.sku === sku && (p.warehouse_id||'') === wid)));
+  let common = null;
+  for (const sku of skus) {
+    const locales = new Set(
+      S.products.filter(p => p.sku === sku && p.warehouse_id)
+        .map(p => warehouseLocaleId(p.warehouse_id))
+        .filter(Boolean)
+    );
+    if (!locales.size) continue;
+    common = common === null ? locales : new Set([...common].filter(l => locales.has(l)));
+    if (common.size === 0) return [];
+  }
+  return common ? [...common] : [];
 }
 function alertLevel(p) {
   if (p.stock === 0) return 'critical';
@@ -2752,7 +2778,7 @@ function setWarehouse(id) {
   S.warehouseId = id;
   initInvWarehouseBar();
   renderInventory();
-  renderKits(); // KITs también se filtran/dividen por almacén (ver kitQualifyingWarehouses)
+  renderKits(); // KITs también se filtran/dividen por tienda (ver kitQualifyingLocales)
 }
 
 async function clearTenantData() {
@@ -2889,30 +2915,32 @@ function renderKits() {
     return;
   }
   const whs = getWarehouses();
+  // El almacén filtrado arriba a la derecha (si hay uno) resuelve a su
+  // tienda — un KIT se evalúa por tienda, no por almacén literal (ver
+  // kitQualifyingLocales), porque sus componentes pueden repartirse entre
+  // distintos almacenes de una misma tienda.
+  const selectedLocalId = S.warehouseId ? warehouseLocaleId(S.warehouseId) : '';
   const cards = masters.flatMap(kit => {
-    // Un KIT "existe" como stock vendible en un almacén sólo si TODOS sus
-    // componentes tienen ahí su propia fila de producto (ver
-    // kitQualifyingWarehouses) — igual que un producto, se muestra una fila
-    // por almacén donde tiene stock diferenciado. Si hay un almacén filtrado
-    // arriba a la derecha, sólo se muestra ese (si califica). Si es "Todos",
-    // se muestra una fila por cada almacén que califica — repetido, igual
-    // que pasa con productos. Si ningún almacén califica (catálogo viejo/
-    // incompleto), cae al cálculo global de siempre para no hacer
-    // desaparecer el KIT.
-    const qualifying = kitQualifyingWarehouses(kit);
-    const rows = S.warehouseId
-      ? (qualifying.includes(S.warehouseId) ? [S.warehouseId] : [])
+    // Igual que un producto: se muestra una fila por tienda donde el KIT
+    // tiene stock diferenciado. Si hay un almacén filtrado, sólo se muestra
+    // la tienda de ese almacén (si el KIT califica ahí). Si es "Todos", una
+    // fila por cada tienda que califica — repetido, igual que con
+    // productos. Si ninguna tienda califica (catálogo viejo/incompleto),
+    // cae al cálculo global de siempre para no hacer desaparecer el KIT.
+    const qualifying = kitQualifyingLocales(kit);
+    const rows = selectedLocalId
+      ? (qualifying.includes(selectedLocalId) ? [selectedLocalId] : [])
       : (qualifying.length ? qualifying : [null]);
-    return rows.map(wid => _kitCardHtml(kit, wid, whs));
+    return rows.map(localId => _kitCardHtml(kit, localId, whs));
   });
   el.innerHTML = cards.length ? cards.join('') : (S.warehouseId
-    ? `<div class="empty-state"><i class="ti ti-stack-2"></i><p>Ningún KIT tiene todos sus componentes en ${whs.find(w=>w.id===S.warehouseId)?.name || 'este almacén'}.</p></div>`
+    ? `<div class="empty-state"><i class="ti ti-stack-2"></i><p>Ningún KIT tiene todos sus componentes en ${(getLocalesData()||[]).find(l=>l.id===selectedLocalId)?.name || 'esta tienda'}.</p></div>`
     : '');
 }
 
-function _kitCardHtml(kit, warehouseId, whs) {
+function _kitCardHtml(kit, localId, whs) {
   const skuEsc    = kit.sku.replace(/'/g,"&#39;");
-  const stk       = warehouseId ? kitStockForWarehouse(kit, warehouseId) : kitStock(kit);
+  const stk       = localId ? kitStockForLocale(kit, localId) : kitStock(kit);
   const color     = stk===0?'var(--red)':stk<=2?'var(--amber-dark)':'var(--green-dark)';
   const kitAlert  = kitAlertLevel(kit);
   const variants  = S.kits.filter(k => k.sku === kit.sku && (k.warehouse_id||'') !== '');
@@ -2920,15 +2948,15 @@ function _kitCardHtml(kit, warehouseId, whs) {
   const alertBadge = kitAlert
     ? `<span class="kit-alert-badge ${kitAlert}"><i class="ti ti-alert-triangle"></i>${kitAlert==='critical'?'Sin stock en componente':'Stock bajo en componente'}</span>`
     : '';
-  // Igual que prodRow(): siempre se muestra cuando la fila representa un
-  // almacén concreto (filtrado o no) — sólo se omite en el fallback global.
-  const wh = warehouseId ? whs.find(w => w.id === warehouseId) : null;
-  const whBadge = wh ? `<span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:rgba(13,148,136,.08);padding:1px 6px;border-radius:8px"><i class="ti ti-building-warehouse" style="font-size:9px"></i> ${wh.name}</span>` : '';
+  // Igual que prodRow(): siempre se muestra cuando la fila representa una
+  // tienda concreta (filtrada o no) — sólo se omite en el fallback global.
+  const loc = localId ? (getLocalesData()||[]).find(l => l.id === localId) : null;
+  const whBadge = loc ? `<span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:rgba(13,148,136,.08);padding:1px 6px;border-radius:8px"><i class="ti ti-building-store" style="font-size:9px"></i> ${loc.prefix || loc.name}</span>` : '';
 
   const comps = kit.items.map(i => {
     if (i.type === 'kit') {
       const sub = S.kits.find(x => x.sku === i.sku && (x.warehouse_id||'') === '');
-      const subStk = sub ? (warehouseId ? kitStockForWarehouse(sub, warehouseId) : kitStock(sub)) : 0;
+      const subStk = sub ? (localId ? kitStockForLocale(sub, localId) : kitStock(sub)) : 0;
       const subAl = sub ? (subStk===0 ? 'critical' : kitAlertLevel(sub)) : 'critical';
       const stockInfo = `<span style="font-size:10px;font-weight:900;color:${subStk===0?'var(--red)':'var(--text3)'};margin-right:4px">${subStk} disp.</span>`;
       return `<div class="kit-comp-row${subAl?' comp-'+subAl:''}">
@@ -2936,12 +2964,18 @@ function _kitCardHtml(kit, warehouseId, whs) {
         <span class="kit-comp-right">${stockInfo}×${i.qty}</span>
       </div>`;
     }
-    const p  = warehouseId
-      ? S.products.find(x => x.sku === i.sku && (x.warehouse_id||'') === warehouseId)
-      : S.products.find(x => x.sku === i.sku);
-    const al = p ? alertLevel(p) : null;
+    let p, stockNum;
+    if (localId) {
+      const rows = S.products.filter(x => x.sku === i.sku && x.warehouse_id && warehouseLocaleId(x.warehouse_id) === localId);
+      p = rows[0] || null;
+      stockNum = rows.reduce((s, x) => s + (x.stock||0), 0);
+    } else {
+      p = S.products.find(x => x.sku === i.sku);
+      stockNum = p?.stock;
+    }
+    const al = p ? (stockNum === 0 ? 'critical' : (stockNum <= (p.threshold||0) ? 'warning' : null)) : null;
     const stockInfo = al
-      ? `<span style="font-size:10px;font-weight:900;color:${al==='critical'?'var(--red)':'var(--amber-dark)'};margin-right:4px">${p.stock} ud.</span>`
+      ? `<span style="font-size:10px;font-weight:900;color:${al==='critical'?'var(--red)':'var(--amber-dark)'};margin-right:4px">${stockNum} ud.</span>`
       : '';
     return `<div class="kit-comp-row${al?' comp-'+al:''}">
       <span class="kit-comp-name">${al?`<i class="ti ti-alert-triangle" style="font-size:11px"></i>`:''}${p?.name||i.sku}</span>
