@@ -2159,6 +2159,56 @@ function kitStock(kit) {
     return p ? Math.floor(p.stock / i.qty) : 0;
   }));
 }
+
+// El KIT no es de un almacén (existe una sola receta maestra), pero SÍ
+// existe como stock vendible en un almacén sólo si TODOS sus componentes
+// (recursivamente, incluidos los de sub-KITs) tienen ahí su propia fila de
+// producto — mismo criterio que api/orders.js (_resolveWarehouseIdFromItems)
+// usa para el backfill de local_id. kitStockForWarehouse calcula el mínimo
+// igual que kitStock, pero resolviendo cada componente contra ESE almacén en
+// vez de contra el warehouse_id que quedó fijado en la receta.
+function kitStockForWarehouse(kit, warehouseId) {
+  const items = kitStockItems(kit);
+  if (!items.length) return 0;
+  let min = Infinity;
+  for (const i of items) {
+    if (i.type === 'kit') {
+      const sub = S.kits.find(k => k.sku === i.sku && (k.warehouse_id||'') === '');
+      if (!sub) return 0;
+      min = Math.min(min, Math.floor(kitStockForWarehouse(sub, warehouseId) / i.qty));
+    } else {
+      const p = S.products.find(x => x.sku === i.sku && (x.warehouse_id||'') === warehouseId);
+      if (!p) return 0;
+      min = Math.min(min, Math.floor(p.stock / i.qty));
+    }
+  }
+  return min === Infinity ? 0 : min;
+}
+// SKUs hoja de un KIT (descendiendo por sub-KITs a profundidad completa,
+// mismo tope que _kitComponentRows) — usado para determinar en qué
+// almacenes el KIT tiene TODOS sus componentes.
+function _kitLeafSkus(kit, out = new Set(), depth = 0) {
+  if (depth > 6) return out;
+  kitStockItems(kit).forEach(i => {
+    if (i.type === 'kit') {
+      const sub = S.kits.find(k => k.sku === i.sku && (k.warehouse_id||'') === '');
+      if (sub) _kitLeafSkus(sub, out, depth + 1);
+    } else {
+      out.add(i.sku);
+    }
+  });
+  return out;
+}
+// Almacenes donde el KIT existe como stock vendible (ver kitStockForWarehouse
+// arriba) — todos aquellos donde TODOS sus componentes hoja tienen fila de
+// producto. [] si el catálogo no está lo bastante completo para determinarlo
+// sin ambigüedad — nunca se inventa uno.
+function kitQualifyingWarehouses(kit) {
+  const skus = [..._kitLeafSkus(kit)];
+  if (!skus.length) return [];
+  const candidates = new Set(S.products.filter(p => skus.includes(p.sku) && p.warehouse_id).map(p => p.warehouse_id));
+  return [...candidates].filter(wid => skus.every(sku => S.products.some(p => p.sku === sku && (p.warehouse_id||'') === wid)));
+}
 function alertLevel(p) {
   if (p.stock === 0) return 'critical';
   if (p.stock <= p.threshold) return 'warning';
@@ -2702,6 +2752,7 @@ function setWarehouse(id) {
   S.warehouseId = id;
   initInvWarehouseBar();
   renderInventory();
+  renderKits(); // KITs también se filtran/dividen por almacén (ver kitQualifyingWarehouses)
 }
 
 async function clearTenantData() {
@@ -2838,70 +2889,96 @@ function renderKits() {
     return;
   }
   const whs = getWarehouses();
-  el.innerHTML = masters.map(kit => {
-    const skuEsc    = kit.sku.replace(/'/g,"&#39;");
-    const stk       = kitStock(kit);
-    const color     = stk===0?'var(--red)':stk<=2?'var(--amber-dark)':'var(--green-dark)';
-    const kitAlert  = kitAlertLevel(kit);
-    const variants  = S.kits.filter(k => k.sku === kit.sku && (k.warehouse_id||'') !== '');
+  const cards = masters.flatMap(kit => {
+    // Un KIT "existe" como stock vendible en un almacén sólo si TODOS sus
+    // componentes tienen ahí su propia fila de producto (ver
+    // kitQualifyingWarehouses) — igual que un producto, se muestra una fila
+    // por almacén donde tiene stock diferenciado. Si hay un almacén filtrado
+    // arriba a la derecha, sólo se muestra ese (si califica). Si es "Todos",
+    // se muestra una fila por cada almacén que califica — repetido, igual
+    // que pasa con productos. Si ningún almacén califica (catálogo viejo/
+    // incompleto), cae al cálculo global de siempre para no hacer
+    // desaparecer el KIT.
+    const qualifying = kitQualifyingWarehouses(kit);
+    const rows = S.warehouseId
+      ? (qualifying.includes(S.warehouseId) ? [S.warehouseId] : [])
+      : (qualifying.length ? qualifying : [null]);
+    return rows.map(wid => _kitCardHtml(kit, wid, whs));
+  });
+  el.innerHTML = cards.length ? cards.join('') : (S.warehouseId
+    ? `<div class="empty-state"><i class="ti ti-stack-2"></i><p>Ningún KIT tiene todos sus componentes en ${whs.find(w=>w.id===S.warehouseId)?.name || 'este almacén'}.</p></div>`
+    : '');
+}
 
-    const alertBadge = kitAlert
-      ? `<span class="kit-alert-badge ${kitAlert}"><i class="ti ti-alert-triangle"></i>${kitAlert==='critical'?'Sin stock en componente':'Stock bajo en componente'}</span>`
-      : '';
+function _kitCardHtml(kit, warehouseId, whs) {
+  const skuEsc    = kit.sku.replace(/'/g,"&#39;");
+  const stk       = warehouseId ? kitStockForWarehouse(kit, warehouseId) : kitStock(kit);
+  const color     = stk===0?'var(--red)':stk<=2?'var(--amber-dark)':'var(--green-dark)';
+  const kitAlert  = kitAlertLevel(kit);
+  const variants  = S.kits.filter(k => k.sku === kit.sku && (k.warehouse_id||'') !== '');
 
-    const comps = kit.items.map(i => {
-      if (i.type === 'kit') {
-        const sub = S.kits.find(x => x.sku === i.sku && (x.warehouse_id||'') === '');
-        const subAl = sub ? kitAlertLevel(sub) : 'critical';
-        const subStk = sub ? kitStock(sub) : 0;
-        const stockInfo = `<span style="font-size:10px;font-weight:900;color:${subStk===0?'var(--red)':'var(--text3)'};margin-right:4px">${subStk} disp.</span>`;
-        return `<div class="kit-comp-row${subAl?' comp-'+subAl:''}">
-          <span class="kit-comp-name" style="color:var(--amber-dark)">${subAl?`<i class="ti ti-alert-triangle" style="font-size:11px"></i>`:''}<i class="ti ti-stack-2" style="font-size:10px"></i> ${sub?.name||i.sku}</span>
-          <span class="kit-comp-right">${stockInfo}×${i.qty}</span>
-        </div>`;
-      }
-      const p  = S.products.find(x => x.sku === i.sku);
-      const al = p ? alertLevel(p) : null;
-      const stockInfo = al
-        ? `<span style="font-size:10px;font-weight:900;color:${al==='critical'?'var(--red)':'var(--amber-dark)'};margin-right:4px">${p.stock} ud.</span>`
-        : '';
-      return `<div class="kit-comp-row${al?' comp-'+al:''}">
-        <span class="kit-comp-name">${al?`<i class="ti ti-alert-triangle" style="font-size:11px"></i>`:''}${p?.name||i.sku}</span>
+  const alertBadge = kitAlert
+    ? `<span class="kit-alert-badge ${kitAlert}"><i class="ti ti-alert-triangle"></i>${kitAlert==='critical'?'Sin stock en componente':'Stock bajo en componente'}</span>`
+    : '';
+  // Igual que prodRow(): siempre se muestra cuando la fila representa un
+  // almacén concreto (filtrado o no) — sólo se omite en el fallback global.
+  const wh = warehouseId ? whs.find(w => w.id === warehouseId) : null;
+  const whBadge = wh ? `<span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:rgba(13,148,136,.08);padding:1px 6px;border-radius:8px"><i class="ti ti-building-warehouse" style="font-size:9px"></i> ${wh.name}</span>` : '';
+
+  const comps = kit.items.map(i => {
+    if (i.type === 'kit') {
+      const sub = S.kits.find(x => x.sku === i.sku && (x.warehouse_id||'') === '');
+      const subStk = sub ? (warehouseId ? kitStockForWarehouse(sub, warehouseId) : kitStock(sub)) : 0;
+      const subAl = sub ? (subStk===0 ? 'critical' : kitAlertLevel(sub)) : 'critical';
+      const stockInfo = `<span style="font-size:10px;font-weight:900;color:${subStk===0?'var(--red)':'var(--text3)'};margin-right:4px">${subStk} disp.</span>`;
+      return `<div class="kit-comp-row${subAl?' comp-'+subAl:''}">
+        <span class="kit-comp-name" style="color:var(--amber-dark)">${subAl?`<i class="ti ti-alert-triangle" style="font-size:11px"></i>`:''}<i class="ti ti-stack-2" style="font-size:10px"></i> ${sub?.name||i.sku}</span>
         <span class="kit-comp-right">${stockInfo}×${i.qty}</span>
       </div>`;
-    }).join('');
-
-    const skuBlock = whs.length > 0 ? `
-      <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px">SKUs:</span>
-        ${variants.map(v => {
-          const wh = whs.find(w => w.id === v.warehouse_id);
-          const vEsc = v.warehouse_id.replace(/'/g,"&#39;");
-          return `<span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:var(--bg3);padding:2px 8px;border-radius:8px;cursor:pointer" onclick="editKit('${skuEsc}')" title="${v.warehouse_id}">${wh?wh.name:v.warehouse_id}</span>
-          <button onclick="deleteKitSku('${skuEsc}','${vEsc}')" style="width:18px;height:18px;border-radius:5px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:-4px" title="Eliminar SKU"><i class="ti ti-x" style="font-size:9px"></i></button>`;
-        }).join('')}
-        ${whs.length > variants.length ? `<button onclick="openAddKitSkuSheet('${skuEsc}')" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;border:none;background:var(--primary-light);color:var(--primary);cursor:pointer;display:inline-flex;align-items:center;gap:3px"><i class="ti ti-plus" style="font-size:10px"></i> SKU</button>` : ''}
-      </div>` : '';
-
-    return `<div class="kit-card${kitAlert?' kit-alert-'+kitAlert:''}">
-      <div class="kit-header">
-        <div style="flex:1;min-width:0">
-          <div class="kit-name">${kit.name}${alertBadge}</div>
-          <div class="kit-sku" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${kit.sku} · ${fmt(kit.price)} ${kitTipoBadge(kit.tipo)}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          <div style="text-align:right;margin-right:2px">
-            <div class="kit-stock-big" style="color:${color}">${stk}</div>
-            <div class="kit-stock-label">disponibles</div>
-          </div>
-          <button class="btn btn-outline btn-sm" onclick="editKit('${skuEsc}')" title="Editar"><i class="ti ti-pencil"></i></button>
-          <button class="btn btn-sm" style="background:var(--red-light);color:var(--red);border:none" onclick="deleteKit('${skuEsc}')" title="Eliminar"><i class="ti ti-trash"></i></button>
-        </div>
-      </div>
-      <div class="kit-components">${comps}</div>
-      ${skuBlock}
+    }
+    const p  = warehouseId
+      ? S.products.find(x => x.sku === i.sku && (x.warehouse_id||'') === warehouseId)
+      : S.products.find(x => x.sku === i.sku);
+    const al = p ? alertLevel(p) : null;
+    const stockInfo = al
+      ? `<span style="font-size:10px;font-weight:900;color:${al==='critical'?'var(--red)':'var(--amber-dark)'};margin-right:4px">${p.stock} ud.</span>`
+      : '';
+    return `<div class="kit-comp-row${al?' comp-'+al:''}">
+      <span class="kit-comp-name">${al?`<i class="ti ti-alert-triangle" style="font-size:11px"></i>`:''}${p?.name||i.sku}</span>
+      <span class="kit-comp-right">${stockInfo}×${i.qty}</span>
     </div>`;
   }).join('');
+
+  const skuBlock = whs.length > 0 ? `
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px">SKUs:</span>
+      ${variants.map(v => {
+        const vwh = whs.find(w => w.id === v.warehouse_id);
+        const vEsc = v.warehouse_id.replace(/'/g,"&#39;");
+        return `<span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:var(--bg3);padding:2px 8px;border-radius:8px;cursor:pointer" onclick="editKit('${skuEsc}')" title="${v.warehouse_id}">${vwh?vwh.name:v.warehouse_id}</span>
+        <button onclick="deleteKitSku('${skuEsc}','${vEsc}')" style="width:18px;height:18px;border-radius:5px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:-4px" title="Eliminar SKU"><i class="ti ti-x" style="font-size:9px"></i></button>`;
+      }).join('')}
+      ${whs.length > variants.length ? `<button onclick="openAddKitSkuSheet('${skuEsc}')" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;border:none;background:var(--primary-light);color:var(--primary);cursor:pointer;display:inline-flex;align-items:center;gap:3px"><i class="ti ti-plus" style="font-size:10px"></i> SKU</button>` : ''}
+    </div>` : '';
+
+  return `<div class="kit-card${kitAlert?' kit-alert-'+kitAlert:''}">
+    <div class="kit-header">
+      <div style="flex:1;min-width:0">
+        <div class="kit-name">${kit.name}${alertBadge}</div>
+        <div class="kit-sku" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${kit.sku} · ${fmt(kit.price)} ${kitTipoBadge(kit.tipo)}${whBadge}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        <div style="text-align:right;margin-right:2px">
+          <div class="kit-stock-big" style="color:${color}">${stk}</div>
+          <div class="kit-stock-label">disponibles</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="editKit('${skuEsc}')" title="Editar"><i class="ti ti-pencil"></i></button>
+        <button class="btn btn-sm" style="background:var(--red-light);color:var(--red);border:none" onclick="deleteKit('${skuEsc}')" title="Eliminar"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>
+    <div class="kit-components">${comps}</div>
+    ${skuBlock}
+  </div>`;
 }
 
 // ── VENTAS ────────────────────────────────────
