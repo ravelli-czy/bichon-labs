@@ -100,6 +100,47 @@ module.exports = async (req, res) => {
       return res.json({ ok: true, ordersUpdated, itemsUpdated });
     }
 
+    // ── POST ?action=backfill-location — one-time resolution of location_id
+    // on every existing order that's missing it, using the same logic as
+    // order creation (first item's warehouse_id → warehouses.local_id).
+    // Historical orders created before a warehouse was linked to a local (or
+    // whose items had no warehouse_id yet) never got a location_id, so they
+    // can't resolve a Locales prefix (ver orderDisplayId/orderPrefixBadge en
+    // frontend/index.html) or show up in Finanzas' sucursal filter. Admin-only.
+    if (req.method === 'POST' && req.query?.action === 'backfill-location') {
+      if (!['admin','superadmin','master'].includes(session.role)) {
+        return res.status(403).json({ error: 'No autorizado' });
+      }
+      const orders = await sql`
+        SELECT id, items FROM orders
+        WHERE tenant_id = ${tenantId} AND (location_id IS NULL OR location_id = '')
+      `;
+      let ordersUpdated = 0, ordersSkipped = 0;
+      for (const order of orders) {
+        const items = Array.isArray(order.items) ? order.items : [];
+        const firstWarehouseId = items.find(i => i.warehouse_id)?.warehouse_id || '';
+        if (!firstWarehouseId) { ordersSkipped++; continue; }
+        let locationId = '';
+        try {
+          const [wh] = await sql`SELECT local_id FROM warehouses WHERE id = ${firstWarehouseId} AND tenant_id = ${tenantId}`;
+          locationId = wh?.local_id || '';
+        } catch { /* non-fatal — this order just stays without a location */ }
+        if (!locationId) { ordersSkipped++; continue; }
+        await sql`UPDATE orders SET location_id = ${locationId} WHERE id = ${order.id} AND tenant_id = ${tenantId}`;
+        ordersUpdated++;
+      }
+      await writeLog(sql, {
+        tenant_id:   tenantId,
+        actor,
+        action:      'ordenes.location_backfill',
+        entity_type: 'orden',
+        entity_id:   'bulk',
+        entity_name: `${ordersUpdated} órdenes`,
+        details:     { ordersScanned: orders.length, ordersUpdated, ordersSkipped },
+      });
+      return res.json({ ok: true, ordersScanned: orders.length, ordersUpdated, ordersSkipped });
+    }
+
     // ── POST — create order + decrement stock + create shipment ───────────
     if (req.method === 'POST') {
       const {
