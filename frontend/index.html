@@ -917,6 +917,9 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <a href="/finanzas" class="nav-tab sidebar-only-item" title="Finanzas">
     <i class="ti ti-heart nav-fin-icon"></i><span>Finanzas</span>
   </a>
+  <a href="/cupones" class="nav-tab sidebar-only-item" title="Cupones">
+    <i class="ti ti-discount-2"></i><span>Cupones</span>
+  </a>
   <a href="/users" class="nav-tab sidebar-only-item" id="admin-users-btn" title="Gestión de usuarios" style="display:none;text-decoration:none">
     <i class="ti ti-users"></i><span>Perfiles y Usuarios</span>
   </a>
@@ -946,6 +949,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('pagos')"><i class="ti ti-credit-card"></i> Pagos</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('canales')"><i class="ti ti-broadcast"></i> Canales</button>
       <a href="/finanzas" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-heart nav-fin-icon"></i> Finanzas</a>
+      <a href="/cupones" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-discount-2"></i> Cupones</a>
       <a href="/users" class="btn btn-outline" id="admin-users-btn-mobile" style="display:none;text-decoration:none"><i class="ti ti-users"></i> Perfiles y Usuarios</a>
       <a href="/logs" class="btn btn-outline" id="admin-logs-btn-mobile" style="display:none;text-decoration:none"><i class="ti ti-history"></i> Logs</a>
       <button class="btn btn-outline" id="prefs-btn-mobile" onclick="closeSheet('sheet-mobile-more');openPrefs()" style="display:none"><i class="ti ti-settings"></i> Settings</button>
@@ -1261,11 +1265,16 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div class="form-group"><div class="form-label">Referencia</div><input class="form-input" id="oe-addr-notes" placeholder="Depto, piso, timbre..."></div>
       </div>
       <div class="section-label" style="margin-top:14px"><i class="ti ti-receipt-refund"></i> Finanzas</div>
-      <div class="form-row">
-        <div class="form-group"><div class="form-label">Descuento (%)</div><input class="form-input" id="oe-discount-pct" type="number" min="0" max="100" step="0.1" placeholder="0" oninput="oeUpdateTotal()"></div>
-        <div class="form-group"><div class="form-label">Devolución</div><input class="form-input" id="oe-refund" type="number" min="0" placeholder="0"></div>
+      <div class="form-group">
+        <div class="form-label">Código de cupón</div>
+        <div class="add-row">
+          <input class="form-input" id="oe-coupon-code" placeholder="Ej: VERANO10" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+          <button type="button" class="add-row-btn" onclick="applyOeCoupon()" title="Aplicar cupón"><i class="ti ti-check"></i></button>
+        </div>
+        <div id="oe-coupon-status" style="display:none;margin-top:6px"></div>
       </div>
-      <div style="font-size:11px;color:var(--text3);font-weight:600;margin:-6px 0 8px">El descuento se aplica sobre el subtotal de productos y se refleja en el total de la orden. La devolución solo reduce los ingresos netos en el módulo Finanzas.</div>
+      <div class="form-group"><div class="form-label">Devolución</div><input class="form-input" id="oe-refund" type="number" min="0" placeholder="0"></div>
+      <div style="font-size:11px;color:var(--text3);font-weight:600;margin:-6px 0 8px">El cupón se aplica sobre el subtotal de productos y se refleja en el total de la orden. La devolución solo reduce los ingresos netos en el módulo Finanzas.</div>
 
       <div class="total-bar mt-3">
         <div>
@@ -1409,9 +1418,13 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <select id="venta-add-item"><option value="">Agregar producto o KIT...</option></select>
         <button class="add-row-btn" onclick="addVentaItem()"><i class="ti ti-plus"></i></button>
       </div>
-      <div class="form-group mt-2" style="max-width:160px">
-        <div class="form-label">Descuento (%)</div>
-        <input class="form-input" id="venta-discount-pct" type="number" min="0" max="100" step="0.1" placeholder="0" oninput="renderVentaItemsList()">
+      <div class="form-group mt-2">
+        <div class="form-label">Código de cupón</div>
+        <div class="add-row">
+          <input class="form-input" id="venta-coupon-code" placeholder="Ej: VERANO10" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+          <button type="button" class="add-row-btn" onclick="applyVentaCoupon()" title="Aplicar cupón"><i class="ti ti-check"></i></button>
+        </div>
+        <div id="venta-coupon-status" style="display:none;margin-top:6px"></div>
       </div>
 
       <!-- ENTREGA -->
@@ -1758,6 +1771,7 @@ const S = {
   _eliminarOrdenId: null,
   _eliminando: false,
   tempVentaItems: [],
+  tempVentaCoupon: null,
   tempVentaDelivery: {},
   invTab: _initPrefs.invDefaultTab || 'alertas',
   invTypeFilter: 'venta', // 'venta' | 'insumos' — filtro de Inventario (item 1 del doc de requerimientos)
@@ -1930,7 +1944,7 @@ function openPrepChecklist(id) {
   const primaryLabel = labelItems.find(l => l.key === 'etiqueta') || labelItems[0];
   const orderCtxJson = JSON.stringify({ id: v.id, fecha: v.fecha || '', prefix: _orderLocalPrefix(v) }).replace(/"/g, '&quot;');
 
-  document.getElementById('prep-checklist-order-id').textContent = orderDisplayId(v);
+  document.getElementById('prep-checklist-order-id').innerHTML = `${orderPrefixBadge(v)} ${v.id}`;
   document.getElementById('prep-checklist-items').innerHTML = `
     <div class="prep-check-row" id="prep-check-comanda" onclick="togglePrepCheck('comanda')">
       <div class="prep-check-icon"><i class="ti ti-check" style="font-size:14px"></i></div>
@@ -2995,7 +3009,8 @@ function renderVentas() {
       <div class="flex justify-between items-center mb-2">
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:2px">
-            <span style="font-size:13px;font-weight:800;color:var(--primary)">${orderDisplayId(v)}</span>
+            <span style="font-size:13px;font-weight:800;color:var(--primary)">${v.id}</span>
+            ${orderPrefixBadge(v)}
             ${statusBadge(v.status||'por_hacer')}
           </div>
           <div style="font-size:15px;font-weight:800">${v.cliente||'Cliente'}${v.telefono?` <span style="font-size:11px;font-weight:600;color:var(--text3)">${v.telefono}</span>`:''}</div>
@@ -3015,7 +3030,8 @@ function renderVentas() {
       <div class="flex justify-between items-center mb-2">
         <div>
           <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:2px">
-            <span style="font-size:13px;font-weight:800;color:var(--primary)">${orderDisplayId(v)}</span>
+            <span style="font-size:13px;font-weight:800;color:var(--primary)">${v.id}</span>
+            ${orderPrefixBadge(v)}
             ${statusBadge(v.status||'por_hacer')}
           </div>
           <div style="font-size:15px;font-weight:800">${v.cliente||'Cliente'}${v.telefono?` <span style="font-size:11px;font-weight:600;color:var(--text3)">${v.telefono}</span>`:''}</div>
@@ -4806,10 +4822,19 @@ function _orderLocalPrefix(v) {
   return (loc?.prefix || '').trim();
 }
 // ID de orden tal como debe mostrarse: "PREFIJO  #ORD-0022" si el local
-// tiene prefijo configurado, o el ID plano si no.
+// tiene prefijo configurado, o el ID plano si no. Usado en texto plano
+// (comandas/etiquetas impresas, prosa) donde un badge de color no aplica.
 function orderDisplayId(v) {
   const prefix = _orderLocalPrefix(v);
   return prefix ? `${prefix}  #${v.id}` : v.id;
+}
+// Mismo badge de color que el prefijo de local en Locales → Editar local
+// (pill primary-light/primary) — usado junto al ID en las vistas de
+// pantalla (lista de órdenes, detalle, checklist), '' si no hay prefijo.
+function orderPrefixBadge(v) {
+  const prefix = _orderLocalPrefix(v);
+  if (!prefix) return '';
+  return `<span style="font-size:11px;font-weight:800;color:var(--primary);background:var(--primary-light);padding:2px 7px;border-radius:20px;letter-spacing:.3px">${prefix}</span>`;
 }
 
 // Resuelve los templates de etiqueta elegidos para una orden (item 8.5) a
@@ -4931,7 +4956,7 @@ function renderMaterialesOrdersView(el) {
       <div style="display:flex;align-items:center;gap:10px">
         <input type="checkbox" class="materiales-order-cb" data-order-id="${String(v.id).replace(/'/g,"&#39;")}" style="width:16px;height:16px;flex-shrink:0">
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:800">${orderDisplayId(v)} — ${v.cliente||'Cliente'}</div>
+          <div style="font-size:13px;font-weight:800">${orderPrefixBadge(v)} ${v.id} — ${v.cliente||'Cliente'}</div>
           <div style="font-size:11px;font-weight:700;color:var(--text3)">${v.fecha||''}</div>
         </div>
         ${statusBadge(v.status)}
@@ -5497,7 +5522,9 @@ function openSheetVenta(pushURL = true) {
 
   document.getElementById('venta-items-list').innerHTML = '';
   document.getElementById('venta-total').textContent = '$0';
-  document.getElementById('venta-discount-pct').value = '';
+  S.tempVentaCoupon = null;
+  document.getElementById('venta-coupon-code').value = '';
+  document.getElementById('venta-coupon-status').style.display = 'none';
   document.getElementById('venta-cliente').value = '';
   document.getElementById('venta-telefono').value = '';
   _populateOptionSelect('venta-payment-method', 'paymentMethods', '');
@@ -5727,26 +5754,54 @@ function addVentaItem() {
   else S.tempVentaItems.push({type, sku, name, price, qty:1, tipo, warehouse_id});
   renderVentaItemsList();
 }
-// Discount %, clamped to [0,100] — read from the create-order form's input
-function ventaDiscountPct() {
-  const el = document.getElementById('venta-discount-pct');
-  const v = el ? parseFloat(el.value) : 0;
-  return Math.max(0, Math.min(100, isNaN(v) ? 0 : v));
-}
-function ventaDiscountAmount() {
+// Discount amount from the coupon applied to the create-order cart (if any)
+// — percentage cupones are computed against the items subtotal, fixed-amount
+// cupones are clamped so the discount never exceeds that subtotal.
+function ventaCouponDiscountAmount() {
+  const c = S.tempVentaCoupon;
+  if (!c) return 0;
   const itemsTotal = S.tempVentaItems.reduce((s,i) => s+i.qty*i.price, 0);
-  return Math.round(itemsTotal * ventaDiscountPct() / 100);
+  return c.discount_type === 'percentage'
+    ? Math.round(itemsTotal * c.discount_value / 100)
+    : Math.min(Math.round(c.discount_value), itemsTotal);
+}
+async function applyVentaCoupon() {
+  const codeEl = document.getElementById('venta-coupon-code');
+  const statusEl = document.getElementById('venta-coupon-status');
+  const code = codeEl.value.trim().toUpperCase();
+  codeEl.value = code;
+  if (!code) {
+    S.tempVentaCoupon = null;
+    statusEl.style.display = 'none';
+    renderVentaItemsList();
+    return;
+  }
+  if (!S.tempVentaItems.length) { toast('⚠️ Agrega productos antes de aplicar un cupón'); return; }
+  try {
+    const coupon = await apiFetch(`/api/orders?resource=coupons&validate=${encodeURIComponent(code)}`);
+    S.tempVentaCoupon = coupon;
+    statusEl.style.display = '';
+    statusEl.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--green-dark);display:flex;align-items:center;gap:5px"><i class="ti ti-discount-check"></i> Cupón ${coupon.code} aplicado</div>`;
+  } catch(e) {
+    S.tempVentaCoupon = null;
+    statusEl.style.display = '';
+    statusEl.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--red)">${e.message || 'Cupón inválido'}</div>`;
+  }
+  renderVentaItemsList();
 }
 function renderVentaItemsList() {
   const itemsTotal  = S.tempVentaItems.reduce((s,i) => s+i.qty*i.price, 0);
   const shipping    = ventaShippingCost();
-  const discountPct = ventaDiscountPct();
-  const discount    = ventaDiscountAmount();
+  const discount    = ventaCouponDiscountAmount();
   const total       = itemsTotal - discount + shipping;
   document.getElementById('venta-total').textContent = fmt(total);
   const discountEl = document.getElementById('venta-discount-line');
   if (discountEl) discountEl.style.display = discount > 0 ? '' : 'none';
-  if (discountEl && discount > 0) discountEl.textContent = `Descuento ${discountPct}% · -${fmt(discount)}`;
+  if (discountEl && discount > 0) {
+    const c = S.tempVentaCoupon;
+    const label = c.discount_type === 'percentage' ? `${c.discount_value}%` : fmt(c.discount_value);
+    discountEl.textContent = `Cupón ${c.code} (${label}) · -${fmt(discount)}`;
+  }
   const shippingEl = document.getElementById('venta-shipping-line');
   if (shippingEl) shippingEl.style.display = shipping > 0 ? '' : 'none';
   if (shippingEl && shipping > 0) shippingEl.textContent = 'incl. ' + fmt(shipping) + ' envío';
@@ -6026,8 +6081,7 @@ async function saveVenta() {
 
   const shipping = ventaShippingCost();
   const itemsTotal = S.tempVentaItems.reduce((s,i) => s+i.qty*i.price, 0);
-  const discount_pct = ventaDiscountPct();
-  const discount_amount = ventaDiscountAmount();
+  const discount_amount = ventaCouponDiscountAmount();
   const total = itemsTotal - discount_amount + shipping;
   const delivery = {
     method_type:  d.method_type,
@@ -6057,8 +6111,8 @@ async function saveVenta() {
     warehouse_id:   S.warehouseId || '',  // order-level warehouse (fallback for kit components)
     payment_method: document.getElementById('venta-payment-method').value || '',
     sales_channel:  document.getElementById('venta-sales-channel').value || '',
-    discount_pct,
-    discount_amount,
+    coupon_code:    S.tempVentaCoupon ? S.tempVentaCoupon.code : '',
+    discount_amount, // offline fallback only — the online path recomputes this server-side from the coupon
     label_selections,
   };
 
@@ -6125,7 +6179,7 @@ function openOrdenDetalle(id, pushURL = true) {
   const deliveryIcons = { store_pickup:'ti-building-store', home_delivery:'ti-home', pickup_point:'ti-map-pin', express:'ti-bolt' };
   const icon = deliveryIcons[dv.method_type] || 'ti-truck-delivery';
 
-  document.getElementById('overlay-orden-id').textContent = orderDisplayId(v);
+  document.getElementById('overlay-orden-id').innerHTML = `${v.id} ${orderPrefixBadge(v)}`;
   document.getElementById('overlay-orden-status').innerHTML = statusBadge(v.status||'por_hacer');
 
   // Build items HTML — expand KIT components
@@ -6238,7 +6292,7 @@ function openOrdenDetalle(id, pushURL = true) {
     <div class="card" style="padding:10px 14px;margin-bottom:14px">
       ${itemsHtml}
       ${(v.discount_amount > 0) ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 0;margin-top:4px">
-        <span style="font-size:13px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:5px"><i class="ti ti-discount-2" style="font-size:14px"></i>Descuento (${v.discount_pct||0}%)</span>
+        <span style="font-size:13px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:5px"><i class="ti ti-discount-2" style="font-size:14px"></i>Cupón ${v.coupon_code||''}</span>
         <span style="font-size:14px;font-weight:800;color:var(--red)">-${fmt(v.discount_amount)}</span>
       </div>` : ''}
       ${(v.delivery?.slot_cost > 0) ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 0;margin-top:4px">
@@ -6280,12 +6334,15 @@ function openOrderEditSheet(id, pushURL = true) {
   _populateOptionSelect('oe-sales-channel', 'salesChannels', v.sales_channel || '');
   document.getElementById('oe-receptor').value = v.delivery?.receptor || '';
   document.getElementById('oe-receptor-tel').value = v.delivery?.receptor_telefono || '';
-  document.getElementById('oe-discount-pct').value = v.discount_pct || '';
+  S._oeCoupon = null;
+  S._oeCouponCleared = false;
+  document.getElementById('oe-coupon-code').value = v.coupon_code || '';
+  document.getElementById('oe-coupon-status').style.display = 'none';
   document.getElementById('oe-refund').value = v.refund_amount || '';
   const oeDiscountLineEl = document.getElementById('oe-discount-line');
   if (oeDiscountLineEl) {
     oeDiscountLineEl.style.display = (v.discount_amount > 0) ? '' : 'none';
-    if (v.discount_amount > 0) oeDiscountLineEl.textContent = `Descuento ${v.discount_pct||0}% · -${fmt(v.discount_amount)}`;
+    if (v.discount_amount > 0) oeDiscountLineEl.textContent = `Cupón ${v.coupon_code||''} · -${fmt(v.discount_amount)}`;
   }
   document.getElementById('oe-dedicatoria').value = v.dedicatoria || '';
   _oePopulateDelivery(v);
@@ -6511,23 +6568,62 @@ function _oeShippingCost() {
   return shippingBase + (d.slot_cost || 0);
 }
 
-// Discount %, clamped to [0,100] — read from the order-edit form's input
-function _oeDiscountPct() {
-  const el = document.getElementById('oe-discount-pct');
-  const v = el ? parseFloat(el.value) : 0;
-  return Math.max(0, Math.min(100, isNaN(v) ? 0 : v));
-}
-function _oeDiscountAmount() {
+// Discount amount for the order being edited — S._oeCoupon (if set) is a
+// newly-validated coupon replacing the order's existing one (preview only,
+// claimed for real on save); S._oeCouponCleared means the user emptied the
+// code field to remove it; otherwise fall back to the order's stored,
+// already-applied discount_amount (unchanged).
+function _oeCouponDiscountAmount(itemsTotal) {
+  if (S._oeCouponCleared) return 0;
+  if (S._oeCoupon) {
+    return S._oeCoupon.discount_type === 'percentage'
+      ? Math.round(itemsTotal * S._oeCoupon.discount_value / 100)
+      : Math.min(Math.round(S._oeCoupon.discount_value), itemsTotal);
+  }
   const v = S.ventas.find(o => o.id === S._editingOrderId);
-  const itemsTotal = v ? (v.items||[]).reduce((s,i)=>s+i.qty*i.price,0) : 0;
-  return Math.round(itemsTotal * _oeDiscountPct() / 100);
+  return v?.discount_amount || 0;
+}
+async function applyOeCoupon() {
+  const codeEl = document.getElementById('oe-coupon-code');
+  const statusEl = document.getElementById('oe-coupon-status');
+  const code = codeEl.value.trim().toUpperCase();
+  codeEl.value = code;
+  const v = S.ventas.find(o => o.id === S._editingOrderId);
+  if (!code) {
+    S._oeCoupon = null;
+    S._oeCouponCleared = true;
+    statusEl.style.display = 'none';
+    oeUpdateTotal();
+    return;
+  }
+  if (code === (v?.coupon_code || '')) {
+    // Re-typed the order's existing code — nothing to claim, just keep it.
+    S._oeCoupon = null;
+    S._oeCouponCleared = false;
+    statusEl.style.display = '';
+    statusEl.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--green-dark)">Cupón ${code} (sin cambios)</div>`;
+    oeUpdateTotal();
+    return;
+  }
+  try {
+    const coupon = await apiFetch(`/api/orders?resource=coupons&validate=${encodeURIComponent(code)}`);
+    S._oeCoupon = coupon;
+    S._oeCouponCleared = false;
+    statusEl.style.display = '';
+    statusEl.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--green-dark)">Cupón ${coupon.code} aplicado</div>`;
+  } catch(e) {
+    S._oeCoupon = null;
+    statusEl.style.display = '';
+    statusEl.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--red)">${e.message || 'Cupón inválido'}</div>`;
+  }
+  oeUpdateTotal();
 }
 function oeUpdateTotal() {
   const el = document.getElementById('oe-total');
   const v  = S.ventas.find(o => o.id === S._editingOrderId);
   if (!el || !v) return;
   const itemsTotal = (v.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
-  const discount = _oeDiscountAmount();
+  const discount = _oeCouponDiscountAmount(itemsTotal);
   // Only trust the live-computed shipping once delivery was actually
   // touched — until then S._oeDelivery.slot_cost is reset to 0 (see
   // _oePopulateDelivery), so recompute from that would understate an
@@ -6536,7 +6632,10 @@ function oeUpdateTotal() {
   el.textContent = fmt(itemsTotal - discount + shipping);
   const lineEl = document.getElementById('oe-discount-line');
   if (lineEl) lineEl.style.display = discount > 0 ? '' : 'none';
-  if (lineEl && discount > 0) lineEl.textContent = `Descuento ${_oeDiscountPct()}% · -${fmt(discount)}`;
+  if (lineEl && discount > 0) {
+    const code = S._oeCoupon ? S._oeCoupon.code : (v.coupon_code || '');
+    lineEl.textContent = `Cupón ${code} · -${fmt(discount)}`;
+  }
 }
 
 function closeOrderEditSheet() {
@@ -6558,6 +6657,11 @@ async function saveOrderEdit() {
     const addrVisible = document.getElementById('oe-address-group').style.display !== 'none';
     if (addrVisible && !document.getElementById('oe-addr-street').value.trim()) { toast('⚠️ Ingresa la dirección de entrega'); return; }
   }
+  const v = S.ventas.find(o => o.id === id);
+  const itemsTotal = v ? (v.items||[]).reduce((s,i)=>s+i.qty*i.price,0) : 0;
+  // '' means "no coupon" (cleared or never had one); the backend claims/
+  // releases/swaps against the coupon this differs from on the stored order.
+  const couponCode = S._oeCouponCleared ? '' : (S._oeCoupon ? S._oeCoupon.code : (v?.coupon_code || ''));
   const payload = {
     action:            'info',
     cliente:           document.getElementById('oe-cliente').value.trim() || 'Cliente',
@@ -6567,8 +6671,7 @@ async function saveOrderEdit() {
     receptor_telefono: document.getElementById('oe-receptor-tel').value.trim(),
     payment_method:    document.getElementById('oe-payment-method').value || '',
     sales_channel:     document.getElementById('oe-sales-channel').value || '',
-    discount_pct:      _oeDiscountPct(),
-    discount_amount:   _oeDiscountAmount(),
+    coupon_code:       couponCode,
     refund_amount:     Math.max(0, parseFloat(document.getElementById('oe-refund').value) || 0),
   };
   if (S._oeDeliveryTouched) {
@@ -6589,20 +6692,20 @@ async function saveOrderEdit() {
       payload.delivery_update.address_notes  = document.getElementById('oe-addr-notes').value.trim();
     }
   }
-  // Total is always recomputed — a discount % change alone (no delivery
-  // touch) must still reduce the charged total and stay in sync with it.
-  const v = S.ventas.find(o => o.id === id);
-  const itemsTotal = v ? (v.items||[]).reduce((s,i)=>s+i.qty*i.price,0) : 0;
+  // The backend recomputes discount_amount/total authoritatively from the
+  // claimed/released coupon — these are only a same-shape preview for the
+  // offline fallback below (applyLocal(null), no server round-trip).
+  const discountPreview = _oeCouponDiscountAmount(itemsTotal);
   const shipping = S._oeDeliveryTouched ? _oeShippingCost() : (v?.delivery?.slot_cost || 0);
-  payload.total = itemsTotal - payload.discount_amount + shipping;
+  const totalPreview = itemsTotal - discountPreview + shipping;
   const applyLocal = (updated) => {
     const idx = S.ventas.findIndex(o => o.id === id);
     if (idx >= 0) S.ventas[idx] = updated || {
       ...S.ventas[idx],
       cliente: payload.cliente, telefono: payload.telefono, dedicatoria: payload.dedicatoria,
       payment_method: payload.payment_method, sales_channel: payload.sales_channel,
-      discount_pct: payload.discount_pct, discount_amount: payload.discount_amount, refund_amount: payload.refund_amount,
-      total: payload.total,
+      coupon_code: couponCode, discount_amount: discountPreview, refund_amount: payload.refund_amount,
+      total: totalPreview,
       delivery: { ...(S.ventas[idx].delivery||{}), receptor: payload.receptor, receptor_telefono: payload.receptor_telefono, ...(payload.delivery_update||{}) },
     };
   };
@@ -6634,7 +6737,7 @@ function openEliminarOrden(id) {
     <div style="background:var(--bg3);border-radius:var(--radius);padding:12px 14px;display:flex;flex-direction:column;gap:8px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase">Orden</span>
-        <span style="font-size:13px;font-weight:800">${orderDisplayId(v)}</span>
+        <span style="font-size:13px;font-weight:800">${v.id} ${orderPrefixBadge(v)}</span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase">Cliente</span>
@@ -6891,7 +6994,7 @@ function printComanda(id) {
   });
   if (v.discount_amount > 0) {
     itemsRows += `<tr>
-      <td style="padding:6px 6px 4px;font-weight:700;vertical-align:top;color:#000" colspan="2">Descuento (${v.discount_pct||0}%)</td>
+      <td style="padding:6px 6px 4px;font-weight:700;vertical-align:top;color:#000" colspan="2">Cupón ${v.coupon_code||''}</td>
       <td style="padding:6px 6px 4px;text-align:right;font-weight:700;vertical-align:top;white-space:nowrap;color:#000">-${fmt(v.discount_amount)}</td>
     </tr>`;
   }
@@ -6995,7 +7098,7 @@ function printComandasBatch() {
       }
     });
     if (v.discount_amount > 0) {
-      rows += `<tr><td class="nm" colspan="2">Descuento (${v.discount_pct||0}%)</td><td class="pr">-${fmt(v.discount_amount)}</td></tr>`;
+      rows += `<tr><td class="nm" colspan="2">Cupón ${v.coupon_code||''}</td><td class="pr">-${fmt(v.discount_amount)}</td></tr>`;
     }
     return `<div class="c">
       <div class="ch"><div class="cb">StockFlow</div><div class="ci">${orderDisplayId(v)}</div><div class="cd">${v.fecha}</div></div>

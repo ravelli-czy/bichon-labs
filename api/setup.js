@@ -220,11 +220,9 @@ module.exports = async (req, res) => {
     // tax_amount queda NULL/reservado: StockFlow no separa IVA todavía (ver
     // _finance.js) — cuando exista esa info, se puede popular sin migrar nada.
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount INTEGER NOT NULL DEFAULT 0`;
-    // discount_pct es el % ingresado por el usuario al crear/editar la orden;
-    // discount_amount es el monto derivado de ese % sobre el subtotal de
-    // productos, y es lo que efectivamente se resta de `total` y de los
-    // ingresos netos en Finanzas — discount_pct solo se guarda para poder
-    // repoblar el campo al reabrir la orden en edición.
+    // discount_pct: columna legacy del descuento manual por % (reemplazado
+    // por Cupones — ver api/_coupons.js). Ya no se escribe desde la app;
+    // queda sin migrar hacia atrás para no romper filas históricas.
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_pct    NUMERIC NOT NULL DEFAULT 0`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_amount   INTEGER NOT NULL DEFAULT 0`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at    TIMESTAMPTZ`;
@@ -233,6 +231,12 @@ module.exports = async (req, res) => {
     // Templates de etiqueta elegidos para esta orden (item 8) — { etiqueta,
     // huincha_sellado, tarjeta_instrucciones } con el id de label_templates o null.
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS label_selections JSONB NOT NULL DEFAULT '{}'`;
+    // Cupón aplicado a esta orden (opcional) — coupon_id referencia la fila
+    // viva en `coupons` (para liberar el uso si se edita/elimina la orden);
+    // coupon_code es un snapshot del código al momento de aplicarlo, para
+    // mostrarlo en la orden aunque el cupón se edite o elimine después.
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_id       TEXT`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_code     TEXT DEFAULT ''`;
     await sql`CREATE INDEX IF NOT EXISTS orders_tenant_status_idx    ON orders (tenant_id, status)`;
     await sql`CREATE INDEX IF NOT EXISTS orders_delivered_at_idx     ON orders (delivered_at)`;
     await sql`CREATE INDEX IF NOT EXISTS orders_tenant_delivered_idx ON orders (tenant_id, delivered_at)`;
@@ -251,6 +255,28 @@ module.exports = async (req, res) => {
       UPDATE orders SET delivered_at = updated_at
       WHERE status = 'entregada' AND delivered_at IS NULL
     `;
+
+    // ── Cupones ─────────────────────────────────────────────────────────────
+    // discount_type: 'percentage' | 'fixed'. used_count/max_uses controlan el
+    // límite de usos — ver claimCoupon/releaseCoupon en api/_coupons.js para
+    // el reclamo/liberación atómica al crear/editar/eliminar una orden.
+    await sql`
+      CREATE TABLE IF NOT EXISTS coupons (
+        id             TEXT PRIMARY KEY,
+        tenant_id      TEXT NOT NULL DEFAULT 'TEN-001',
+        code           TEXT NOT NULL,
+        discount_type  TEXT NOT NULL DEFAULT 'percentage',
+        discount_value NUMERIC NOT NULL DEFAULT 0,
+        max_uses       INTEGER NOT NULL DEFAULT 1,
+        used_count     INTEGER NOT NULL DEFAULT 0,
+        active         BOOLEAN NOT NULL DEFAULT TRUE,
+        created_by     TEXT DEFAULT '',
+        created_at     TIMESTAMPTZ DEFAULT NOW(),
+        updated_at     TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (tenant_id, code)
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS coupons_tenant_idx ON coupons (tenant_id)`;
 
     // ── Finanzas: categorías de gasto ──────────────────────────────────────
     await sql`
