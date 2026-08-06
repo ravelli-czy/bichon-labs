@@ -3226,6 +3226,7 @@ function _populateWarehouseSelect(selectedId, readonly, excludeIds) {
 function _resetAddSkuState() {
   S._addSkuMode = false;
   S._addSkuData = null;
+  S._addSkuFromInventory = false;
   S._stockOnlyMode = false;
   S._stockOnlyBaseData = null;
   const sumEl = document.getElementById('p-prod-summary');
@@ -3308,10 +3309,15 @@ function continueAddInventory() {
   const sku = document.getElementById('add-inv-product').value;
   if (!sku) { toast('⚠️ Selecciona un producto'); return; }
   closeSheet('sheet-add-inventory');
-  openAddSkuSheet(sku);
+  openAddSkuSheet(sku, true);
 }
 
-function openAddSkuSheet(prodSku) {
+// fromInventory: true cuando se llega desde "Agregar inventario" (FAB) —
+// mismo mecanismo que "Agregar SKU" (crea una fila de producto nueva para
+// otro almacén), pero el copy debe hablar de stock/inventario, no de SKU,
+// porque desde ese flujo el usuario está pensando en cantidad+tienda, no en
+// dar de alta un código de barra nuevo.
+function openAddSkuSheet(prodSku, fromInventory = false) {
   const master = S.products.find(x => x.sku === prodSku && (x.warehouse_id||'') === '')
                || S.products.find(x => x.sku === prodSku);
   if (!master) return;
@@ -3320,9 +3326,14 @@ function openAddSkuSheet(prodSku) {
   S.editingProdWarehouseId = '';
   S._catalogMode = false;
   S._addSkuMode  = true;
+  S._addSkuFromInventory = fromInventory;
   S._addSkuData  = { sku: master.sku, name: master.name, brand: master.brand, cat: master.cat, tipo: master.tipo, cost: master.cost, price: master.price, groups: master.groups };
-  document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-barcode" style="color:var(--primary)"></i> Agregar SKU';
-  document.getElementById('prod-save-btn').innerHTML    = '<i class="ti ti-check"></i> Crear SKU';
+  document.getElementById('prod-sheet-title').innerHTML = fromInventory
+    ? '<i class="ti ti-package-import" style="color:var(--teal-dark,#0d9488)"></i> Agregar inventario'
+    : '<i class="ti ti-barcode" style="color:var(--primary)"></i> Agregar SKU';
+  document.getElementById('prod-save-btn').innerHTML = fromInventory
+    ? '<i class="ti ti-check"></i> Agregar stock'
+    : '<i class="ti ti-check"></i> Crear SKU';
   document.getElementById('prod-dup-btn').style.display = 'none';
   // Show summary, hide definition fields
   const sumEl = document.getElementById('p-prod-summary');
@@ -3337,7 +3348,7 @@ function openAddSkuSheet(prodSku) {
         <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:1px">${master.brand||'Sin marca'} · ${master.cat||'—'}</div>
         <div style="font-size:10px;font-weight:800;color:var(--primary);font-family:monospace;margin-top:2px">${master.sku}</div>
       </div>
-      <span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:var(--teal-light,#ccfbf1);padding:3px 8px;border-radius:10px">Nuevo SKU</span>
+      <span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:var(--teal-light,#ccfbf1);padding:3px 8px;border-radius:10px">${fromInventory ? 'Nueva tienda' : 'Nuevo SKU'}</span>
     </div>`;
   }
   // Show warehouse + stock + barcode; hide sku-section toggle
@@ -3354,7 +3365,7 @@ function openAddSkuSheet(prodSku) {
     .map(x => x.warehouse_id);
   const allWhs = getWarehouses();
   if (allWhs.length > 0 && usedWarehouseIds.length >= allWhs.length) {
-    toast('ℹ️ Todos los almacenes ya tienen un SKU para este producto');
+    toast(fromInventory ? 'ℹ️ Este producto ya tiene stock en todas las tiendas' : 'ℹ️ Todos los almacenes ya tienen un SKU para este producto');
     return;
   }
   _populateWarehouseSelect('', false, usedWarehouseIds);
@@ -3795,7 +3806,9 @@ async function _saveProdImpl() {
       const dup = S.products.some(p => p.sku === S._addSkuData.sku && (p.warehouse_id||'') === warehouse_id);
       if (dup) {
         const whName = getWarehouses().find(w => w.id === warehouse_id)?.name || warehouse_id;
-        toast(`⚠️ "${S._addSkuData.name}" ya tiene un SKU en ${whName}`);
+        toast(S._addSkuFromInventory
+          ? `⚠️ "${S._addSkuData.name}" ya tiene stock en ${whName}`
+          : `⚠️ "${S._addSkuData.name}" ya tiene un SKU en ${whName}`);
         return;
       }
     }
@@ -3806,7 +3819,7 @@ async function _saveProdImpl() {
       } catch(e) {
         if (isAddSku) {
           // Never create a ghost local copy for add-SKU — the DB rejected it (likely duplicate)
-          toast('❌ Error al crear SKU: ' + (e.message || 'intenta de nuevo'));
+          toast((S._addSkuFromInventory ? '❌ Error al agregar stock: ' : '❌ Error al crear SKU: ') + (e.message || 'intenta de nuevo'));
           return;
         }
         const sku = 'PRD-' + String(S.products.length+1).padStart(3,'0');
@@ -3817,7 +3830,10 @@ async function _saveProdImpl() {
       const sku = 'PRD-' + String(S.products.length+1).padStart(3,'0');
       S.products.push({ sku, ...data });
     }
-    const skuLabel = isAddSku ? `SKU en "${getWarehouses().find(w=>w.id===warehouse_id)?.name||warehouse_id}"` : ('como "' + tipoMeta[selectedTipo].label + '"');
+    const whName = getWarehouses().find(w=>w.id===warehouse_id)?.name||warehouse_id;
+    const skuLabel = isAddSku
+      ? (S._addSkuFromInventory ? `stock en "${whName}"` : `SKU en "${whName}"`)
+      : ('como "' + tipoMeta[selectedTipo].label + '"');
     _resetAddSkuState();
     closeProdSheet();
     toast('✅ Guardado ' + skuLabel);
