@@ -23,16 +23,35 @@ async function _deductKit(sql, kitSku, qty, wid, tenantId) {
   }
 }
 
-// Resolves a warehouse_id to anchor an order's location_id backfill on
-// (ver ?action=backfill-location más abajo). KIT items are warehouse-
+// Resolves a local_id for an order's location_id backfill (ver
+// ?action=backfill-location más abajo) straight from its delivery method —
+// each local configures its own delivery_methods with its own name
+// (ver locales.html), so order.delivery.method_label is actually a
+// precise, unambiguous signal for "which store fulfilled this order",
+// unlike guessing from a shared product catalog (ver
+// _resolveWarehouseIdFromItems below, which can't tell apart a SKU that
+// exists in more than one warehouse). Returns '' if there's no
+// method_label, no match, or the name isn't unique to a single local
+// (never guesses between two candidates).
+async function _resolveLocationIdFromDelivery(sql, tenantId, delivery) {
+  const label = delivery?.method_label;
+  if (!label) return '';
+  const rows = await sql`SELECT DISTINCT local_id FROM delivery_methods WHERE tenant_id = ${tenantId} AND name = ${label}`;
+  return rows.length === 1 ? rows[0].local_id : '';
+}
+
+// Resolves a warehouse_id to anchor an order's location_id backfill on, when
+// _resolveLocationIdFromDelivery above couldn't. KIT items are warehouse-
 // agnostic themselves (warehouse_id: '' by design — only their component
 // PRODUCTS carry one, resolved via the `products` table, see _deductKit
 // above), so a naive `items.find(i => i.warehouse_id)` always comes up
 // empty for KIT-only orders. Descends into each KIT's CURRENT component
 // list (up to a few levels, same depth guard as the frontend's
 // _kitComponentRows) looking up the first component product that has a
-// warehouse_id — an approximation using today's catalog, same caveat as
-// backfill-costs using today's cost.
+// warehouse_id — an approximation using today's catalog (same caveat as
+// backfill-costs using today's cost) that can be wrong if that SKU exists
+// in more than one warehouse, which is exactly why the delivery-method
+// signal above is tried first.
 async function _resolveWarehouseIdFromItems(sql, tenantId, items, depth = 0) {
   const direct = items.find(i => i.warehouse_id)?.warehouse_id;
   if (direct) return direct;
@@ -144,19 +163,26 @@ module.exports = async (req, res) => {
         return res.status(403).json({ error: 'No autorizado' });
       }
       const orders = await sql`
-        SELECT id, items FROM orders
+        SELECT id, items, delivery FROM orders
         WHERE tenant_id = ${tenantId} AND (location_id IS NULL OR location_id = '')
       `;
       let ordersUpdated = 0, ordersSkipped = 0;
       for (const order of orders) {
         const items = Array.isArray(order.items) ? order.items : [];
-        const firstWarehouseId = await _resolveWarehouseIdFromItems(sql, tenantId, items);
-        if (!firstWarehouseId) { ordersSkipped++; continue; }
-        let locationId = '';
-        try {
-          const [wh] = await sql`SELECT local_id FROM warehouses WHERE id = ${firstWarehouseId} AND tenant_id = ${tenantId}`;
-          locationId = wh?.local_id || '';
-        } catch { /* non-fatal — this order just stays without a location */ }
+        // Prefer the delivery method — precise per-local signal — over
+        // guessing from the product catalog (see _resolveWarehouseIdFromItems'
+        // comment for why that guess can be wrong when a SKU is stocked in
+        // more than one warehouse).
+        let locationId = await _resolveLocationIdFromDelivery(sql, tenantId, order.delivery);
+        if (!locationId) {
+          const firstWarehouseId = await _resolveWarehouseIdFromItems(sql, tenantId, items);
+          if (firstWarehouseId) {
+            try {
+              const [wh] = await sql`SELECT local_id FROM warehouses WHERE id = ${firstWarehouseId} AND tenant_id = ${tenantId}`;
+              locationId = wh?.local_id || '';
+            } catch { /* non-fatal — this order just stays without a location */ }
+          }
+        }
         if (!locationId) { ordersSkipped++; continue; }
         await sql`UPDATE orders SET location_id = ${locationId} WHERE id = ${order.id} AND tenant_id = ${tenantId}`;
         ordersUpdated++;
