@@ -1262,13 +1262,16 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       </div>
       <div class="section-label" style="margin-top:14px"><i class="ti ti-receipt-refund"></i> Finanzas</div>
       <div class="form-row">
-        <div class="form-group"><div class="form-label">Descuento aplicado</div><input class="form-input" id="oe-discount" type="number" min="0" placeholder="0"></div>
+        <div class="form-group"><div class="form-label">Descuento (%)</div><input class="form-input" id="oe-discount-pct" type="number" min="0" max="100" step="0.1" placeholder="0" oninput="oeUpdateTotal()"></div>
         <div class="form-group"><div class="form-label">Devolución</div><input class="form-input" id="oe-refund" type="number" min="0" placeholder="0"></div>
       </div>
-      <div style="font-size:11px;color:var(--text3);font-weight:600;margin:-6px 0 8px">Reducen los ingresos netos de esta orden en el módulo Finanzas.</div>
+      <div style="font-size:11px;color:var(--text3);font-weight:600;margin:-6px 0 8px">El descuento se aplica sobre el subtotal de productos y se refleja en el total de la orden. La devolución solo reduce los ingresos netos en el módulo Finanzas.</div>
 
       <div class="total-bar mt-3">
-        <span style="font-size:14px;font-weight:800;color:var(--green-dark)">Total de la orden</span>
+        <div>
+          <span style="font-size:14px;font-weight:800;color:var(--green-dark)">Total de la orden</span>
+          <div id="oe-discount-line" style="display:none;font-size:10px;font-weight:700;color:var(--red);margin-top:1px"></div>
+        </div>
         <span style="font-size:20px;font-weight:900;color:var(--green-dark)" id="oe-total">$0</span>
       </div>
 
@@ -1406,6 +1409,10 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <select id="venta-add-item"><option value="">Agregar producto o KIT...</option></select>
         <button class="add-row-btn" onclick="addVentaItem()"><i class="ti ti-plus"></i></button>
       </div>
+      <div class="form-group mt-2" style="max-width:160px">
+        <div class="form-label">Descuento (%)</div>
+        <input class="form-input" id="venta-discount-pct" type="number" min="0" max="100" step="0.1" placeholder="0" oninput="renderVentaItemsList()">
+      </div>
 
       <!-- ENTREGA -->
       <div class="section-label" style="margin-top:14px"><i class="ti ti-truck-delivery"></i> Entrega <span style="color:var(--red);font-size:13px">*</span></div>
@@ -1471,6 +1478,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="total-bar mt-3">
         <div>
           <span style="font-size:14px;font-weight:800;color:var(--green-dark)">Total</span>
+          <div id="venta-discount-line" style="display:none;font-size:10px;font-weight:700;color:var(--red);margin-top:1px"></div>
           <div id="venta-shipping-line" style="display:none;font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);margin-top:1px"></div>
         </div>
         <span style="font-size:22px;font-weight:900;color:var(--green-dark)" id="venta-total">$0</span>
@@ -1920,15 +1928,15 @@ function openPrepChecklist(id) {
     ? labelItems.map(l => l.tpl.name)
     : [...new Set((v.items || []).map(i => i.name || i.sku))];
   const primaryLabel = labelItems.find(l => l.key === 'etiqueta') || labelItems[0];
-  const orderCtxJson = JSON.stringify({ id: v.id, fecha: v.fecha || '' }).replace(/"/g, '&quot;');
+  const orderCtxJson = JSON.stringify({ id: v.id, fecha: v.fecha || '', prefix: _orderLocalPrefix(v) }).replace(/"/g, '&quot;');
 
-  document.getElementById('prep-checklist-order-id').textContent = v.id;
+  document.getElementById('prep-checklist-order-id').textContent = orderDisplayId(v);
   document.getElementById('prep-checklist-items').innerHTML = `
     <div class="prep-check-row" id="prep-check-comanda" onclick="togglePrepCheck('comanda')">
       <div class="prep-check-icon"><i class="ti ti-check" style="font-size:14px"></i></div>
       <div style="flex:1;min-width:0">
         <div style="font-weight:800;font-size:14px">Imprimir comanda</div>
-        <div style="font-size:12px;color:var(--text3);font-weight:600">Comanda de pedido para ${v.id}</div>
+        <div style="font-size:12px;color:var(--text3);font-weight:600">Comanda de pedido para ${orderDisplayId(v)}</div>
       </div>
       <button class="btn btn-outline btn-sm" style="width:auto" onclick="event.stopPropagation();printComanda('${v.id}');markPrepCheck('comanda')" title="Imprimir comanda"><i class="ti ti-printer"></i></button>
     </div>
@@ -2987,7 +2995,7 @@ function renderVentas() {
       <div class="flex justify-between items-center mb-2">
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:2px">
-            <span style="font-size:13px;font-weight:800;color:var(--primary)">${v.id}</span>
+            <span style="font-size:13px;font-weight:800;color:var(--primary)">${orderDisplayId(v)}</span>
             ${statusBadge(v.status||'por_hacer')}
           </div>
           <div style="font-size:15px;font-weight:800">${v.cliente||'Cliente'}${v.telefono?` <span style="font-size:11px;font-weight:600;color:var(--text3)">${v.telefono}</span>`:''}</div>
@@ -3007,7 +3015,7 @@ function renderVentas() {
       <div class="flex justify-between items-center mb-2">
         <div>
           <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:2px">
-            <span style="font-size:13px;font-weight:800;color:var(--primary)">${v.id}</span>
+            <span style="font-size:13px;font-weight:800;color:var(--primary)">${orderDisplayId(v)}</span>
             ${statusBadge(v.status||'por_hacer')}
           </div>
           <div style="font-size:15px;font-weight:800">${v.cliente||'Cliente'}${v.telefono?` <span style="font-size:11px;font-weight:600;color:var(--text3)">${v.telefono}</span>`:''}</div>
@@ -4788,6 +4796,22 @@ async function deleteCustomLabelType(key) {
   if (S.currentPage === 'catalogo') renderCatalogo();
 }
 
+// Prefijo del local (Locales → Editar local) al que pertenece la orden,
+// resuelto vía v.location_id (= local_id del almacén usado al vender —
+// ver location_id en api/orders.js). '' si la orden no tiene local
+// resuelto o el local no tiene prefijo configurado.
+function _orderLocalPrefix(v) {
+  if (!v || !v.location_id) return '';
+  const loc = (S.locales || []).find(l => l.id === v.location_id);
+  return (loc?.prefix || '').trim();
+}
+// ID de orden tal como debe mostrarse: "PREFIJO  #ORD-0022" si el local
+// tiene prefijo configurado, o el ID plano si no.
+function orderDisplayId(v) {
+  const prefix = _orderLocalPrefix(v);
+  return prefix ? `${prefix}  #${v.id}` : v.id;
+}
+
 // Resuelve los templates de etiqueta elegidos para una orden (item 8.5) a
 // partir de v.label_selections — usado tanto en el checklist de "Iniciar
 // preparación" como en el detalle de la orden para imprimir cada una.
@@ -4800,7 +4824,7 @@ function _orderLabelItems(v) {
 function orderLabelsSection(v) {
   const items = _orderLabelItems(v);
   if (!items.length) return '';
-  const orderCtxJson = JSON.stringify({ id: v.id, fecha: v.fecha || '' }).replace(/"/g, '&quot;');
+  const orderCtxJson = JSON.stringify({ id: v.id, fecha: v.fecha || '', prefix: _orderLocalPrefix(v) }).replace(/"/g, '&quot;');
   return `<div class="section-label"><i class="ti ti-tag"></i> Etiquetas</div>
     <div class="card" style="padding:4px 0;margin-bottom:14px">
       ${items.map(t => `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">
@@ -4907,7 +4931,7 @@ function renderMaterialesOrdersView(el) {
       <div style="display:flex;align-items:center;gap:10px">
         <input type="checkbox" class="materiales-order-cb" data-order-id="${String(v.id).replace(/'/g,"&#39;")}" style="width:16px;height:16px;flex-shrink:0">
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:800">${v.id} — ${v.cliente||'Cliente'}</div>
+          <div style="font-size:13px;font-weight:800">${orderDisplayId(v)} — ${v.cliente||'Cliente'}</div>
           <div style="font-size:11px;font-weight:700;color:var(--text3)">${v.fecha||''}</div>
         </div>
         ${statusBadge(v.status)}
@@ -5322,7 +5346,7 @@ ${tpl.image_url
       ${safeContentText ? `<div class="content-text">${safeContentText}</div>` : ''}
     </div>`
   : (safeContentText ? `<div class="content-text" style="margin-bottom:10px">${safeContentText}</div>` : '')}
-${orderCtx ? `<div class="order-ctx">${orderCtx.id} · ${orderCtx.fecha||''}</div>` : ''}
+${orderCtx ? `<div class="order-ctx">${orderCtx.prefix ? orderCtx.prefix+'  #'+orderCtx.id : orderCtx.id} · ${orderCtx.fecha||''}</div>` : ''}
 <script>window.onload=function(){window.print();}<\/script>
 </body></html>`;
 
@@ -5473,6 +5497,7 @@ function openSheetVenta(pushURL = true) {
 
   document.getElementById('venta-items-list').innerHTML = '';
   document.getElementById('venta-total').textContent = '$0';
+  document.getElementById('venta-discount-pct').value = '';
   document.getElementById('venta-cliente').value = '';
   document.getElementById('venta-telefono').value = '';
   _populateOptionSelect('venta-payment-method', 'paymentMethods', '');
@@ -5702,11 +5727,26 @@ function addVentaItem() {
   else S.tempVentaItems.push({type, sku, name, price, qty:1, tipo, warehouse_id});
   renderVentaItemsList();
 }
-function renderVentaItemsList() {
+// Discount %, clamped to [0,100] — read from the create-order form's input
+function ventaDiscountPct() {
+  const el = document.getElementById('venta-discount-pct');
+  const v = el ? parseFloat(el.value) : 0;
+  return Math.max(0, Math.min(100, isNaN(v) ? 0 : v));
+}
+function ventaDiscountAmount() {
   const itemsTotal = S.tempVentaItems.reduce((s,i) => s+i.qty*i.price, 0);
-  const shipping   = ventaShippingCost();
-  const total      = itemsTotal + shipping;
+  return Math.round(itemsTotal * ventaDiscountPct() / 100);
+}
+function renderVentaItemsList() {
+  const itemsTotal  = S.tempVentaItems.reduce((s,i) => s+i.qty*i.price, 0);
+  const shipping    = ventaShippingCost();
+  const discountPct = ventaDiscountPct();
+  const discount    = ventaDiscountAmount();
+  const total       = itemsTotal - discount + shipping;
   document.getElementById('venta-total').textContent = fmt(total);
+  const discountEl = document.getElementById('venta-discount-line');
+  if (discountEl) discountEl.style.display = discount > 0 ? '' : 'none';
+  if (discountEl && discount > 0) discountEl.textContent = `Descuento ${discountPct}% · -${fmt(discount)}`;
   const shippingEl = document.getElementById('venta-shipping-line');
   if (shippingEl) shippingEl.style.display = shipping > 0 ? '' : 'none';
   if (shippingEl && shipping > 0) shippingEl.textContent = 'incl. ' + fmt(shipping) + ' envío';
@@ -5985,7 +6025,10 @@ async function saveVenta() {
   if (missingRequiredLabel) { toast('⚠️ Selecciona un template de etiqueta'); return; }
 
   const shipping = ventaShippingCost();
-  const total = S.tempVentaItems.reduce((s,i) => s+i.qty*i.price, 0) + shipping;
+  const itemsTotal = S.tempVentaItems.reduce((s,i) => s+i.qty*i.price, 0);
+  const discount_pct = ventaDiscountPct();
+  const discount_amount = ventaDiscountAmount();
+  const total = itemsTotal - discount_amount + shipping;
   const delivery = {
     method_type:  d.method_type,
     method_label: d.method_label || METHOD_LABELS[d.method_type],
@@ -6014,6 +6057,8 @@ async function saveVenta() {
     warehouse_id:   S.warehouseId || '',  // order-level warehouse (fallback for kit components)
     payment_method: document.getElementById('venta-payment-method').value || '',
     sales_channel:  document.getElementById('venta-sales-channel').value || '',
+    discount_pct,
+    discount_amount,
     label_selections,
   };
 
@@ -6080,7 +6125,7 @@ function openOrdenDetalle(id, pushURL = true) {
   const deliveryIcons = { store_pickup:'ti-building-store', home_delivery:'ti-home', pickup_point:'ti-map-pin', express:'ti-bolt' };
   const icon = deliveryIcons[dv.method_type] || 'ti-truck-delivery';
 
-  document.getElementById('overlay-orden-id').textContent = v.id;
+  document.getElementById('overlay-orden-id').textContent = orderDisplayId(v);
   document.getElementById('overlay-orden-status').innerHTML = statusBadge(v.status||'por_hacer');
 
   // Build items HTML — expand KIT components
@@ -6192,6 +6237,10 @@ function openOrdenDetalle(id, pushURL = true) {
     <div class="section-label"><i class="ti ti-shopping-cart"></i> Productos</div>
     <div class="card" style="padding:10px 14px;margin-bottom:14px">
       ${itemsHtml}
+      ${(v.discount_amount > 0) ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 0;margin-top:4px">
+        <span style="font-size:13px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:5px"><i class="ti ti-discount-2" style="font-size:14px"></i>Descuento (${v.discount_pct||0}%)</span>
+        <span style="font-size:14px;font-weight:800;color:var(--red)">-${fmt(v.discount_amount)}</span>
+      </div>` : ''}
       ${(v.delivery?.slot_cost > 0) ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 0;margin-top:4px">
         <span style="font-size:13px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:5px"><i class="ti ti-truck-delivery" style="font-size:14px;color:var(--text3)"></i>Costo de despacho</span>
         <span style="font-size:14px;font-weight:800;color:var(--text2)">${fmt(v.delivery.slot_cost)}</span>
@@ -6231,8 +6280,13 @@ function openOrderEditSheet(id, pushURL = true) {
   _populateOptionSelect('oe-sales-channel', 'salesChannels', v.sales_channel || '');
   document.getElementById('oe-receptor').value = v.delivery?.receptor || '';
   document.getElementById('oe-receptor-tel').value = v.delivery?.receptor_telefono || '';
-  document.getElementById('oe-discount').value = v.discount_amount || '';
+  document.getElementById('oe-discount-pct').value = v.discount_pct || '';
   document.getElementById('oe-refund').value = v.refund_amount || '';
+  const oeDiscountLineEl = document.getElementById('oe-discount-line');
+  if (oeDiscountLineEl) {
+    oeDiscountLineEl.style.display = (v.discount_amount > 0) ? '' : 'none';
+    if (v.discount_amount > 0) oeDiscountLineEl.textContent = `Descuento ${v.discount_pct||0}% · -${fmt(v.discount_amount)}`;
+  }
   document.getElementById('oe-dedicatoria').value = v.dedicatoria || '';
   _oePopulateDelivery(v);
   // overlay-orden sits behind this sheet in the DOM but shares the same
@@ -6457,12 +6511,32 @@ function _oeShippingCost() {
   return shippingBase + (d.slot_cost || 0);
 }
 
+// Discount %, clamped to [0,100] — read from the order-edit form's input
+function _oeDiscountPct() {
+  const el = document.getElementById('oe-discount-pct');
+  const v = el ? parseFloat(el.value) : 0;
+  return Math.max(0, Math.min(100, isNaN(v) ? 0 : v));
+}
+function _oeDiscountAmount() {
+  const v = S.ventas.find(o => o.id === S._editingOrderId);
+  const itemsTotal = v ? (v.items||[]).reduce((s,i)=>s+i.qty*i.price,0) : 0;
+  return Math.round(itemsTotal * _oeDiscountPct() / 100);
+}
 function oeUpdateTotal() {
   const el = document.getElementById('oe-total');
   const v  = S.ventas.find(o => o.id === S._editingOrderId);
   if (!el || !v) return;
   const itemsTotal = (v.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
-  el.textContent = fmt(itemsTotal + _oeShippingCost());
+  const discount = _oeDiscountAmount();
+  // Only trust the live-computed shipping once delivery was actually
+  // touched — until then S._oeDelivery.slot_cost is reset to 0 (see
+  // _oePopulateDelivery), so recompute from that would understate an
+  // existing order's shipping. Fall back to the order's stored slot_cost.
+  const shipping = S._oeDeliveryTouched ? _oeShippingCost() : (v.delivery?.slot_cost || 0);
+  el.textContent = fmt(itemsTotal - discount + shipping);
+  const lineEl = document.getElementById('oe-discount-line');
+  if (lineEl) lineEl.style.display = discount > 0 ? '' : 'none';
+  if (lineEl && discount > 0) lineEl.textContent = `Descuento ${_oeDiscountPct()}% · -${fmt(discount)}`;
 }
 
 function closeOrderEditSheet() {
@@ -6493,7 +6567,8 @@ async function saveOrderEdit() {
     receptor_telefono: document.getElementById('oe-receptor-tel').value.trim(),
     payment_method:    document.getElementById('oe-payment-method').value || '',
     sales_channel:     document.getElementById('oe-sales-channel').value || '',
-    discount_amount:   Math.max(0, parseFloat(document.getElementById('oe-discount').value) || 0),
+    discount_pct:      _oeDiscountPct(),
+    discount_amount:   _oeDiscountAmount(),
     refund_amount:     Math.max(0, parseFloat(document.getElementById('oe-refund').value) || 0),
   };
   if (S._oeDeliveryTouched) {
@@ -6513,17 +6588,21 @@ async function saveOrderEdit() {
       payload.delivery_update.address_region = document.getElementById('oe-addr-region').value.trim();
       payload.delivery_update.address_notes  = document.getElementById('oe-addr-notes').value.trim();
     }
-    const v = S.ventas.find(o => o.id === id);
-    const itemsTotal = v ? (v.items||[]).reduce((s,i)=>s+i.qty*i.price,0) : 0;
-    payload.total = itemsTotal + _oeShippingCost();
   }
+  // Total is always recomputed — a discount % change alone (no delivery
+  // touch) must still reduce the charged total and stay in sync with it.
+  const v = S.ventas.find(o => o.id === id);
+  const itemsTotal = v ? (v.items||[]).reduce((s,i)=>s+i.qty*i.price,0) : 0;
+  const shipping = S._oeDeliveryTouched ? _oeShippingCost() : (v?.delivery?.slot_cost || 0);
+  payload.total = itemsTotal - payload.discount_amount + shipping;
   const applyLocal = (updated) => {
     const idx = S.ventas.findIndex(o => o.id === id);
     if (idx >= 0) S.ventas[idx] = updated || {
       ...S.ventas[idx],
       cliente: payload.cliente, telefono: payload.telefono, dedicatoria: payload.dedicatoria,
       payment_method: payload.payment_method, sales_channel: payload.sales_channel,
-      total: payload.total ?? S.ventas[idx].total,
+      discount_pct: payload.discount_pct, discount_amount: payload.discount_amount, refund_amount: payload.refund_amount,
+      total: payload.total,
       delivery: { ...(S.ventas[idx].delivery||{}), receptor: payload.receptor, receptor_telefono: payload.receptor_telefono, ...(payload.delivery_update||{}) },
     };
   };
@@ -6555,7 +6634,7 @@ function openEliminarOrden(id) {
     <div style="background:var(--bg3);border-radius:var(--radius);padding:12px 14px;display:flex;flex-direction:column;gap:8px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase">Orden</span>
-        <span style="font-size:13px;font-weight:800">${v.id}</span>
+        <span style="font-size:13px;font-weight:800">${orderDisplayId(v)}</span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase">Cliente</span>
@@ -6810,8 +6889,15 @@ function printComanda(id) {
       });
     }
   });
+  if (v.discount_amount > 0) {
+    itemsRows += `<tr>
+      <td style="padding:6px 6px 4px;font-weight:700;vertical-align:top;color:#000" colspan="2">Descuento (${v.discount_pct||0}%)</td>
+      <td style="padding:6px 6px 4px;text-align:right;font-weight:700;vertical-align:top;white-space:nowrap;color:#000">-${fmt(v.discount_amount)}</td>
+    </tr>`;
+  }
 
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comanda ${v.id}</title>
+  const displayId = orderDisplayId(v);
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comanda ${displayId}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#000;background:#fff;padding:16px;max-width:360px;margin:0 auto}
@@ -6829,7 +6915,7 @@ table{width:100%;border-collapse:collapse}
 </style></head><body>
 <div class="center"><div class="big">StockFlow</div><div style="font-size:10px;color:#333;margin-top:2px">Comanda de Pedido</div></div>
 <div class="dashed"></div>
-<div class="center" style="font-size:18px;font-weight:900;letter-spacing:1px">${v.id}</div>
+<div class="center" style="font-size:18px;font-weight:900;letter-spacing:1px">${displayId}</div>
 <div class="center" style="font-size:11px;color:#333;margin-top:3px">${v.fecha}</div>
 <div class="dashed"></div>
 <div class="section-lbl">Cliente</div>
@@ -6908,8 +6994,11 @@ function printComandasBatch() {
         });
       }
     });
+    if (v.discount_amount > 0) {
+      rows += `<tr><td class="nm" colspan="2">Descuento (${v.discount_pct||0}%)</td><td class="pr">-${fmt(v.discount_amount)}</td></tr>`;
+    }
     return `<div class="c">
-      <div class="ch"><div class="cb">StockFlow</div><div class="ci">${v.id}</div><div class="cd">${v.fecha}</div></div>
+      <div class="ch"><div class="cb">StockFlow</div><div class="ci">${orderDisplayId(v)}</div><div class="cd">${v.fecha}</div></div>
       <div class="sep"></div>
       <div class="lbl">Cliente</div>
       <div class="cl">${v.cliente||'Cliente'}${v.telefono?` <span class="ph">${v.telefono}</span>`:''}</div>
@@ -6975,7 +7064,7 @@ function printReceptores() {
   let orders = S.ventas.filter(v => {
     if (ventasFilter && v.status !== ventasFilter) return false;
     if (q) {
-      const hay = `${v.id} ${v.cliente} ${(v.items||[]).map(i=>i.name).join(' ')}`.toLowerCase();
+      const hay = `${v.id} ${_orderLocalPrefix(v)} ${v.cliente} ${(v.items||[]).map(i=>i.name).join(' ')}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -6994,7 +7083,7 @@ function printReceptores() {
 
     return `<div class="card">
       <div class="card-header">
-        <span class="order-id">${v.id}</span>
+        <span class="order-id">${orderDisplayId(v)}</span>
         <span class="date">${fecha}${slot ? ' · '+slot : ''}</span>
       </div>
       <div class="row">

@@ -98,7 +98,7 @@ module.exports = async (req, res) => {
         cliente = 'Cliente', telefono = '', dedicatoria = '',
         total = 0, items: rawItems = [], delivery = {}, warehouse_id: orderWarehouseId = '',
         payment_method = '', sales_channel = '',
-        discount_amount = 0, refund_amount = 0,
+        discount_pct = 0, discount_amount = 0, refund_amount = 0,
         label_selections = {},
       } = req.body || {};
 
@@ -150,42 +150,63 @@ module.exports = async (req, res) => {
         } catch { /* non-fatal — location filter just won't apply to this order */ }
       }
 
-      // Insert order. label_selections is a brand-new column (migration via
-      // POST /api/setup) — falls back to inserting without it if that hasn't
-      // run yet on this database, so a pending migration never blocks sales.
+      // Insert order. label_selections and discount_pct are newer columns
+      // (migration via POST /api/setup) — each falls back to inserting
+      // without it if that migration hasn't run yet on this database, so a
+      // pending migration never blocks sales. discount_amount/total already
+      // carry the discount either way; discount_pct is only needed to
+      // repopulate the % field the next time the order is edited.
       let order;
       try {
         [order] = await sql`
           INSERT INTO orders (
             id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
             created_by, tenant_id, payment_method, sales_channel,
-            discount_amount, refund_amount, location_id, label_selections
+            discount_pct, discount_amount, refund_amount, location_id, label_selections
           )
           VALUES (
             ${id}, ${cliente}, ${telefono}, ${total},
             ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
             ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
-            ${discount_amount || 0}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}
+            ${discount_pct || 0}, ${discount_amount || 0}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}
           )
           RETURNING *
         `;
       } catch (insertErr) {
         if (insertErr.code !== '42703') throw insertErr; // no es "columna no existe" — error real, no lo ocultamos
-        console.warn('[orders] label_selections column not migrated yet, inserting without it');
-        [order] = await sql`
-          INSERT INTO orders (
-            id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
-            created_by, tenant_id, payment_method, sales_channel,
-            discount_amount, refund_amount, location_id
-          )
-          VALUES (
-            ${id}, ${cliente}, ${telefono}, ${total},
-            ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
-            ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
-            ${discount_amount || 0}, ${refund_amount || 0}, ${locationId}
-          )
-          RETURNING *
-        `;
+        console.warn('[orders] label_selections and/or discount_pct column not migrated yet, retrying without them');
+        try {
+          [order] = await sql`
+            INSERT INTO orders (
+              id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
+              created_by, tenant_id, payment_method, sales_channel,
+              discount_amount, refund_amount, location_id, label_selections
+            )
+            VALUES (
+              ${id}, ${cliente}, ${telefono}, ${total},
+              ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
+              ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
+              ${discount_amount || 0}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}
+            )
+            RETURNING *
+          `;
+        } catch (insertErr2) {
+          if (insertErr2.code !== '42703') throw insertErr2;
+          [order] = await sql`
+            INSERT INTO orders (
+              id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
+              created_by, tenant_id, payment_method, sales_channel,
+              discount_amount, refund_amount, location_id
+            )
+            VALUES (
+              ${id}, ${cliente}, ${telefono}, ${total},
+              ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
+              ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
+              ${discount_amount || 0}, ${refund_amount || 0}, ${locationId}
+            )
+            RETURNING *
+          `;
+        }
       }
 
       // Decrement stock for each sold item (scoped to tenant + warehouse)

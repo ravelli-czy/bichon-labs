@@ -31,7 +31,7 @@ module.exports = async (req, res) => {
       const {
         status, action, cliente, telefono, dedicatoria, receptor, receptor_telefono,
         payment_method, sales_channel, delivery_update, total,
-        discount_amount, refund_amount, label_selections,
+        discount_pct, discount_amount, refund_amount, label_selections,
       } = req.body || {};
 
       // Update customer-facing info fields
@@ -42,9 +42,12 @@ module.exports = async (req, res) => {
         const deliveryPatch = { receptor: receptor ?? '', receptor_telefono: receptor_telefono ?? '', ...(delivery_update || {}) };
         const [before] = await sql`SELECT discount_amount, refund_amount FROM orders WHERE id = ${id} AND tenant_id = ${tenantId}`;
         if (!before) return res.status(404).json({ error: 'Order not found' });
-        // label_selections es una columna nueva (migración vía POST /api/setup) —
-        // si todavía no se corrió en esta base, se sigue de largo sin ella en
-        // vez de romper la edición de órdenes por completo.
+        // label_selections y discount_pct son columnas nuevas (migración vía
+        // POST /api/setup) — si todavía no se corrieron en esta base, se
+        // sigue de largo sin ellas en vez de romper la edición de órdenes
+        // por completo. discount_amount/total ya llevan el descuento
+        // aplicado de todas formas; discount_pct solo sirve para repoblar
+        // el campo % la próxima vez que se edite la orden.
         let row;
         try {
           [row] = await sql`
@@ -56,6 +59,7 @@ module.exports = async (req, res) => {
               payment_method   = ${payment_method ?? ''},
               sales_channel    = ${sales_channel ?? ''},
               total            = COALESCE(${total ?? null}, total),
+              discount_pct     = COALESCE(${discount_pct ?? null}, discount_pct),
               discount_amount  = COALESCE(${discount_amount ?? null}, discount_amount),
               refund_amount    = COALESCE(${refund_amount ?? null}, refund_amount),
               label_selections = label_selections || ${JSON.stringify(label_selections || {})}::jsonb,
@@ -66,23 +70,44 @@ module.exports = async (req, res) => {
           `;
         } catch (updateErr) {
           if (updateErr.code !== '42703') throw updateErr;
-          console.warn('[orders/[id]] label_selections column not migrated yet, updating without it');
-          [row] = await sql`
-            UPDATE orders SET
-              cliente          = ${cliente ?? ''},
-              telefono         = ${telefono ?? ''},
-              dedicatoria      = ${dedicatoria ?? ''},
-              delivery         = delivery || ${JSON.stringify(deliveryPatch)}::jsonb,
-              payment_method   = ${payment_method ?? ''},
-              sales_channel    = ${sales_channel ?? ''},
-              total            = COALESCE(${total ?? null}, total),
-              discount_amount  = COALESCE(${discount_amount ?? null}, discount_amount),
-              refund_amount    = COALESCE(${refund_amount ?? null}, refund_amount),
-              updated_by       = ${actor},
-              updated_at       = NOW()
-            WHERE id = ${id} AND tenant_id = ${tenantId}
-            RETURNING *
-          `;
+          console.warn('[orders/[id]] label_selections and/or discount_pct column not migrated yet, retrying without them');
+          try {
+            [row] = await sql`
+              UPDATE orders SET
+                cliente          = ${cliente ?? ''},
+                telefono         = ${telefono ?? ''},
+                dedicatoria      = ${dedicatoria ?? ''},
+                delivery         = delivery || ${JSON.stringify(deliveryPatch)}::jsonb,
+                payment_method   = ${payment_method ?? ''},
+                sales_channel    = ${sales_channel ?? ''},
+                total            = COALESCE(${total ?? null}, total),
+                discount_amount  = COALESCE(${discount_amount ?? null}, discount_amount),
+                refund_amount    = COALESCE(${refund_amount ?? null}, refund_amount),
+                label_selections = label_selections || ${JSON.stringify(label_selections || {})}::jsonb,
+                updated_by       = ${actor},
+                updated_at       = NOW()
+              WHERE id = ${id} AND tenant_id = ${tenantId}
+              RETURNING *
+            `;
+          } catch (updateErr2) {
+            if (updateErr2.code !== '42703') throw updateErr2;
+            [row] = await sql`
+              UPDATE orders SET
+                cliente          = ${cliente ?? ''},
+                telefono         = ${telefono ?? ''},
+                dedicatoria      = ${dedicatoria ?? ''},
+                delivery         = delivery || ${JSON.stringify(deliveryPatch)}::jsonb,
+                payment_method   = ${payment_method ?? ''},
+                sales_channel    = ${sales_channel ?? ''},
+                total            = COALESCE(${total ?? null}, total),
+                discount_amount  = COALESCE(${discount_amount ?? null}, discount_amount),
+                refund_amount    = COALESCE(${refund_amount ?? null}, refund_amount),
+                updated_by       = ${actor},
+                updated_at       = NOW()
+              WHERE id = ${id} AND tenant_id = ${tenantId}
+              RETURNING *
+            `;
+          }
         }
         if (!row) return res.status(404).json({ error: 'Order not found' });
         await writeLog(sql, {

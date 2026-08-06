@@ -220,6 +220,12 @@ module.exports = async (req, res) => {
     // tax_amount queda NULL/reservado: StockFlow no separa IVA todavía (ver
     // _finance.js) — cuando exista esa info, se puede popular sin migrar nada.
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount INTEGER NOT NULL DEFAULT 0`;
+    // discount_pct es el % ingresado por el usuario al crear/editar la orden;
+    // discount_amount es el monto derivado de ese % sobre el subtotal de
+    // productos, y es lo que efectivamente se resta de `total` y de los
+    // ingresos netos en Finanzas — discount_pct solo se guarda para poder
+    // repoblar el campo al reabrir la orden en edición.
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_pct    NUMERIC NOT NULL DEFAULT 0`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_amount   INTEGER NOT NULL DEFAULT 0`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at    TIMESTAMPTZ`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS location_id     TEXT NOT NULL DEFAULT ''`;
@@ -420,6 +426,11 @@ module.exports = async (req, res) => {
         updated_at     TIMESTAMPTZ DEFAULT NOW()
       )
     `;
+    // Prefijo corto (máx. 10 caracteres) que identifica al local en cada
+    // orden asociada a él — se muestra como "PREFIJO  #ORD-0022" (ver
+    // orderDisplayId() en frontend/index.html). Opcional: '' = sin prefijo,
+    // se muestra solo el ID de la orden como antes.
+    await sql`ALTER TABLE locales ADD COLUMN IF NOT EXISTS prefix TEXT NOT NULL DEFAULT ''`;
     await sql`CREATE INDEX IF NOT EXISTS locales_tenant_idx ON locales (tenant_id)`;
 
     await sql`
