@@ -1928,15 +1928,15 @@ function openPrepChecklist(id) {
     ? labelItems.map(l => l.tpl.name)
     : [...new Set((v.items || []).map(i => i.name || i.sku))];
   const primaryLabel = labelItems.find(l => l.key === 'etiqueta') || labelItems[0];
-  const orderCtxJson = JSON.stringify({ id: v.id, fecha: v.fecha || '' }).replace(/"/g, '&quot;');
+  const orderCtxJson = JSON.stringify({ id: v.id, fecha: v.fecha || '', prefix: _orderLocalPrefix(v) }).replace(/"/g, '&quot;');
 
-  document.getElementById('prep-checklist-order-id').textContent = v.id;
+  document.getElementById('prep-checklist-order-id').textContent = orderDisplayId(v);
   document.getElementById('prep-checklist-items').innerHTML = `
     <div class="prep-check-row" id="prep-check-comanda" onclick="togglePrepCheck('comanda')">
       <div class="prep-check-icon"><i class="ti ti-check" style="font-size:14px"></i></div>
       <div style="flex:1;min-width:0">
         <div style="font-weight:800;font-size:14px">Imprimir comanda</div>
-        <div style="font-size:12px;color:var(--text3);font-weight:600">Comanda de pedido para ${v.id}</div>
+        <div style="font-size:12px;color:var(--text3);font-weight:600">Comanda de pedido para ${orderDisplayId(v)}</div>
       </div>
       <button class="btn btn-outline btn-sm" style="width:auto" onclick="event.stopPropagation();printComanda('${v.id}');markPrepCheck('comanda')" title="Imprimir comanda"><i class="ti ti-printer"></i></button>
     </div>
@@ -2995,7 +2995,7 @@ function renderVentas() {
       <div class="flex justify-between items-center mb-2">
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:2px">
-            <span style="font-size:13px;font-weight:800;color:var(--primary)">${v.id}</span>
+            <span style="font-size:13px;font-weight:800;color:var(--primary)">${orderDisplayId(v)}</span>
             ${statusBadge(v.status||'por_hacer')}
           </div>
           <div style="font-size:15px;font-weight:800">${v.cliente||'Cliente'}${v.telefono?` <span style="font-size:11px;font-weight:600;color:var(--text3)">${v.telefono}</span>`:''}</div>
@@ -3015,7 +3015,7 @@ function renderVentas() {
       <div class="flex justify-between items-center mb-2">
         <div>
           <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:2px">
-            <span style="font-size:13px;font-weight:800;color:var(--primary)">${v.id}</span>
+            <span style="font-size:13px;font-weight:800;color:var(--primary)">${orderDisplayId(v)}</span>
             ${statusBadge(v.status||'por_hacer')}
           </div>
           <div style="font-size:15px;font-weight:800">${v.cliente||'Cliente'}${v.telefono?` <span style="font-size:11px;font-weight:600;color:var(--text3)">${v.telefono}</span>`:''}</div>
@@ -4796,6 +4796,22 @@ async function deleteCustomLabelType(key) {
   if (S.currentPage === 'catalogo') renderCatalogo();
 }
 
+// Prefijo del local (Locales → Editar local) al que pertenece la orden,
+// resuelto vía v.location_id (= local_id del almacén usado al vender —
+// ver location_id en api/orders.js). '' si la orden no tiene local
+// resuelto o el local no tiene prefijo configurado.
+function _orderLocalPrefix(v) {
+  if (!v || !v.location_id) return '';
+  const loc = (S.locales || []).find(l => l.id === v.location_id);
+  return (loc?.prefix || '').trim();
+}
+// ID de orden tal como debe mostrarse: "PREFIJO  #ORD-0022" si el local
+// tiene prefijo configurado, o el ID plano si no.
+function orderDisplayId(v) {
+  const prefix = _orderLocalPrefix(v);
+  return prefix ? `${prefix}  #${v.id}` : v.id;
+}
+
 // Resuelve los templates de etiqueta elegidos para una orden (item 8.5) a
 // partir de v.label_selections — usado tanto en el checklist de "Iniciar
 // preparación" como en el detalle de la orden para imprimir cada una.
@@ -4808,7 +4824,7 @@ function _orderLabelItems(v) {
 function orderLabelsSection(v) {
   const items = _orderLabelItems(v);
   if (!items.length) return '';
-  const orderCtxJson = JSON.stringify({ id: v.id, fecha: v.fecha || '' }).replace(/"/g, '&quot;');
+  const orderCtxJson = JSON.stringify({ id: v.id, fecha: v.fecha || '', prefix: _orderLocalPrefix(v) }).replace(/"/g, '&quot;');
   return `<div class="section-label"><i class="ti ti-tag"></i> Etiquetas</div>
     <div class="card" style="padding:4px 0;margin-bottom:14px">
       ${items.map(t => `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">
@@ -4915,7 +4931,7 @@ function renderMaterialesOrdersView(el) {
       <div style="display:flex;align-items:center;gap:10px">
         <input type="checkbox" class="materiales-order-cb" data-order-id="${String(v.id).replace(/'/g,"&#39;")}" style="width:16px;height:16px;flex-shrink:0">
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:800">${v.id} — ${v.cliente||'Cliente'}</div>
+          <div style="font-size:13px;font-weight:800">${orderDisplayId(v)} — ${v.cliente||'Cliente'}</div>
           <div style="font-size:11px;font-weight:700;color:var(--text3)">${v.fecha||''}</div>
         </div>
         ${statusBadge(v.status)}
@@ -5330,7 +5346,7 @@ ${tpl.image_url
       ${safeContentText ? `<div class="content-text">${safeContentText}</div>` : ''}
     </div>`
   : (safeContentText ? `<div class="content-text" style="margin-bottom:10px">${safeContentText}</div>` : '')}
-${orderCtx ? `<div class="order-ctx">${orderCtx.id} · ${orderCtx.fecha||''}</div>` : ''}
+${orderCtx ? `<div class="order-ctx">${orderCtx.prefix ? orderCtx.prefix+'  #'+orderCtx.id : orderCtx.id} · ${orderCtx.fecha||''}</div>` : ''}
 <script>window.onload=function(){window.print();}<\/script>
 </body></html>`;
 
@@ -6109,7 +6125,7 @@ function openOrdenDetalle(id, pushURL = true) {
   const deliveryIcons = { store_pickup:'ti-building-store', home_delivery:'ti-home', pickup_point:'ti-map-pin', express:'ti-bolt' };
   const icon = deliveryIcons[dv.method_type] || 'ti-truck-delivery';
 
-  document.getElementById('overlay-orden-id').textContent = v.id;
+  document.getElementById('overlay-orden-id').textContent = orderDisplayId(v);
   document.getElementById('overlay-orden-status').innerHTML = statusBadge(v.status||'por_hacer');
 
   // Build items HTML — expand KIT components
@@ -6618,7 +6634,7 @@ function openEliminarOrden(id) {
     <div style="background:var(--bg3);border-radius:var(--radius);padding:12px 14px;display:flex;flex-direction:column;gap:8px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase">Orden</span>
-        <span style="font-size:13px;font-weight:800">${v.id}</span>
+        <span style="font-size:13px;font-weight:800">${orderDisplayId(v)}</span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase">Cliente</span>
@@ -6880,7 +6896,8 @@ function printComanda(id) {
     </tr>`;
   }
 
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comanda ${v.id}</title>
+  const displayId = orderDisplayId(v);
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comanda ${displayId}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#000;background:#fff;padding:16px;max-width:360px;margin:0 auto}
@@ -6898,7 +6915,7 @@ table{width:100%;border-collapse:collapse}
 </style></head><body>
 <div class="center"><div class="big">StockFlow</div><div style="font-size:10px;color:#333;margin-top:2px">Comanda de Pedido</div></div>
 <div class="dashed"></div>
-<div class="center" style="font-size:18px;font-weight:900;letter-spacing:1px">${v.id}</div>
+<div class="center" style="font-size:18px;font-weight:900;letter-spacing:1px">${displayId}</div>
 <div class="center" style="font-size:11px;color:#333;margin-top:3px">${v.fecha}</div>
 <div class="dashed"></div>
 <div class="section-lbl">Cliente</div>
@@ -6981,7 +6998,7 @@ function printComandasBatch() {
       rows += `<tr><td class="nm" colspan="2">Descuento (${v.discount_pct||0}%)</td><td class="pr">-${fmt(v.discount_amount)}</td></tr>`;
     }
     return `<div class="c">
-      <div class="ch"><div class="cb">StockFlow</div><div class="ci">${v.id}</div><div class="cd">${v.fecha}</div></div>
+      <div class="ch"><div class="cb">StockFlow</div><div class="ci">${orderDisplayId(v)}</div><div class="cd">${v.fecha}</div></div>
       <div class="sep"></div>
       <div class="lbl">Cliente</div>
       <div class="cl">${v.cliente||'Cliente'}${v.telefono?` <span class="ph">${v.telefono}</span>`:''}</div>
@@ -7047,7 +7064,7 @@ function printReceptores() {
   let orders = S.ventas.filter(v => {
     if (ventasFilter && v.status !== ventasFilter) return false;
     if (q) {
-      const hay = `${v.id} ${v.cliente} ${(v.items||[]).map(i=>i.name).join(' ')}`.toLowerCase();
+      const hay = `${v.id} ${_orderLocalPrefix(v)} ${v.cliente} ${(v.items||[]).map(i=>i.name).join(' ')}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -7066,7 +7083,7 @@ function printReceptores() {
 
     return `<div class="card">
       <div class="card-header">
-        <span class="order-id">${v.id}</span>
+        <span class="order-id">${orderDisplayId(v)}</span>
         <span class="date">${fecha}${slot ? ' · '+slot : ''}</span>
       </div>
       <div class="row">

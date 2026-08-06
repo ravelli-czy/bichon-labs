@@ -71,6 +71,7 @@ function mapLocale(l) {
     id: l.id, name: l.name,
     address_street: l.address_street, address_city: l.address_city, address_region: l.address_region,
     phone: l.phone, email: l.email,
+    prefix: l.prefix || '',
     lat: l.lat !== null && l.lat !== undefined ? Number(l.lat) : null,
     lng: l.lng !== null && l.lng !== undefined ? Number(l.lng) : null,
   };
@@ -115,15 +116,16 @@ module.exports = async (req, res) => {
       if (req.method === 'POST') {
         const {
           name, address_street = '', address_city = '', address_region = '',
-          phone = '', email = '', lat = null, lng = null,
+          phone = '', email = '', prefix = '', lat = null, lng = null,
         } = req.body || {};
         if (!name) return res.status(400).json({ error: 'name is required' });
         if (!address_street || !address_city) return res.status(400).json({ error: 'address_street and address_city are required' });
+        if (String(prefix).length > 10) return res.status(400).json({ error: 'prefix must be at most 10 characters' });
 
         const id = await nextLocalId(sql, tenantId);
         const [row] = await sql`
-          INSERT INTO locales (id, tenant_id, name, address_street, address_city, address_region, phone, email, lat, lng, created_by)
-          VALUES (${id}, ${tenantId}, ${name}, ${address_street}, ${address_city}, ${address_region}, ${phone}, ${email}, ${lat}, ${lng}, ${actor})
+          INSERT INTO locales (id, tenant_id, name, address_street, address_city, address_region, phone, email, prefix, lat, lng, created_by)
+          VALUES (${id}, ${tenantId}, ${name}, ${address_street}, ${address_city}, ${address_region}, ${phone}, ${email}, ${prefix}, ${lat}, ${lng}, ${actor})
           RETURNING *
         `;
         await writeLog(sql, {
@@ -139,7 +141,10 @@ module.exports = async (req, res) => {
     // ── /api/locales?id=:id (sin resource) ───────────────────────────────
     if (!resource) {
       if (req.method === 'PUT') {
-        const { name, address_street, address_city, address_region, phone, email, lat, lng } = req.body || {};
+        const { name, address_street, address_city, address_region, phone, email, prefix, lat, lng } = req.body || {};
+        if (prefix !== undefined && prefix !== null && String(prefix).length > 10) {
+          return res.status(400).json({ error: 'prefix must be at most 10 characters' });
+        }
         const [row] = await sql`
           UPDATE locales SET
             name           = COALESCE(${name           ?? null}, name),
@@ -148,6 +153,7 @@ module.exports = async (req, res) => {
             address_region = COALESCE(${address_region  ?? null}, address_region),
             phone          = COALESCE(${phone           ?? null}, phone),
             email          = COALESCE(${email           ?? null}, email),
+            prefix         = COALESCE(${prefix          ?? null}, prefix),
             lat            = COALESCE(${lat ?? null}, lat),
             lng            = COALESCE(${lng ?? null}, lng),
             updated_at     = NOW()

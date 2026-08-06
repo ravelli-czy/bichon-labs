@@ -291,6 +291,11 @@ body.embedded .embed-page-header{display:block}
     </div>
     <div class="sheet-content">
       <div class="form-group"><div class="form-label">Nombre del local *</div><input class="form-input" id="loc-name" placeholder="Ej: Tienda Centro"></div>
+      <div class="form-group">
+        <div class="form-label">Prefijo (opcional, máx. 10 caracteres)</div>
+        <input class="form-input" id="loc-prefix" maxlength="10" placeholder="Ej: CONCON" style="text-transform:uppercase">
+        <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:4px">Se muestra junto al ID en cada orden de este local, ej: CONCON&nbsp;&nbsp;#ORD-0022</div>
+      </div>
       <div class="form-group"><div class="form-label">Dirección *</div><input class="form-input" id="loc-street" placeholder="Av. Providencia 1234"></div>
       <div class="form-row">
         <div class="form-group"><div class="form-label">Ciudad *</div><input class="form-input" id="loc-city" placeholder="Santiago"></div>
@@ -547,7 +552,7 @@ function renderLocales() {
     <div class="local-card">
       <div class="lc-header" onclick="selectLocal('${loc.id}')" style="cursor:pointer">
         <div style="flex:1">
-          <div class="lc-name">${loc.name}</div>
+          <div class="lc-name">${loc.name}${loc.prefix?` <span style="font-size:11px;font-weight:800;color:var(--primary);background:var(--primary-light);padding:2px 7px;border-radius:20px;letter-spacing:.3px">${loc.prefix}</span>`:''}</div>
           <div class="lc-addr"><i class="ti ti-map-pin" style="font-size:12px"></i>${loc.address_street}, ${loc.address_city}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center">
@@ -591,7 +596,7 @@ function renderConfig() {
     <div class="card" style="border-left:4px solid var(--primary)">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
         <div>
-          <div class="card-title" style="margin-bottom:4px"><i class="ti ti-building-store" style="color:var(--primary)"></i>${loc.name}</div>
+          <div class="card-title" style="margin-bottom:4px"><i class="ti ti-building-store" style="color:var(--primary)"></i>${loc.name}${loc.prefix?` <span style="font-size:11px;font-weight:800;color:var(--primary);background:var(--primary-light);padding:2px 7px;border-radius:20px;letter-spacing:.3px">${loc.prefix}</span>`:''}</div>
           <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:4px"><i class="ti ti-map-pin" style="font-size:14px"></i> ${loc.address_street}, ${loc.address_city}</div>
           ${loc.phone?`<div style="font-size:12px;color:var(--text3);font-weight:600"><i class="ti ti-phone" style="font-size:12px"></i> ${loc.phone}</div>`:''}
         </div>
@@ -764,7 +769,7 @@ function openNewLocalSheet() {
   S.editingLocalId = null;
   S._pendingLocalGeo = null;
   document.querySelector('#sheet-local .sheet-title').innerHTML = '<i class="ti ti-building-store" style="color:var(--primary)"></i> Nuevo local';
-  ['loc-name','loc-street','loc-city','loc-region','loc-phone','loc-email'].forEach(id => document.getElementById(id).value = '');
+  ['loc-name','loc-prefix','loc-street','loc-city','loc-region','loc-phone','loc-email'].forEach(id => document.getElementById(id).value = '');
   _updateLocalGeoStatus(null, null);
   openSheet('sheet-local');
 }
@@ -775,6 +780,7 @@ function editLocal(id) {
   S._pendingLocalGeo = null;
   document.querySelector('#sheet-local .sheet-title').innerHTML = '<i class="ti ti-pencil" style="color:var(--primary)"></i> Editar local';
   document.getElementById('loc-name').value   = loc.name;
+  document.getElementById('loc-prefix').value = loc.prefix || '';
   document.getElementById('loc-street').value = loc.address_street;
   document.getElementById('loc-city').value   = loc.address_city;
   document.getElementById('loc-region').value = loc.address_region||'';
@@ -808,6 +814,7 @@ async function saveLocal() {
   const street = document.getElementById('loc-street').value.trim();
   const city   = document.getElementById('loc-city').value.trim();
   if (!name||!street||!city) { toast('⚠️ Nombre, dirección y ciudad son obligatorios'); return; }
+  const prefix = document.getElementById('loc-prefix').value.trim().toUpperCase().slice(0, 10);
   const address_region = document.getElementById('loc-region').value;
   const phone = document.getElementById('loc-phone').value;
   const email = document.getElementById('loc-email').value;
@@ -816,7 +823,7 @@ async function saveLocal() {
     try {
       const updated = await apiFetch(`/api/locales?id=${encodeURIComponent(S.editingLocalId)}`, {
         method:'PUT',
-        body: JSON.stringify({ name, address_street:street, address_city:city, address_region, phone, email }),
+        body: JSON.stringify({ name, address_street:street, address_city:city, address_region, phone, email, prefix }),
       });
       const idx = S.locales.findIndex(l => l.id === S.editingLocalId);
       if (idx >= 0) S.locales[idx] = updated;
@@ -833,7 +840,7 @@ async function saveLocal() {
       const created = await apiFetch('/api/locales', {
         method:'POST',
         body: JSON.stringify({
-          name, address_street:street, address_city:city, address_region, phone, email,
+          name, address_street:street, address_city:city, address_region, phone, email, prefix,
           lat: S._pendingLocalGeo?.lat ?? null, lng: S._pendingLocalGeo?.lng ?? null,
         }),
       });

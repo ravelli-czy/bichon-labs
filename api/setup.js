@@ -426,6 +426,11 @@ module.exports = async (req, res) => {
         updated_at     TIMESTAMPTZ DEFAULT NOW()
       )
     `;
+    // Prefijo corto (máx. 10 caracteres) que identifica al local en cada
+    // orden asociada a él — se muestra como "PREFIJO  #ORD-0022" (ver
+    // orderDisplayId() en frontend/index.html). Opcional: '' = sin prefijo,
+    // se muestra solo el ID de la orden como antes.
+    await sql`ALTER TABLE locales ADD COLUMN IF NOT EXISTS prefix TEXT NOT NULL DEFAULT ''`;
     await sql`CREATE INDEX IF NOT EXISTS locales_tenant_idx ON locales (tenant_id)`;
 
     await sql`
