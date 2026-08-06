@@ -1421,6 +1421,18 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div class="form-group"><div class="form-label">Canal de venta</div><select class="form-input" id="venta-sales-channel"></select></div>
       </div>
 
+      <!-- Locale picker: sólo se muestra si hay más de una tienda — va ANTES
+           de Productos porque qué productos/KITs se pueden agregar depende
+           de la tienda elegida (ver _populateVentaAddItemSelect) -->
+      <div id="venta-locale-group" style="display:none">
+        <div class="section-label"><i class="ti ti-building-store"></i> Tienda / Local <span style="color:var(--red);font-size:13px">*</span></div>
+        <div class="form-group">
+          <select class="form-input" id="venta-locale-select" onchange="onVentaLocaleChange()">
+            <option value="">Selecciona una tienda...</option>
+          </select>
+        </div>
+      </div>
+
       <!-- ÍTEMS -->
       <div class="section-label"><i class="ti ti-shopping-cart"></i> Productos</div>
       <div class="info-box green"><i class="ti ti-info-circle"></i> Solo aparecen <strong>Individual</strong>, <strong>Ambos</strong> y KITs. Insumos no se venden solos.</div>
@@ -1440,16 +1452,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 
       <!-- ENTREGA -->
       <div class="section-label" style="margin-top:14px"><i class="ti ti-truck-delivery"></i> Entrega <span style="color:var(--red);font-size:13px">*</span></div>
-
-      <!-- Locale picker: only shown when multiple stores exist -->
-      <div id="venta-locale-group" style="display:none">
-        <div class="form-group">
-          <div class="form-label">Tienda / Local</div>
-          <select class="form-input" id="venta-locale-select" onchange="onVentaLocaleChange()">
-            <option value="">Selecciona una tienda...</option>
-          </select>
-        </div>
-      </div>
 
       <!-- Dynamic delivery methods: populated by initVentaLocales() -->
       <div class="form-group" id="venta-method-group">
@@ -5833,6 +5835,7 @@ function onVentaLocaleChange() {
   document.getElementById('venta-date-group').style.display    = 'none';
   document.getElementById('venta-slot-group').style.display    = 'none';
   document.getElementById('venta-address-group').style.display = 'none';
+  _populateVentaAddItemSelect(); // los productos disponibles dependen de la tienda elegida
   if (!locale) { document.getElementById('venta-method-group').style.display = 'none'; return; }
   renderDeliveryMethods(locale);
 }
@@ -5858,24 +5861,37 @@ const DELIVERY_SLOTS = {
   ],
 };
 
-function openSheetVenta(pushURL = true) {
-  S.tempVentaItems = [];
-  S.tempVentaDelivery = { method_type:null, method_id:null, method_label:null, method_base_cost:0, method_free_above:null, date:null, slot_id:null, slot_from:null, slot_to:null, slot_label:null, slot_cost:0 };
-
+// Puebla "Agregar producto o KIT" según la tienda elegida arriba (ver
+// venta-locale-group, ahora antes de Productos en el form) — un producto
+// sólo puede venderse desde ahí si su almacén pertenece a esa tienda
+// (warehouseLocaleId), y un KIT sólo si TODOS sus componentes calzan en esa
+// misma tienda (kitQualifyingLocales/kitStockForLocale, ver Inventario).
+// Con un solo local (auto-seleccionado en initVentaLocales) esto no filtra
+// nada extra; con varios, obliga a elegir tienda antes de poder agregar.
+function _populateVentaAddItemSelect() {
   const sel = document.getElementById('venta-add-item');
+  if (!sel) return;
+  const locales  = getLocalesData() || [];
+  const locale   = S._ventaSelectedLocale;
+  if (locales.length > 1 && !locale) {
+    sel.innerHTML = '<option value="">Primero selecciona una tienda...</option>';
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
+  const localeId = locale?.id || '';
   sel.innerHTML = '<option value="">Agregar producto o KIT...</option>';
   S.kits.filter(k => (k.warehouse_id||'') === '').forEach(k => {
-    const stk = kitStock(k);
+    if (localeId && !kitQualifyingLocales(k).includes(localeId)) return;
+    const stk = localeId ? kitStockForLocale(k, localeId) : kitStock(k);
     const o = document.createElement('option');
     o.value = 'kit:' + k.sku + ':';
     o.textContent = `[KIT] ${_truncLabel(k.name)} — ${fmt(k.price)} (${stk} disp.)`;
     sel.appendChild(o);
   });
-  // Filter products by active warehouse
-  const ventaWid = S.warehouseId || '';
   const whs = getWarehouses();
   S.products
-    .filter(p => (p.tipo==='producto'||p.tipo==='ambos') && (!ventaWid || (p.warehouse_id||'')===ventaWid))
+    .filter(p => (p.tipo==='producto'||p.tipo==='ambos') && (!localeId || warehouseLocaleId(p.warehouse_id||'') === localeId))
     .forEach(p => {
       const wh = whs.find(w => w.id === p.warehouse_id);
       const wLabel = wh ? ` [${_truncLabel(wh.name, 14)}]` : '';
@@ -5884,6 +5900,10 @@ function openSheetVenta(pushURL = true) {
       o.textContent = `[${tipoMeta[p.tipo].label}] ${_truncLabel(p.name)}${wLabel} — ${fmt(p.price)} (${p.stock} stk)`;
       sel.appendChild(o);
     });
+}
+function openSheetVenta(pushURL = true) {
+  S.tempVentaItems = [];
+  S.tempVentaDelivery = { method_type:null, method_id:null, method_label:null, method_base_cost:0, method_free_above:null, date:null, slot_id:null, slot_from:null, slot_to:null, slot_label:null, slot_cost:0 };
 
   document.getElementById('venta-items-list').innerHTML = '';
   document.getElementById('venta-total').textContent = '$0';
@@ -5905,7 +5925,8 @@ function openSheetVenta(pushURL = true) {
   document.getElementById('venta-wa-body').style.display = 'none';
   document.getElementById('venta-wa-results').style.display = 'none';
   document.getElementById('wa-chevron').className = 'ti ti-chevron-down';
-  initVentaLocales();
+  initVentaLocales(); // set S._ventaSelectedLocale antes de poblar productos
+  _populateVentaAddItemSelect();
   populateVentaLabelSelects();
   openSheet('sheet-venta');
   if (pushURL) history.pushState({ ventaNew: true }, '', '/orders/new');
