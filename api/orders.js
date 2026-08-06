@@ -40,36 +40,52 @@ async function _resolveLocationIdFromDelivery(sql, tenantId, delivery) {
   return rows.length === 1 ? rows[0].local_id : '';
 }
 
+// Flattens a KIT's CURRENT component list into its leaf product SKUs,
+// descending into nested KITs (a KIT built from other KITs via Mesón
+// Creativo) to full depth — same traversal as _deductKit/the frontend's
+// _kitComponentRows, just collecting SKUs instead of mutating stock.
+async function _flattenKitSkus(sql, tenantId, kitSku, depth = 0, out = new Set()) {
+  if (depth > 6) return out;
+  const [kit] = await sql`SELECT items FROM kits WHERE sku = ${kitSku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
+  if (!kit?.items) return out;
+  for (const comp of kit.items) {
+    if (comp.type === 'kit') await _flattenKitSkus(sql, tenantId, comp.sku, depth + 1, out);
+    else out.add(comp.sku);
+  }
+  return out;
+}
+
 // Resolves a warehouse_id to anchor an order's location_id backfill on, when
-// _resolveLocationIdFromDelivery above couldn't. KIT items are warehouse-
-// agnostic themselves (warehouse_id: '' by design — only their component
-// PRODUCTS carry one, resolved via the `products` table, see _deductKit
-// above), so a naive `items.find(i => i.warehouse_id)` always comes up
-// empty for KIT-only orders. Descends into each KIT's CURRENT component
-// list (up to a few levels, same depth guard as the frontend's
-// _kitComponentRows) looking up the first component product that has a
-// warehouse_id — an approximation using today's catalog (same caveat as
-// backfill-costs using today's cost) that can be wrong if that SKU exists
-// in more than one warehouse, which is exactly why the delivery-method
-// signal above is tried first.
-async function _resolveWarehouseIdFromItems(sql, tenantId, items, depth = 0) {
+// _resolveLocationIdFromDelivery above couldn't. A KIT isn't itself tied to
+// a warehouse (warehouse_id: '' by design) — it exists as sellable stock at
+// a given warehouse only when ALL of its components are stocked there (ver
+// _deductKit, que descuenta cada componente de esa MISMA bodega). So the
+// right guess isn't "any warehouse where any one component happens to
+// exist" (ambiguous the moment a component SKU is shared across stores) —
+// it's the warehouse where the FULL component set is stocked. Only returns
+// a warehouse if exactly one satisfies that for the CURRENT catalog (same
+// today's-data caveat as backfill-costs); ambiguous or partial matches
+// return '' rather than guess wrong.
+async function _resolveWarehouseIdFromItems(sql, tenantId, items) {
   const direct = items.find(i => i.warehouse_id)?.warehouse_id;
   if (direct) return direct;
-  if (depth > 6) return '';
   for (const item of items) {
-    if (item.type === 'kit') {
-      const [kit] = await sql`SELECT items FROM kits WHERE sku = ${item.sku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
-      if (!kit?.items?.length) continue;
-      const found = await _resolveWarehouseIdFromItems(sql, tenantId, kit.items, depth + 1);
-      if (found) return found;
-    } else {
-      const [prod] = await sql`
-        SELECT warehouse_id FROM products
-        WHERE sku = ${item.sku} AND tenant_id = ${tenantId} AND warehouse_id != ''
-        LIMIT 1
-      `;
-      if (prod?.warehouse_id) return prod.warehouse_id;
+    if (item.type !== 'kit') continue;
+    const skus = [...await _flattenKitSkus(sql, tenantId, item.sku)];
+    if (!skus.length) continue;
+    const candidateRows = await sql`
+      SELECT DISTINCT warehouse_id FROM products
+      WHERE sku = ${skus[0]} AND tenant_id = ${tenantId} AND warehouse_id != ''
+    `;
+    const fullMatches = [];
+    for (const { warehouse_id: wid } of candidateRows) {
+      // Fetch this warehouse's SKUs and match in JS — avoids relying on
+      // array-bind (ANY(...)) support (ver comentario en api/locales.js).
+      const stockedRows = await sql`SELECT sku FROM products WHERE tenant_id = ${tenantId} AND warehouse_id = ${wid}`;
+      const stockedSkus = new Set(stockedRows.map(r => r.sku));
+      if (skus.every(s => stockedSkus.has(s))) fullMatches.push(wid);
     }
+    if (fullMatches.length === 1) return fullMatches[0];
   }
   return '';
 }
