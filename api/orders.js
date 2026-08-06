@@ -29,8 +29,8 @@ async function _deductKit(sql, kitSku, qty, wid, tenantId) {
 // (ver locales.html), so order.delivery.method_label is actually a
 // precise, unambiguous signal for "which store fulfilled this order",
 // unlike guessing from a shared product catalog (ver
-// _resolveWarehouseIdFromItems below, which can't tell apart a SKU that
-// exists in more than one warehouse). Returns '' if there's no
+// _resolveLocalIdFromItems below, which can't tell apart a SKU that
+// exists in more than one store). Returns '' if there's no
 // method_label, no match, or the name isn't unique to a single local
 // (never guesses between two candidates).
 async function _resolveLocationIdFromDelivery(sql, tenantId, delivery) {
@@ -55,37 +55,51 @@ async function _flattenKitSkus(sql, tenantId, kitSku, depth = 0, out = new Set()
   return out;
 }
 
-// Resolves a warehouse_id to anchor an order's location_id backfill on, when
+// Set of local_ids a SKU is stocked in, resolved through whichever
+// warehouse(s) carry it (a product can be stocked in more than one
+// warehouse — usually within the same store, e.g. distinct almacenes/
+// closets — but in principle in more than one store too).
+async function _localIdsForSku(sql, tenantId, sku) {
+  const rows = await sql`
+    SELECT DISTINCT w.local_id
+    FROM products p
+    JOIN warehouses w ON w.id = p.warehouse_id AND w.tenant_id = p.tenant_id
+    WHERE p.sku = ${sku} AND p.tenant_id = ${tenantId} AND p.warehouse_id != ''
+  `;
+  return new Set(rows.map(r => r.local_id));
+}
+
+// Resolves a local_id to anchor an order's location_id backfill on, when
 // _resolveLocationIdFromDelivery above couldn't. A KIT isn't itself tied to
-// a warehouse (warehouse_id: '' by design) — it exists as sellable stock at
-// a given warehouse only when ALL of its components are stocked there (ver
-// _deductKit, que descuenta cada componente de esa MISMA bodega). So the
-// right guess isn't "any warehouse where any one component happens to
-// exist" (ambiguous the moment a component SKU is shared across stores) —
-// it's the warehouse where the FULL component set is stocked. Only returns
-// a warehouse if exactly one satisfies that for the CURRENT catalog (same
-// today's-data caveat as backfill-costs); ambiguous or partial matches
-// return '' rather than guess wrong.
-async function _resolveWarehouseIdFromItems(sql, tenantId, items) {
+// a warehouse — and its components legitimately live in DIFFERENT almacenes
+// (closets/rooms) of the SAME store (e.g. one component in "Clóset Oficina",
+// another in "Closet pasillo" — both under "Tienda Principal"), so the
+// right grouping key is the STORE (local_id), not the literal warehouse_id.
+// For each component with a known warehouse, intersect the set of locals it
+// could belong to; components with no warehouse info at all don't
+// disqualify the match, they just contribute no signal (same idea the user
+// described: a couple of missing almacenes is fine as long as the ones you
+// DO have agree). Only returns a local if the intersection across every
+// component that had signal narrows to exactly one — conflicting signals or
+// zero signal return '' rather than guess wrong.
+async function _resolveLocalIdFromItems(sql, tenantId, items) {
   const direct = items.find(i => i.warehouse_id)?.warehouse_id;
-  if (direct) return direct;
+  if (direct) {
+    const [wh] = await sql`SELECT local_id FROM warehouses WHERE id = ${direct} AND tenant_id = ${tenantId}`;
+    if (wh?.local_id) return wh.local_id;
+  }
   for (const item of items) {
     if (item.type !== 'kit') continue;
     const skus = [...await _flattenKitSkus(sql, tenantId, item.sku)];
     if (!skus.length) continue;
-    const candidateRows = await sql`
-      SELECT DISTINCT warehouse_id FROM products
-      WHERE sku = ${skus[0]} AND tenant_id = ${tenantId} AND warehouse_id != ''
-    `;
-    const fullMatches = [];
-    for (const { warehouse_id: wid } of candidateRows) {
-      // Fetch this warehouse's SKUs and match in JS — avoids relying on
-      // array-bind (ANY(...)) support (ver comentario en api/locales.js).
-      const stockedRows = await sql`SELECT sku FROM products WHERE tenant_id = ${tenantId} AND warehouse_id = ${wid}`;
-      const stockedSkus = new Set(stockedRows.map(r => r.sku));
-      if (skus.every(s => stockedSkus.has(s))) fullMatches.push(wid);
+    let common = null; // null = no component with signal seen yet
+    for (const sku of skus) {
+      const locals = await _localIdsForSku(sql, tenantId, sku);
+      if (!locals.size) continue; // this component isn't stocked anywhere — no signal, doesn't disqualify
+      common = common === null ? locals : new Set([...common].filter(l => locals.has(l)));
+      if (common.size === 0) break; // components disagree — ambiguous for this kit item
     }
-    if (fullMatches.length === 1) return fullMatches[0];
+    if (common && common.size === 1) return [...common][0];
   }
   return '';
 }
@@ -186,19 +200,11 @@ module.exports = async (req, res) => {
       for (const order of orders) {
         const items = Array.isArray(order.items) ? order.items : [];
         // Prefer the delivery method — precise per-local signal — over
-        // guessing from the product catalog (see _resolveWarehouseIdFromItems'
-        // comment for why that guess can be wrong when a SKU is stocked in
-        // more than one warehouse).
+        // guessing from the product catalog (see _resolveLocalIdFromItems'
+        // comment for why that guess is grouped by store, not by literal
+        // warehouse).
         let locationId = await _resolveLocationIdFromDelivery(sql, tenantId, order.delivery);
-        if (!locationId) {
-          const firstWarehouseId = await _resolveWarehouseIdFromItems(sql, tenantId, items);
-          if (firstWarehouseId) {
-            try {
-              const [wh] = await sql`SELECT local_id FROM warehouses WHERE id = ${firstWarehouseId} AND tenant_id = ${tenantId}`;
-              locationId = wh?.local_id || '';
-            } catch { /* non-fatal — this order just stays without a location */ }
-          }
-        }
+        if (!locationId) locationId = await _resolveLocalIdFromItems(sql, tenantId, items);
         if (!locationId) { ordersSkipped++; continue; }
         await sql`UPDATE orders SET location_id = ${locationId} WHERE id = ${order.id} AND tenant_id = ${tenantId}`;
         ordersUpdated++;
