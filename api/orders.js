@@ -7,6 +7,8 @@ const { writeLog } = require('./_log');
 const { getSession, resolveTenantId } = require('./_tenant');
 const { loadCostMaps, withFinancialSnapshot } = require('./_finance');
 const { handleFinanceResource, FINANCE_RESOURCES } = require('./_finance_routes');
+const { handleCouponsResource, COUPON_RESOURCES } = require('./_coupons_routes');
+const { claimCoupon, computeDiscountAmount } = require('./_coupons');
 
 async function _deductKit(sql, kitSku, qty, wid, tenantId) {
   const [kit] = await sql`SELECT items FROM kits WHERE sku = ${kitSku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
@@ -52,6 +54,12 @@ module.exports = async (req, res) => {
   if (FINANCE_RESOURCES.includes(req.query?.resource)) {
     return handleFinanceResource(req, res, sql, session, tenantId, actor);
   }
+  // ── Cupones: CRUD + validación de código ───────────────────────────────
+  // Mismo motivo que Finanzas — vive en api/_coupons_routes.js, no en su
+  // propio api/coupons.js (ver comentario ahí).
+  if (COUPON_RESOURCES.includes(req.query?.resource)) {
+    return handleCouponsResource(req, res, sql, session, tenantId, actor);
+  }
 
   try {
     // ── GET — list all orders ─────────────────────────────────────────────
@@ -96,9 +104,9 @@ module.exports = async (req, res) => {
     if (req.method === 'POST') {
       const {
         cliente = 'Cliente', telefono = '', dedicatoria = '',
-        total = 0, items: rawItems = [], delivery = {}, warehouse_id: orderWarehouseId = '',
+        items: rawItems = [], delivery = {}, warehouse_id: orderWarehouseId = '',
         payment_method = '', sales_channel = '',
-        discount_pct = 0, discount_amount = 0, refund_amount = 0,
+        coupon_code = '', refund_amount = 0,
         label_selections = {},
       } = req.body || {};
 
@@ -130,6 +138,24 @@ module.exports = async (req, res) => {
       // Finanzas) so it survives future cost/price changes
       const items = _withCostSnapshot(rawItems, await _loadCostMaps(sql, tenantId));
 
+      // Cupón (opcional): reclama un uso atómicamente (falla si no existe,
+      // está inactivo o ya alcanzó max_uses — evita que dos ventas
+      // simultáneas se lleven el último uso disponible) y calcula el
+      // descuento contra el subtotal real de productos. total se calcula
+      // siempre acá, nunca se confía en un total enviado por el cliente,
+      // para que el cupón no pueda maquillarse desde el frontend.
+      const itemsSubtotal = items.reduce((s, i) => s + (i.price || 0) * (i.qty || 0), 0);
+      let couponId = null, couponCode = '', discountAmount = 0;
+      if (coupon_code) {
+        const claimed = await claimCoupon(sql, tenantId, coupon_code);
+        if (!claimed) return res.status(400).json({ error: 'Cupón inválido, inactivo o agotado' });
+        couponId = claimed.id;
+        couponCode = claimed.code;
+        discountAmount = computeDiscountAmount(claimed, itemsSubtotal);
+      }
+      const shippingRevenue = delivery?.slot_cost || 0;
+      const total = itemsSubtotal - discountAmount + shippingRevenue;
+
       // ID must be globally unique (orders.id is a plain PK shared across tenants)
       const [{ max_num }] = await sql`
         SELECT COALESCE(MAX(CAST(SUBSTRING(id FROM 5) AS INTEGER)), 0) AS max_num
@@ -150,31 +176,34 @@ module.exports = async (req, res) => {
         } catch { /* non-fatal — location filter just won't apply to this order */ }
       }
 
-      // Insert order. label_selections and discount_pct are newer columns
-      // (migration via POST /api/setup) — each falls back to inserting
-      // without it if that migration hasn't run yet on this database, so a
-      // pending migration never blocks sales. discount_amount/total already
-      // carry the discount either way; discount_pct is only needed to
-      // repopulate the % field the next time the order is edited.
+      // Insert order. label_selections and coupon_id/coupon_code are newer
+      // columns (migration via POST /api/setup) — each tier falls back to
+      // inserting without them if that migration hasn't run yet on this
+      // database, so a pending migration never blocks sales. discount_amount/
+      // total already carry the discount either way; coupon_id/coupon_code
+      // are only needed to show which cupón was used and to release its use
+      // later (edit/delete) — if that migration is pending, the use stays
+      // claimed (used_count already incremented above) even though the order
+      // itself won't record which cupón claimed it.
       let order;
       try {
         [order] = await sql`
           INSERT INTO orders (
             id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
             created_by, tenant_id, payment_method, sales_channel,
-            discount_pct, discount_amount, refund_amount, location_id, label_selections
+            coupon_id, coupon_code, discount_amount, refund_amount, location_id, label_selections
           )
           VALUES (
             ${id}, ${cliente}, ${telefono}, ${total},
             ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
             ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
-            ${discount_pct || 0}, ${discount_amount || 0}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}
+            ${couponId}, ${couponCode}, ${discountAmount}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}
           )
           RETURNING *
         `;
       } catch (insertErr) {
         if (insertErr.code !== '42703') throw insertErr; // no es "columna no existe" — error real, no lo ocultamos
-        console.warn('[orders] label_selections and/or discount_pct column not migrated yet, retrying without them');
+        console.warn('[orders] label_selections and/or coupon_id/coupon_code column not migrated yet, retrying without them');
         try {
           [order] = await sql`
             INSERT INTO orders (
@@ -186,7 +215,7 @@ module.exports = async (req, res) => {
               ${id}, ${cliente}, ${telefono}, ${total},
               ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
               ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
-              ${discount_amount || 0}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}
+              ${discountAmount}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}
             )
             RETURNING *
           `;
@@ -202,7 +231,7 @@ module.exports = async (req, res) => {
               ${id}, ${cliente}, ${telefono}, ${total},
               ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
               ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
-              ${discount_amount || 0}, ${refund_amount || 0}, ${locationId}
+              ${discountAmount}, ${refund_amount || 0}, ${locationId}
             )
             RETURNING *
           `;
@@ -256,7 +285,7 @@ module.exports = async (req, res) => {
         entity_type: 'orden',
         entity_id:   id,
         entity_name: `${id} — ${cliente}`,
-        details:     { id, cliente, total, items_count: items.length },
+        details:     { id, cliente, total, items_count: items.length, coupon_code: couponCode || undefined },
       });
 
       // Return updated products + order + shipment so client can sync state

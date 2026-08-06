@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow — Cupones</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f5f6fa;--bg2:#fff;--bg3:#f0f1f7;
+  --text:#1a1a2e;--text2:#5a5b7a;--text3:#9a9bb8;--border:#e4e5f0;
+  --primary:#5b4fff;--primary-light:#ede9ff;--primary-dark:#4035cc;
+  --green:#16c98d;--green-light:#e6faf4;--green-dark:#0da070;
+  --red:#ff4d6d;--red-light:#fff0f3;--red-dark:#cc3a56;
+  --amber:#f59e0b;--amber-light:#fffbeb;--amber-dark:#d97706;
+  --r:12px;--r-lg:16px;--sh:0 2px 12px rgba(91,79,255,.08);
+}
+body.dark-mode{
+  --bg:#14141f;--bg2:#1c1c2b;--bg3:#242438;
+  --text:#f0f0f5;--text2:#b8b8cc;--text3:#7d7d99;--border:#34344a;
+  --primary-light:#26224a;--green-light:#12332a;--red-light:#3a1620;--amber-light:#3a2c10;
+  --sh:0 2px 14px rgba(0,0,0,.4);
+}
+body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh}
+
+.topbar{background:var(--bg2);padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:var(--sh)}
+.back-btn{display:flex;align-items:center;gap:6px;background:var(--bg3);border:none;border-radius:10px;padding:7px 12px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;color:var(--text2);cursor:pointer;text-decoration:none}
+.logo-icon{width:36px;height:36px;background:var(--primary);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-icon i{color:#fff;font-size:19px}
+.topbar-title{font-weight:900;font-size:17px}
+.topbar-sub{font-size:10px;color:var(--text3);font-weight:700}
+.topbar-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.icon-btn{width:36px;height:36px;border-radius:10px;background:var(--bg3);border:none;display:flex;align-items:center;justify-content:center;color:var(--text2);cursor:pointer;font-size:17px}
+.icon-btn:hover{background:var(--border)}
+
+.content{padding:16px;max-width:900px;margin:0 auto;padding-bottom:60px}
+.actions-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;border:none;border-radius:10px;padding:10px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-outline{background:var(--bg2);color:var(--text2);border:1.5px solid var(--border)}
+.btn-outline:hover{border-color:var(--primary);color:var(--primary)}
+.btn-sm{padding:6px 10px;font-size:12px;border-radius:8px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.coupon-row{background:var(--bg2);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:10px;box-shadow:var(--sh);display:flex;align-items:center;gap:12px;cursor:pointer}
+.coupon-icon{width:40px;height:40px;border-radius:10px;background:var(--primary-light);color:var(--primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:19px}
+.coupon-body{flex:1;min-width:0}
+.coupon-code{font-weight:900;font-size:15px;letter-spacing:.3px}
+.coupon-meta{font-size:11.5px;color:var(--text3);font-weight:700;margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.coupon-uses{font-weight:900;font-size:15px;white-space:nowrap;text-align:right}
+.coupon-uses-lbl{font-size:10px;color:var(--text3);font-weight:800;text-transform:uppercase}
+.coupon-actions{display:flex;gap:4px}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:800}
+.pill.activo{background:var(--green-light);color:var(--green-dark)}
+.pill.redimido{background:var(--primary-light);color:var(--primary)}
+.pill.inactivo{background:var(--red-light);color:var(--red-dark)}
+
+.empty-state{text-align:center;padding:50px 20px;color:var(--text3)}
+.empty-state i{font-size:42px;margin-bottom:10px;display:block}
+.empty-state p{font-size:13.5px;font-weight:700;line-height:1.5}
+.skeleton{background:linear-gradient(90deg,var(--bg3) 25%,var(--border) 50%,var(--bg3) 75%);background-size:200% 100%;animation:shimmer 1.2s infinite;border-radius:var(--r-lg);height:70px;margin-bottom:10px}
+@keyframes shimmer{to{background-position:-200% 0}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:500}
+.modal-overlay.hidden{display:none}
+@media(min-width:640px){.modal-overlay{align-items:center}}
+.modal{background:var(--bg2);border-radius:20px 20px 0 0;width:100%;max-width:480px;max-height:92vh;overflow-y:auto;padding:20px}
+@media(min-width:640px){.modal{border-radius:var(--r-lg)}}
+.modal-title{font-size:16px;font-weight:900;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.form-group{margin-bottom:12px}
+.form-row{display:flex;gap:10px}
+.form-row .form-group{flex:1}
+.form-label{font-size:12px;font-weight:800;color:var(--text2);margin-bottom:5px}
+.form-input, .form-select{width:100%;background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:'Nunito',sans-serif;font-size:13.5px;color:var(--text);outline:none}
+.form-input:focus, .form-select:focus{border-color:var(--primary);background:var(--bg2)}
+.form-hint{font-size:11px;color:var(--text3);font-weight:600;margin-top:5px}
+.form-error{color:var(--red-dark);font-size:12px;font-weight:700;margin-top:8px}
+.modal-footer{display:flex;gap:10px;margin-top:16px}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;background:var(--bg3);border-radius:10px;padding:10px 12px;margin-bottom:12px}
+.switch{position:relative;width:42px;height:24px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.switch-slider{position:absolute;inset:0;background:var(--border);border-radius:24px;cursor:pointer;transition:.2s}
+.switch-slider::before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.switch input:checked + .switch-slider{background:var(--green)}
+.switch input:checked + .switch-slider::before{transform:translateX(18px)}
+
+.order-link-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
+.order-link-row:last-child{border-bottom:none}
+.order-link-row a{color:var(--primary);font-weight:900;text-decoration:none}
+.order-link-row a:hover{text-decoration:underline}
+.detail-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.detail-kpi{background:var(--bg3);border-radius:10px;padding:10px 12px}
+.detail-kpi-lbl{font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px}
+.detail-kpi-val{font-size:17px;font-weight:900}
+
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;padding:11px 20px;border-radius:24px;font-size:13px;font-weight:800;z-index:999;opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap;max-width:90vw;text-overflow:ellipsis;overflow:hidden}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/" class="back-btn"><i class="ti ti-arrow-left"></i> Inicio</a>
+  <div class="logo-icon"><i class="ti ti-discount-2"></i></div>
+  <div>
+    <div class="topbar-title">Cupones</div>
+    <div class="topbar-sub">Códigos de descuento para órdenes</div>
+  </div>
+  <div class="topbar-right">
+    <button class="icon-btn" id="dark-mode-btn" onclick="toggleDarkMode()" title="Modo oscuro"><span id="dark-mode-icon">🌙</span></button>
+  </div>
+</div>
+
+<div class="content">
+  <div class="actions-bar">
+    <input type="text" id="cp-search" placeholder="Buscar por código..." style="flex:1;min-width:200px;background:var(--bg2);border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-family:'Nunito',sans-serif;font-size:13px" oninput="renderCoupons()">
+    <button class="btn btn-primary" id="btn-new-coupon" onclick="openCouponForm()" style="display:none"><i class="ti ti-plus"></i> Nuevo cupón</button>
+  </div>
+  <div id="coupons-loading"><div class="skeleton"></div><div class="skeleton" style="opacity:.6"></div></div>
+  <div id="coupons-list"></div>
+  <div id="coupons-empty" class="empty-state" style="display:none">
+    <i class="ti ti-discount-off"></i>
+    <p>Aún no hay cupones creados.</p>
+  </div>
+</div>
+
+<!-- MODAL: CUPÓN (crear/editar) -->
+<div class="modal-overlay hidden" id="modal-coupon" onclick="if(event.target===this)closeCouponForm()">
+  <div class="modal">
+    <div class="modal-title"><i class="ti ti-discount-2" style="color:var(--primary)"></i> <span id="coupon-modal-title">Nuevo cupón</span></div>
+    <div class="form-group"><div class="form-label">Código *</div><input type="text" class="form-input" id="cp-code" maxlength="30" placeholder="Ej: VERANO10" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+    <div class="form-row">
+      <div class="form-group">
+        <div class="form-label">Tipo de descuento *</div>
+        <select class="form-select" id="cp-discount-type" onchange="onCouponTypeChange()">
+          <option value="percentage">Porcentaje (%)</option>
+          <option value="fixed">Monto fijo ($)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <div class="form-label" id="cp-value-label">Valor (%) *</div>
+        <input type="number" min="0" step="0.1" class="form-input" id="cp-discount-value" placeholder="10">
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">Cantidad de usos *</div>
+      <input type="number" min="1" step="1" class="form-input" id="cp-max-uses" placeholder="Ej: 50">
+      <div class="form-hint">Cuando se alcance este número de órdenes con el cupón, se marca como redimido automáticamente.</div>
+    </div>
+    <div class="toggle-row" id="cp-active-row" style="display:none">
+      <span style="font-size:13px;font-weight:800">Activo</span>
+      <label class="switch"><input type="checkbox" id="cp-active"><span class="switch-slider"></span></label>
+    </div>
+    <div class="form-error" id="coupon-form-error" style="display:none"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" style="flex:1;justify-content:center" onclick="closeCouponForm()">Cancelar</button>
+      <button class="btn btn-primary" style="flex:2;justify-content:center" id="btn-save-coupon" onclick="saveCoupon()"><i class="ti ti-check"></i> Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DETALLE CUPÓN -->
+<div class="modal-overlay hidden" id="modal-coupon-detail" onclick="if(event.target===this)closeCouponDetail()">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-title"><i class="ti ti-discount-2" style="color:var(--primary)"></i> <span id="cpd-code">CUPON</span></div>
+    <div class="detail-kpis">
+      <div class="detail-kpi"><div class="detail-kpi-lbl">Descuento</div><div class="detail-kpi-val" id="cpd-discount">—</div></div>
+      <div class="detail-kpi"><div class="detail-kpi-lbl">Usos</div><div class="detail-kpi-val" id="cpd-uses">—</div></div>
+    </div>
+    <div id="cpd-status" style="margin-bottom:14px"></div>
+    <div class="form-label" style="margin-bottom:8px">Órdenes que usaron este cupón</div>
+    <div id="cpd-orders"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" style="flex:1;justify-content:center" onclick="closeCouponDetail()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CONFIRMAR ELIMINAR -->
+<div class="modal-overlay hidden" id="modal-confirm-delete" onclick="if(event.target===this)closeConfirmDelete()">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-title"><i class="ti ti-alert-triangle" style="color:var(--red)"></i> Eliminar cupón</div>
+    <p style="font-size:13.5px;color:var(--text2);margin-bottom:16px">Se eliminará el cupón <strong id="confirm-delete-name"></strong>. Las órdenes que ya lo usaron conservan su descuento aplicado.</p>
+    <div class="modal-footer">
+      <button class="btn btn-outline" style="flex:1;justify-content:center" onclick="closeConfirmDelete()">Cancelar</button>
+      <button class="btn" style="flex:1;justify-content:center;background:var(--red);color:#fff" onclick="confirmDeleteCoupon()">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Auth / tenant context (mismo esquema que finanzas.html) ────────────────
+const token    = localStorage.getItem('sf_token') || '';
+const tenantId = localStorage.getItem('sf_tenant_id') || '';
+let CURRENT_ROLE = localStorage.getItem('sf_role') || 'staff';
+const ADMIN_ROLES = ['admin', 'superadmin', 'master'];
+const isAdmin = () => ADMIN_ROLES.includes(CURRENT_ROLE);
+
+function authHeaders(extra = {}) {
+  const h = { Authorization: 'Bearer ' + token, ...extra };
+  if (tenantId) h['X-Tenant-Id'] = tenantId;
+  return h;
+}
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(opts.headers || {}) } });
+  if (r.status === 401) { localStorage.removeItem('sf_token'); location.replace('/login'); throw new Error('Unauthorized'); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || 'Error de red');
+  return data;
+}
+
+const money = n => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Math.round(n || 0));
+
+// ── Dark mode (comparte localStorage con index.html) ────────────────────────
+function _prefsKey() { return 'sf_prefs_' + (tenantId || 'default'); }
+function getPrefs() { try { return JSON.parse(localStorage.getItem(_prefsKey()) || '{}'); } catch { return {}; } }
+function savePref(key, val) { try { const p = getPrefs(); p[key] = val; localStorage.setItem(_prefsKey(), JSON.stringify(p)); } catch {} }
+function applyDarkMode() {
+  const on = !!getPrefs().darkMode;
+  document.body.classList.toggle('dark-mode', on);
+  const icon = document.getElementById('dark-mode-icon');
+  if (icon) icon.textContent = on ? '☀️' : '🌙';
+}
+function toggleDarkMode() { savePref('darkMode', !document.body.classList.contains('dark-mode')); applyDarkMode(); }
+applyDarkMode();
+
+(function applyTenantColor() {
+  const color = localStorage.getItem('sf_tenant_color');
+  if (color) document.documentElement.style.setProperty('--primary', color);
+})();
+
+// ── Auth guard ───────────────────────────────────────────────────────────
+(async () => {
+  if (!token) { location.href = '/login'; return; }
+  try {
+    const me = await fetch('/api/auth/me', { headers: authHeaders() }).then(r => r.ok ? r.json() : null);
+    if (!me) { location.href = '/login'; return; }
+    CURRENT_ROLE = me.role;
+    localStorage.setItem('sf_role', me.role);
+    if ((me.role === 'superadmin' || me.role === 'master') && !tenantId) { location.href = '/admin'; return; }
+  } catch { location.href = '/login'; return; }
+
+  document.getElementById('btn-new-coupon').style.display = isAdmin() ? '' : 'none';
+  loadCoupons();
+})();
+
+// ── CUPONES ─────────────────────────────────────────────────────────────
+let _coupons = [];
+let _couponsById = {};
+async function loadCoupons() {
+  document.getElementById('coupons-loading').style.display = '';
+  try { _coupons = await api('/api/orders?resource=coupons'); }
+  catch (e) { toast('⚠️ ' + e.message); _coupons = []; }
+  _couponsById = Object.fromEntries(_coupons.map(c => [c.id, c]));
+  document.getElementById('coupons-loading').style.display = 'none';
+  renderCoupons();
+}
+const STATUS_LABEL = { activo: 'Activo', redimido: 'Redimido', inactivo: 'Inactivo' };
+function discountLabel(c) {
+  return c.discount_type === 'percentage' ? `${c.discount_value}%` : money(c.discount_value);
+}
+function renderCoupons() {
+  const q = (document.getElementById('cp-search').value || '').trim().toLowerCase();
+  const rows = _coupons.filter(c => !q || c.code.toLowerCase().includes(q));
+  const list = document.getElementById('coupons-list');
+  const empty = document.getElementById('coupons-empty');
+  if (!rows.length) {
+    list.innerHTML = '';
+    empty.style.display = '';
+    empty.querySelector('p').textContent = _coupons.length ? 'Ningún cupón coincide con la búsqueda.' : 'Aún no hay cupones creados.';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = rows.map(c => `
+    <div class="coupon-row" onclick="openCouponDetail('${c.id}')">
+      <div class="coupon-icon"><i class="ti ti-ticket"></i></div>
+      <div class="coupon-body">
+        <div class="coupon-code">${escHtml(c.code)}</div>
+        <div class="coupon-meta">
+          <span class="pill ${c.status}">${STATUS_LABEL[c.status]}</span>
+          <span>${discountLabel(c)} de descuento</span>
+        </div>
+      </div>
+      <div>
+        <div class="coupon-uses">${c.used_count}/${c.max_uses}</div>
+        <div class="coupon-uses-lbl">usos</div>
+      </div>
+      ${isAdmin() ? `
+        <div class="coupon-actions">
+          <button class="icon-btn" style="width:32px;height:32px;font-size:14px" title="Editar" onclick="event.stopPropagation();openCouponForm('${c.id}')"><i class="ti ti-pencil"></i></button>
+          <button class="icon-btn" style="width:32px;height:32px;font-size:14px;color:var(--red-dark)" title="Eliminar" onclick="event.stopPropagation();askDeleteCoupon('${c.id}')"><i class="ti ti-trash"></i></button>
+        </div>
+      ` : ''}
+    </div>`).join('');
+}
+
+function onCouponTypeChange() {
+  const type = document.getElementById('cp-discount-type').value;
+  document.getElementById('cp-value-label').textContent = type === 'percentage' ? 'Valor (%) *' : 'Valor ($) *';
+  document.getElementById('cp-discount-value').placeholder = type === 'percentage' ? '10' : '5000';
+}
+
+let _editingCouponId = null;
+function openCouponForm(id) {
+  _editingCouponId = id || null;
+  document.getElementById('coupon-modal-title').textContent = id ? 'Editar cupón' : 'Nuevo cupón';
+  document.getElementById('coupon-form-error').style.display = 'none';
+  const c = id ? _couponsById[id] : null;
+  document.getElementById('cp-code').value = c?.code || '';
+  document.getElementById('cp-discount-type').value = c?.discount_type || 'percentage';
+  document.getElementById('cp-discount-value').value = c?.discount_value ?? '';
+  document.getElementById('cp-max-uses').value = c?.max_uses ?? '';
+  document.getElementById('cp-active').checked = c ? !!c.active : true;
+  document.getElementById('cp-active-row').style.display = id ? '' : 'none';
+  onCouponTypeChange();
+  document.getElementById('modal-coupon').classList.remove('hidden');
+}
+function closeCouponForm() { document.getElementById('modal-coupon').classList.add('hidden'); }
+function showFormError(el, msg) { el.textContent = msg; el.style.display = ''; }
+
+async function saveCoupon() {
+  const errEl = document.getElementById('coupon-form-error');
+  errEl.style.display = 'none';
+  const code = document.getElementById('cp-code').value.trim().toUpperCase();
+  const discount_type = document.getElementById('cp-discount-type').value;
+  const discount_value = parseFloat(document.getElementById('cp-discount-value').value);
+  const max_uses = parseInt(document.getElementById('cp-max-uses').value, 10);
+  if (!code) return showFormError(errEl, 'El código es obligatorio');
+  if (!Number.isFinite(discount_value) || discount_value <= 0) return showFormError(errEl, 'El valor del descuento debe ser mayor a 0');
+  if (discount_type === 'percentage' && discount_value > 100) return showFormError(errEl, 'El porcentaje no puede superar 100');
+  if (!Number.isInteger(max_uses) || max_uses < 1) return showFormError(errEl, 'La cantidad de usos debe ser un entero mayor o igual a 1');
+
+  const payload = { code, discount_type, discount_value, max_uses };
+  if (_editingCouponId) payload.active = document.getElementById('cp-active').checked;
+
+  const btn = document.getElementById('btn-save-coupon');
+  btn.disabled = true;
+  try {
+    if (_editingCouponId) await api(`/api/orders?resource=coupons&id=${encodeURIComponent(_editingCouponId)}`, { method: 'PUT', body: JSON.stringify(payload) });
+    else await api('/api/orders?resource=coupons', { method: 'POST', body: JSON.stringify(payload) });
+    toast('✅ Cupón guardado');
+    closeCouponForm();
+    loadCoupons();
+  } catch (e) { showFormError(errEl, e.message); }
+  btn.disabled = false;
+}
+
+async function openCouponDetail(id) {
+  document.getElementById('cpd-code').textContent = _couponsById[id]?.code || id;
+  document.getElementById('cpd-orders').innerHTML = '<div class="skeleton" style="height:40px"></div>';
+  document.getElementById('modal-coupon-detail').classList.remove('hidden');
+  let detail;
+  try { detail = await api(`/api/orders?resource=coupons&id=${encodeURIComponent(id)}`); }
+  catch (e) { toast('⚠️ ' + e.message); closeCouponDetail(); return; }
+  document.getElementById('cpd-code').textContent = detail.code;
+  document.getElementById('cpd-discount').textContent = discountLabel(detail);
+  document.getElementById('cpd-uses').textContent = `${detail.used_count}/${detail.max_uses}`;
+  document.getElementById('cpd-status').innerHTML = `<span class="pill ${detail.status}">${STATUS_LABEL[detail.status]}</span>`;
+  const ordersEl = document.getElementById('cpd-orders');
+  const orders = detail.orders || [];
+  ordersEl.innerHTML = orders.length
+    ? orders.map(o => `
+        <div class="order-link-row">
+          <a href="/orders/${encodeURIComponent(o.id)}">${escHtml(o.id)}</a>
+          <span style="color:var(--text2);font-weight:700">${escHtml(o.cliente || 'Cliente')}</span>
+          <span style="color:var(--text3);font-weight:700">${escHtml(o.fecha || '')}</span>
+          <span style="font-weight:900">${money(o.total)}</span>
+        </div>`).join('')
+    : `<div class="empty-state" style="padding:20px"><i class="ti ti-receipt-off" style="font-size:28px"></i><p>Ninguna orden ha usado este cupón todavía.</p></div>`;
+}
+function closeCouponDetail() { document.getElementById('modal-coupon-detail').classList.add('hidden'); }
+
+let _deleteTargetId = null;
+function askDeleteCoupon(id) {
+  _deleteTargetId = id;
+  document.getElementById('confirm-delete-name').textContent = _couponsById[id]?.code || id;
+  document.getElementById('modal-confirm-delete').classList.remove('hidden');
+}
+function closeConfirmDelete() { document.getElementById('modal-confirm-delete').classList.add('hidden'); _deleteTargetId = null; }
+async function confirmDeleteCoupon() {
+  if (!_deleteTargetId) return;
+  try { await api(`/api/orders?resource=coupons&id=${encodeURIComponent(_deleteTargetId)}`, { method: 'DELETE' }); toast('✅ Cupón eliminado'); closeConfirmDelete(); loadCoupons(); }
+  catch (e) { toast('⚠️ ' + e.message); closeConfirmDelete(); }
+}
+
+// ── Utils ────────────────────────────────────────────────────────────────
+function escHtml(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>

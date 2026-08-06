@@ -3,6 +3,7 @@ const { getDb } = require('../_db');
 const cors = require('../_cors');
 const { writeLog } = require('../_log');
 const { getSession, resolveTenantId } = require('../_tenant');
+const { claimCoupon, releaseCoupon, computeDiscountAmount, normalizeCode } = require('../_coupons');
 
 module.exports = async (req, res) => {
   if (cors(req, res)) return;
@@ -30,8 +31,8 @@ module.exports = async (req, res) => {
     if (req.method === 'PUT') {
       const {
         status, action, cliente, telefono, dedicatoria, receptor, receptor_telefono,
-        payment_method, sales_channel, delivery_update, total,
-        discount_pct, discount_amount, refund_amount, label_selections,
+        payment_method, sales_channel, delivery_update,
+        coupon_code, refund_amount, label_selections,
       } = req.body || {};
 
       // Update customer-facing info fields
@@ -40,14 +41,53 @@ module.exports = async (req, res) => {
         // carries keys the user actually edited (method/date/slot/address), so
         // receptor and anything else already stored is left untouched.
         const deliveryPatch = { receptor: receptor ?? '', receptor_telefono: receptor_telefono ?? '', ...(delivery_update || {}) };
-        const [before] = await sql`SELECT discount_amount, refund_amount FROM orders WHERE id = ${id} AND tenant_id = ${tenantId}`;
+        // coupon_id/coupon_code are newer columns — fall back to a select
+        // without them if that migration hasn't run yet, so a pending
+        // migration never blocks editing an order (the cupón just can't be
+        // changed on this edit until it does).
+        let before;
+        try {
+          [before] = await sql`SELECT items, delivery, coupon_id, coupon_code, discount_amount, refund_amount FROM orders WHERE id = ${id} AND tenant_id = ${tenantId}`;
+        } catch (selErr) {
+          if (selErr.code !== '42703') throw selErr;
+          [before] = await sql`SELECT items, delivery, discount_amount, refund_amount FROM orders WHERE id = ${id} AND tenant_id = ${tenantId}`;
+          if (before) { before.coupon_id = null; before.coupon_code = ''; }
+        }
         if (!before) return res.status(404).json({ error: 'Order not found' });
-        // label_selections y discount_pct son columnas nuevas (migración vía
-        // POST /api/setup) — si todavía no se corrieron en esta base, se
-        // sigue de largo sin ellas en vez de romper la edición de órdenes
-        // por completo. discount_amount/total ya llevan el descuento
-        // aplicado de todas formas; discount_pct solo sirve para repoblar
-        // el campo % la próxima vez que se edite la orden.
+
+        // Cupón: '' = sin cupón. Sólo se reclama/libera si el código deseado
+        // difiere del que la orden ya tenía — reclama el nuevo ANTES de
+        // liberar el viejo, así un código inválido nunca deja la orden sin
+        // el cupón que ya tenía. total se recalcula siempre acá (nunca se
+        // confía en un total del cliente), a partir del subtotal real de
+        // items guardado en la orden.
+        const itemsSubtotal = (before.items || []).reduce((s, i) => s + (i.price || 0) * (i.qty || 0), 0);
+        const beforeCode = before.coupon_code || '';
+        const desiredCode = normalizeCode(coupon_code ?? '');
+        let couponId = before.coupon_id || null;
+        let couponCodeFinal = beforeCode;
+        let discountAmount = before.discount_amount || 0;
+        if (desiredCode !== beforeCode) {
+          let claimed = null;
+          if (desiredCode) {
+            claimed = await claimCoupon(sql, tenantId, desiredCode);
+            if (!claimed) return res.status(400).json({ error: 'Cupón inválido, inactivo o agotado' });
+          }
+          if (before.coupon_id) await releaseCoupon(sql, tenantId, before.coupon_id);
+          couponId = claimed ? claimed.id : null;
+          couponCodeFinal = claimed ? claimed.code : '';
+          discountAmount = claimed ? computeDiscountAmount(claimed, itemsSubtotal) : 0;
+        }
+        const shippingRevenue = (delivery_update && delivery_update.slot_cost !== undefined)
+          ? delivery_update.slot_cost
+          : (before.delivery?.slot_cost || 0);
+        const total = itemsSubtotal - discountAmount + shippingRevenue;
+
+        // label_selections y coupon_id/coupon_code son columnas nuevas
+        // (migración vía POST /api/setup) — si todavía no se corrieron en
+        // esta base, se sigue de largo sin ellas en vez de romper la edición
+        // de órdenes por completo. discount_amount/total ya llevan el
+        // descuento aplicado de todas formas.
         let row;
         try {
           [row] = await sql`
@@ -58,9 +98,10 @@ module.exports = async (req, res) => {
               delivery         = delivery || ${JSON.stringify(deliveryPatch)}::jsonb,
               payment_method   = ${payment_method ?? ''},
               sales_channel    = ${sales_channel ?? ''},
-              total            = COALESCE(${total ?? null}, total),
-              discount_pct     = COALESCE(${discount_pct ?? null}, discount_pct),
-              discount_amount  = COALESCE(${discount_amount ?? null}, discount_amount),
+              total            = ${total},
+              coupon_id        = ${couponId},
+              coupon_code      = ${couponCodeFinal},
+              discount_amount  = ${discountAmount},
               refund_amount    = COALESCE(${refund_amount ?? null}, refund_amount),
               label_selections = label_selections || ${JSON.stringify(label_selections || {})}::jsonb,
               updated_by       = ${actor},
@@ -70,7 +111,7 @@ module.exports = async (req, res) => {
           `;
         } catch (updateErr) {
           if (updateErr.code !== '42703') throw updateErr;
-          console.warn('[orders/[id]] label_selections and/or discount_pct column not migrated yet, retrying without them');
+          console.warn('[orders/[id]] label_selections and/or coupon_id/coupon_code column not migrated yet, retrying without them');
           try {
             [row] = await sql`
               UPDATE orders SET
@@ -80,8 +121,8 @@ module.exports = async (req, res) => {
                 delivery         = delivery || ${JSON.stringify(deliveryPatch)}::jsonb,
                 payment_method   = ${payment_method ?? ''},
                 sales_channel    = ${sales_channel ?? ''},
-                total            = COALESCE(${total ?? null}, total),
-                discount_amount  = COALESCE(${discount_amount ?? null}, discount_amount),
+                total            = ${total},
+                discount_amount  = ${discountAmount},
                 refund_amount    = COALESCE(${refund_amount ?? null}, refund_amount),
                 label_selections = label_selections || ${JSON.stringify(label_selections || {})}::jsonb,
                 updated_by       = ${actor},
@@ -99,8 +140,8 @@ module.exports = async (req, res) => {
                 delivery         = delivery || ${JSON.stringify(deliveryPatch)}::jsonb,
                 payment_method   = ${payment_method ?? ''},
                 sales_channel    = ${sales_channel ?? ''},
-                total            = COALESCE(${total ?? null}, total),
-                discount_amount  = COALESCE(${discount_amount ?? null}, discount_amount),
+                total            = ${total},
+                discount_amount  = ${discountAmount},
                 refund_amount    = COALESCE(${refund_amount ?? null}, refund_amount),
                 updated_by       = ${actor},
                 updated_at       = NOW()
@@ -132,6 +173,7 @@ module.exports = async (req, res) => {
             entity_id:   id,
             entity_name: `${id} — ${row.cliente}`,
             details:     {
+              coupon_code:     { from: beforeCode, to: couponCodeFinal },
               discount_amount: { from: before.discount_amount, to: row.discount_amount },
               refund_amount:   { from: before.refund_amount,   to: row.refund_amount   },
             },
@@ -174,8 +216,21 @@ module.exports = async (req, res) => {
 
     // ── DELETE ────────────────────────────────────────────────────────────
     if (req.method === 'DELETE') {
-      const [existing] = await sql`SELECT cliente FROM orders WHERE id = ${id} AND tenant_id = ${tenantId}`;
+      // coupon_id is a newer column (migration via POST /api/setup) — fall
+      // back to a select without it if that hasn't run yet, so a pending
+      // migration never blocks deleting an order.
+      let existing;
+      try {
+        [existing] = await sql`SELECT cliente, coupon_id FROM orders WHERE id = ${id} AND tenant_id = ${tenantId}`;
+      } catch (selErr) {
+        if (selErr.code !== '42703') throw selErr;
+        [existing] = await sql`SELECT cliente FROM orders WHERE id = ${id} AND tenant_id = ${tenantId}`;
+      }
       if (!existing) return res.status(404).json({ error: 'Order not found' });
+
+      // Release the coupon use (if any) so a deleted order doesn't
+      // permanently burn a use of its cupón.
+      if (existing.coupon_id) await releaseCoupon(sql, tenantId, existing.coupon_id);
 
       // Delete linked shipment first (if any)
       await sql`DELETE FROM shipments WHERE order_id = ${id} AND tenant_id = ${tenantId}`.catch(() => {});
