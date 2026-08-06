@@ -1031,6 +1031,12 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div class="form-group"><div class="form-label">Stock inicial</div><input class="form-input" type="number" id="p-stock" value="0"></div>
         <div class="form-group"><div class="form-label">Alerta bajo de</div><input class="form-input" type="number" id="p-threshold" value="10"></div>
       </div>
+      <!-- Stock inicial por tienda (varias filas) — sólo al crear un producto nuevo en modo inventario -->
+      <div id="p-stock-multi" style="display:none">
+        <div class="form-label">Stock inicial por tienda</div>
+        <div id="p-stock-multi-rows"></div>
+        <button type="button" class="btn btn-outline btn-sm" onclick="addProdStockRow()" style="margin-top:2px;margin-bottom:10px"><i class="ti ti-plus"></i> Agregar tienda</button>
+      </div>
       <div class="form-group" id="p-barcode-row" style="margin-top:8px">
         <div class="form-label">Código de barra</div>
         <input class="form-input" id="p-barcode" placeholder="Ej: 7891234560012" style="font-family:monospace">
@@ -1517,8 +1523,31 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="form-label" style="font-size:14px;margin-bottom:2px">¿Qué quieres hacer?</div>
       <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openSheetVenta()"><i class="ti ti-shopping-bag" style="color:var(--green-dark)"></i> Nueva venta</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openSheetProd()"><i class="ti ti-box" style="color:var(--primary)"></i> Agregar producto</button>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openAddInventorySheet()"><i class="ti ti-package-import" style="color:var(--teal-dark,#0d9488)"></i> Agregar inventario</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-fab');openSheetKit()"><i class="ti ti-stack-2" style="color:var(--amber-dark)"></i> Crear KIT</button>
       <button class="btn btn-outline" style="color:var(--text3)" onclick="closeSheet('sheet-fab')"><i class="ti ti-x"></i> Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: AGREGAR INVENTARIO (elegir producto existente, luego abre Agregar SKU) -->
+<div class="sheet-overlay hidden" id="sheet-add-inventory" onclick="if(event.target===this)closeSheet('sheet-add-inventory')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-package-import" style="color:var(--teal-dark,#0d9488)"></i> Agregar inventario</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-add-inventory')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content">
+      <div class="form-group">
+        <div class="form-label">Producto *</div>
+        <select class="form-input" id="add-inv-product"><option value="">Selecciona un producto...</option></select>
+      </div>
+      <div style="font-size:11px;color:var(--text3);font-weight:600">Agrega un registro de stock (cantidad + tienda) para un producto que ya existe. Para crear un producto nuevo usa "Agregar producto".</div>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-add-inventory')" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-primary" onclick="continueAddInventory()" style="flex:2"><i class="ti ti-arrow-right"></i> Continuar</button>
     </div>
   </div>
 </div>
@@ -2876,7 +2905,7 @@ function prodRow(p) {
       <div class="stock-num">${p.stock}</div>
       <div class="stock-label">/ ${p.threshold} mín</div>
       <div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end">
-        <button onclick="event.stopPropagation();editProd('${skuEsc}','${wid}')" style="width:28px;height:28px;border-radius:8px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-pencil" style="font-size:14px"></i></button>
+        <button onclick="event.stopPropagation();editProdStock('${skuEsc}','${wid}')" title="Editar stock" style="width:28px;height:28px;border-radius:8px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-pencil" style="font-size:14px"></i></button>
         <button onclick="event.stopPropagation();deleteProd('${skuEsc}','${wid}')" style="width:28px;height:28px;border-radius:8px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-trash" style="font-size:14px"></i></button>
       </div>
     </div>
@@ -3197,16 +3226,96 @@ function _populateWarehouseSelect(selectedId, readonly, excludeIds) {
 function _resetAddSkuState() {
   S._addSkuMode = false;
   S._addSkuData = null;
+  S._stockOnlyMode = false;
+  S._stockOnlyBaseData = null;
   const sumEl = document.getElementById('p-prod-summary');
   const fldEl = document.getElementById('p-prod-fields');
   if (sumEl) sumEl.style.display = 'none';
   if (fldEl) fldEl.style.display = '';
+  const multiEl = document.getElementById('p-stock-multi');
+  if (multiEl) multiEl.style.display = 'none';
+}
+
+// ── Stock inicial por tienda (varias filas) — sólo al crear un producto
+// nuevo en modo inventario (ver openSheetProd). Cada fila es una tienda +
+// stock + alerta independiente; al guardar se crea una fila de producto por
+// cada una (mismo POST que usa openAddSkuSheet para SKUs adicionales).
+function _renderProdStockRows() {
+  const whs = getWarehouses();
+  const container = document.getElementById('p-stock-multi-rows');
+  if (!container) return;
+  const usedIds = S.tempProdStockRows.map(r => r.warehouse_id);
+  container.innerHTML = S.tempProdStockRows.map((r, idx) => {
+    const available = whs.filter(w => w.id === r.warehouse_id || !usedIds.includes(w.id));
+    const whOptions = whs.length
+      ? available.map(w => `<option value="${w.id}"${w.id===r.warehouse_id?' selected':''}>${w.name}</option>`).join('')
+      : '<option value="">Sin almacenes configurados</option>';
+    return `<div class="form-row" style="align-items:flex-end;margin-bottom:8px">
+      <div class="form-group"><div class="form-label">Tienda</div><select class="form-input" onchange="updateProdStockRow(${idx},'warehouse_id',this.value)">${whOptions}</select></div>
+      <div class="form-group" style="max-width:90px"><div class="form-label">Stock</div><input class="form-input" type="number" value="${r.stock}" oninput="updateProdStockRow(${idx},'stock',this.value)"></div>
+      <div class="form-group" style="max-width:90px"><div class="form-label">Alerta &lt;</div><input class="form-input" type="number" value="${r.threshold}" oninput="updateProdStockRow(${idx},'threshold',this.value)"></div>
+      ${S.tempProdStockRows.length>1 ? `<button type="button" class="btn-icon-sm" onclick="removeProdStockRow(${idx})" title="Quitar" style="margin-bottom:10px"><i class="ti ti-trash"></i></button>` : '<span style="width:32px"></span>'}
+    </div>`;
+  }).join('');
+}
+function addProdStockRow() {
+  const whs = getWarehouses();
+  if (!whs.length) { toast('ℹ️ Configura almacenes en Locales para agregar stock en más de una tienda'); return; }
+  const used = S.tempProdStockRows.map(r => r.warehouse_id);
+  const next = whs.find(w => !used.includes(w.id));
+  if (!next) { toast('ℹ️ Ya agregaste todas las tiendas'); return; }
+  S.tempProdStockRows.push({ warehouse_id: next.id, stock: 0, threshold: 10 });
+  _renderProdStockRows();
+}
+function removeProdStockRow(idx) {
+  if (S.tempProdStockRows.length <= 1) return;
+  S.tempProdStockRows.splice(idx, 1);
+  _renderProdStockRows();
+}
+function updateProdStockRow(idx, field, value) {
+  const row = S.tempProdStockRows[idx];
+  if (!row) return;
+  row[field] = (field === 'stock' || field === 'threshold') ? (parseInt(value) || 0) : value;
+  // Sólo re-renderiza al cambiar de tienda (actualiza qué opciones quedan
+  // disponibles en las demás filas) — re-renderizar en cada tecleo de
+  // stock/alerta perdería el foco del input.
+  if (field === 'warehouse_id') _renderProdStockRows();
+}
+
+// ── AGREGAR INVENTARIO (FAB) — elegir un producto ya existente y luego
+// reusar openAddSkuSheet para agregarle un registro de stock en una tienda
+// donde todavía no tiene uno.
+function openAddInventorySheet() {
+  const bySku = new Map();
+  S.products.forEach(p => { if (!bySku.has(p.sku)) bySku.set(p.sku, p); });
+  const whs = getWarehouses();
+  const eligible = [...bySku.values()]
+    .filter(p => {
+      if (!whs.length) return true;
+      const used = S.products.filter(x => x.sku === p.sku && (x.warehouse_id||'') !== '').length;
+      return used < whs.length;
+    })
+    .sort((a,b) => a.name.localeCompare(b.name));
+  const sel = document.getElementById('add-inv-product');
+  sel.innerHTML = '<option value="">Selecciona un producto...</option>' +
+    (eligible.length
+      ? eligible.map(p => `<option value="${p.sku}">${p.name} (${p.sku})</option>`).join('')
+      : '');
+  if (!eligible.length) toast('ℹ️ Todos los productos ya tienen stock en todas las tiendas');
+  openSheet('sheet-add-inventory');
+}
+function continueAddInventory() {
+  const sku = document.getElementById('add-inv-product').value;
+  if (!sku) { toast('⚠️ Selecciona un producto'); return; }
+  closeSheet('sheet-add-inventory');
+  openAddSkuSheet(sku);
 }
 
 function openAddSkuSheet(prodSku) {
   const master = S.products.find(x => x.sku === prodSku && (x.warehouse_id||'') === '')
                || S.products.find(x => x.sku === prodSku);
   if (!master) return;
+  _resetAddSkuState();
   S.editingProdSku = null;
   S.editingProdWarehouseId = '';
   S._catalogMode = false;
@@ -3266,15 +3375,19 @@ function openSheetProd(pushURL = true) {
   document.getElementById('prod-save-btn').innerHTML = '<i class="ti ti-check"></i> Guardar';
   document.getElementById('prod-dup-btn').style.display = 'none';
   ['p-name','p-brand','p-cost','p-price'].forEach(id => document.getElementById(id).value='');
-  document.getElementById('p-stock').value='0';
-  document.getElementById('p-threshold').value='10';
-  document.getElementById('p-stock-row').style.display   = '';
   document.getElementById('p-barcode-row').style.display  = '';
   document.getElementById('p-sku-section').style.display  = 'none';
   document.getElementById('p-barcode').value = '';
   document.getElementById('prod-meta').style.display = 'none';
   selectTipo('producto', document.querySelector('.tipo-option:nth-child(2)'));
-  _populateWarehouseSelect(S.warehouseId, false);
+  // Producto nuevo: stock inicial por tienda (varias filas) en vez del
+  // campo único — arranca con una fila usando la tienda activa (si hay).
+  document.getElementById('p-stock-row').style.display = 'none';
+  document.getElementById('p-warehouse-group').style.display = 'none';
+  document.getElementById('p-stock-multi').style.display = '';
+  const firstWh = S.warehouseId || (getWarehouses()[0]?.id || '');
+  S.tempProdStockRows = [{ warehouse_id: firstWh, stock: 0, threshold: 10 }];
+  _renderProdStockRows();
   _populateCatalogLists();
   populateCatSelects('');
   S.tempProdGroups = [];
@@ -3385,6 +3498,53 @@ function editProd(sku, warehouseId, pushURL = true) {
     history.pushState({ prodSku: sku, warehouseId: wid }, '', url);
   }
 }
+
+// Editar SOLO el registro de stock (cantidad + tienda) de un producto, sin
+// tocar sus datos de catálogo (nombre, precio, marca, etc.) — usado desde
+// Inventario, donde ese registro por almacén es lo único que tiene sentido
+// editar ahí. El nombre/precio/etc. del producto se sigue editando desde
+// Catálogo (editProd), que sí muestra esos campos.
+function editProdStock(sku, warehouseId, pushURL = true) {
+  const wid = warehouseId || '';
+  const p = S.products.find(x => x.sku === sku && (x.warehouse_id || '') === wid);
+  if (!p) return;
+  _resetAddSkuState();
+  S.editingProdSku = sku;
+  S.editingProdWarehouseId = wid;
+  S._catalogMode = false;
+  S._stockOnlyMode = true;
+  S._stockOnlyBaseData = { name: p.name, brand: p.brand, cat: p.cat, tipo: p.tipo, cost: p.cost, price: p.price, groups: p.groups };
+  document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-pencil" style="color:var(--primary)"></i> Editar stock';
+  document.getElementById('prod-save-btn').innerHTML = '<i class="ti ti-check"></i> Guardar cambios';
+  document.getElementById('prod-dup-btn').style.display = 'none';
+  const sumEl = document.getElementById('p-prod-summary');
+  const fldEl = document.getElementById('p-prod-fields');
+  if (fldEl) fldEl.style.display = 'none';
+  if (sumEl) {
+    sumEl.style.display = '';
+    sumEl.innerHTML = `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg3);border-radius:var(--radius);margin-bottom:14px;border:1px solid var(--border)">
+      <div style="width:40px;height:40px;border-radius:10px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-box" style="font-size:18px;color:var(--primary)"></i></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
+        <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:1px">${p.brand||'Sin marca'} · ${p.cat||'—'}</div>
+        <div style="font-size:10px;font-weight:800;color:var(--primary);font-family:monospace;margin-top:2px">${p.sku}</div>
+      </div>
+    </div>`;
+  }
+  document.getElementById('p-stock-row').style.display   = '';
+  document.getElementById('p-barcode-row').style.display = '';
+  document.getElementById('p-sku-section').style.display = 'none';
+  document.getElementById('p-stock').value     = p.stock;
+  document.getElementById('p-threshold').value = p.threshold;
+  document.getElementById('p-barcode').value   = p.barcode || '';
+  document.getElementById('prod-meta').style.display = 'none';
+  _populateWarehouseSelect(p.warehouse_id || '', false);
+  openSheet('sheet-prod');
+  if (pushURL) {
+    const url = '/inventory/sku/' + encodeURIComponent(sku) + '/edit' + (wid ? ('?warehouse=' + encodeURIComponent(wid)) : '');
+    history.pushState({ prodSku: sku, warehouseId: wid, stockOnly: true }, '', url);
+  }
+}
 async function deleteProd(sku, warehouseId) {
   const wid = warehouseId || '';
   const p = S.products.find(x => x.sku === sku && (x.warehouse_id || '') === wid);
@@ -3459,15 +3619,88 @@ async function saveProd() {
   if (btn?.disabled) return;
   if (btn) btn.disabled = true;
   try {
-    await _saveProdImpl();
+    // Producto nuevo en modo inventario (no editando, no Agregar SKU, no
+    // catálogo) usa el formulario de varias filas de stock por tienda.
+    const isNewInventoryProduct = !S.editingProdSku && !S._catalogMode && !(S._addSkuMode && S._addSkuData);
+    if (isNewInventoryProduct) await _saveNewProductMultiRow();
+    else await _saveProdImpl();
   } finally {
     if (btn) btn.disabled = false;
   }
 }
+// Crea un producto nuevo con stock inicial en N tiendas de una vez: la
+// primera fila crea el producto (SKU autogenerado o el que ya definiste),
+// las filas siguientes reusan ese mismo SKU con distinto warehouse_id —
+// mismo POST que usa openAddSkuSheet para SKUs adicionales.
+async function _saveNewProductMultiRow() {
+  const name = document.getElementById('p-name').value.trim();
+  if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
+  const rows = S.tempProdStockRows || [];
+  if (!rows.length) { toast('⚠️ Agrega al menos un registro de stock'); return; }
+  const warehouses = getWarehouses();
+  if (warehouses.length) {
+    for (const r of rows) {
+      if (!r.warehouse_id) { toast('⚠️ Selecciona una tienda en cada fila'); return; }
+    }
+    const seen = new Set();
+    for (const r of rows) {
+      if (seen.has(r.warehouse_id)) { toast('⚠️ No repitas la misma tienda en dos filas'); return; }
+      seen.add(r.warehouse_id);
+    }
+  }
+
+  const baseData = {
+    name,
+    brand: document.getElementById('p-brand').value.trim() || 'Sin marca',
+    cat:   getCatFieldValue() || 'General',
+    tipo:  selectedTipo,
+    cost:  parseFloat(document.getElementById('p-cost').value) || 0,
+    price: parseFloat(document.getElementById('p-price').value) || 0,
+    barcode: document.getElementById('p-barcode')?.value.trim() || '',
+    groups:  S.tempProdGroups || [],
+  };
+
+  let createdSku = null;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const data = {
+      ...baseData,
+      stock:        r.stock || 0,
+      threshold:    r.threshold ?? 10,
+      warehouse_id: r.warehouse_id || '',
+      ...(i > 0 ? { sku: createdSku } : {}),
+    };
+    if (S._apiReady) {
+      try {
+        const newProd = await apiFetch('/api/products', { method:'POST', body: JSON.stringify(data) });
+        S.products.push(newProd);
+        if (i === 0) createdSku = newProd.sku;
+      } catch(e) {
+        toast(`❌ Error al crear stock en fila ${i+1}: ` + (e.message || 'intenta de nuevo'));
+        return;
+      }
+    } else {
+      const sku = createdSku || ('PRD-' + String(S.products.length+1).padStart(3,'0'));
+      S.products.push({ sku, ...data });
+      if (i === 0) createdSku = sku;
+    }
+  }
+  closeProdSheet();
+  toast(`✅ Producto creado con stock en ${rows.length} tienda${rows.length!==1?'s':''}`);
+  renderHome();
+  if (S.currentPage==='inventory') renderInventory();
+  if (S.currentPage==='ventas')    renderVentas();
+  if (S.currentPage==='catalogo')  renderCatalogo();
+}
 async function _saveProdImpl() {
-  // Determine mode early — add-SKU mode doesn't use p-name (it's hidden)
+  // Determine mode early — add-SKU mode and stock-only mode (Inventario:
+  // sólo se edita el registro de stock, no el producto) don't use p-name
+  // (it's hidden) — ambos toman los datos de catálogo de un snapshot en vez
+  // de leer los campos ocultos del form.
   const isAddSku = !!(S._addSkuMode && S._addSkuData);
-  const name = isAddSku ? S._addSkuData.name : document.getElementById('p-name').value.trim();
+  const isStockOnly = !!(S._stockOnlyMode && S._stockOnlyBaseData);
+  const baseData = isAddSku ? S._addSkuData : (isStockOnly ? S._stockOnlyBaseData : null);
+  const name = baseData ? baseData.name : document.getElementById('p-name').value.trim();
   if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
 
   let warehouse_id = '', stockVal = 0, thresholdVal = 10;
@@ -3510,17 +3743,17 @@ async function _saveProdImpl() {
     : (document.getElementById('p-barcode')?.value.trim() || '');
 
   const data = {
-    name:      isAddSku ? S._addSkuData.name  : name,
-    brand:     isAddSku ? S._addSkuData.brand : (document.getElementById('p-brand').value.trim()||'Sin marca'),
-    cat:       isAddSku ? S._addSkuData.cat   : (getCatFieldValue() || 'General'),
-    tipo:      isAddSku ? S._addSkuData.tipo  : selectedTipo,
-    cost:      isAddSku ? S._addSkuData.cost  : (parseFloat(document.getElementById('p-cost').value)||0),
-    price:     isAddSku ? S._addSkuData.price : (parseFloat(document.getElementById('p-price').value)||0),
+    name:      baseData ? baseData.name  : name,
+    brand:     baseData ? baseData.brand : (document.getElementById('p-brand').value.trim()||'Sin marca'),
+    cat:       baseData ? baseData.cat   : (getCatFieldValue() || 'General'),
+    tipo:      baseData ? baseData.tipo  : selectedTipo,
+    cost:      baseData ? baseData.cost  : (parseFloat(document.getElementById('p-cost').value)||0),
+    price:     baseData ? baseData.price : (parseFloat(document.getElementById('p-price').value)||0),
     stock:     stockVal,
     threshold: thresholdVal,
     barcode,
     warehouse_id,
-    groups:    isAddSku ? (S._addSkuData.groups || []) : (S.tempProdGroups || []),
+    groups:    baseData ? (baseData.groups || []) : (S.tempProdGroups || []),
     ...(isAddSku ? { sku: S._addSkuData.sku } : {}), // explicit SKU for add-SKU mode
   };
   if (S.editingProdSku) {
@@ -7929,7 +8162,8 @@ function applyRoute() {
     showParentPage(m[1] === 'catalog' ? 'catalogo' : 'inventory');
     const sku = decodeURIComponent(m[2]);
     const warehouseId = new URLSearchParams(location.search).get('warehouse') || '';
-    editProd(sku, warehouseId, false);
+    if (m[1] === 'inventory') editProdStock(sku, warehouseId, false);
+    else editProd(sku, warehouseId, false);
     return;
   }
   // /catalog/kit/new · /inventory/kit/new — nuevo KIT
