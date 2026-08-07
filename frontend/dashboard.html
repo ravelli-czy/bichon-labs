@@ -70,18 +70,17 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;max-
 a.hero-chip:hover{filter:brightness(1.1)}
 a.hero-chip:active{transform:scale(.96)}
 
-/* Aviso de Alertas de stock — dentro del hero (no en el topbar), justo
-   arriba de Ventas del mes/Utilidad bruta, con máximo contraste contra el
-   degradé morado: fondo sólido + pulso. Al ir después de hero-date (no
-   como primer elemento) no necesita despejar el toggle de período. */
+/* Aviso de Alertas de stock — arriba de todo, antes del hero (no en el
+   topbar del shell): fondo rojo sólido + pulso para máximo contraste, tanto
+   sobre el fondo claro de .content como si en el futuro se moviera. Va como
+   hermano de .hero dentro de .content, que ya da el espaciado via flex+gap. */
 .stock-alert-banner{
   display:flex;align-items:center;gap:8px;
   background:#ff3b3b;color:#fff;
-  border-radius:999px;padding:8px 14px;
-  font-size:12.5px;font-weight:800;
+  border-radius:999px;padding:9px 16px;
+  font-size:13px;font-weight:800;
   text-decoration:none;
-  box-shadow:0 4px 14px rgba(0,0,0,.25);
-  margin-bottom:14px;position:relative;z-index:2;
+  box-shadow:0 4px 14px rgba(255,59,59,.35);
   width:fit-content;max-width:100%;
 }
 .stock-alert-banner:hover{filter:brightness(1.08)}
@@ -212,6 +211,13 @@ body.embedded #modules-section,body.embedded .footer{display:none}
 
 <div class="content">
 
+  <a href="#" id="stock-alert-banner" class="stock-alert-banner" style="display:none">
+    <span class="dot"></span>
+    <i class="ti ti-alert-triangle"></i>
+    <span id="stock-alert-banner-text">Nueva lista de compra pendiente</span>
+    <i class="ti ti-chevron-right"></i>
+  </a>
+
   <!-- HERO -->
   <div class="hero" id="hero-card">
     <div class="hero-period-toggle" id="hero-range-toggle">
@@ -222,12 +228,6 @@ body.embedded #modules-section,body.embedded .footer{display:none}
     </div>
     <div class="hero-greeting"><i class="ti ti-wave-sine"></i> <span id="greeting">Buenos días</span></div>
     <div class="hero-date" id="hero-date">—</div>
-    <a href="#" id="stock-alert-banner" class="stock-alert-banner" style="display:none">
-      <span class="dot"></span>
-      <i class="ti ti-alert-triangle"></i>
-      <span id="stock-alert-banner-text">Nueva lista de compra pendiente</span>
-      <i class="ti ti-chevron-right"></i>
-    </a>
     <div class="hero-metrics">
       <div class="hero-metric">
         <div class="hero-metric-val" id="hero-ventas">$0</div>
