@@ -37,10 +37,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .logo-title{font-weight:900;font-size:18px;color:var(--primary)}
 .logo-sub{font-size:10px;color:var(--text3);font-weight:600;display:block;line-height:1}
 .topbar-right{display:flex;gap:8px}
-.topbar-alert{display:flex;align-items:center;gap:7px;background:var(--amber-light);color:var(--amber-dark);border-radius:20px;padding:7px 14px;font-size:12.5px;font-weight:800;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px;margin:0 12px}
-.topbar-alert i:first-child{font-size:15px;flex-shrink:0}
-.topbar-alert span{overflow:hidden;text-overflow:ellipsis}
-@media(max-width:640px){.topbar-alert span{display:none}.topbar-alert{padding:8px;max-width:none}}
 .icon-btn{width:38px;height:38px;border-radius:10px;background:var(--bg3);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;color:var(--text2)}
 .icon-btn i{font-size:20px}
 .notif-badge{position:absolute;top:3px;right:3px;background:var(--red);color:#fff;font-size:9px;font-weight:900;border-radius:10px;padding:1px 5px;border:2px solid var(--bg2);min-width:16px;text-align:center;line-height:14px}
@@ -599,11 +595,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div class="logo-icon"><i class="ti ti-packages"></i></div>
     <div><div class="logo-title">StockFlow</div><div class="logo-sub">OMS · WMS</div></div>
   </div>
-  <a href="#" id="topbar-stock-alert" class="topbar-alert" style="display:none" onclick="event.preventDefault();location.href='/stock-alerts?id='+encodeURIComponent(S._stockAlertPending?.id||'')">
-    <i class="ti ti-alert-triangle"></i>
-    <span id="topbar-stock-alert-text">Nueva lista de compra pendiente</span>
-    <i class="ti ti-chevron-right" style="font-size:13px"></i>
-  </a>
   <div class="topbar-right">
     <button class="icon-btn" id="dark-mode-btn" onclick="toggleDarkMode()" title="Modo oscuro">
       <span id="dark-mode-icon" style="font-size:16px;line-height:1">🌙</span>
@@ -2132,7 +2123,7 @@ async function markOrderDelivered(orderId) {
 // ── Load all data from API on startup ─────────
 async function initApp() {
   try {
-    const [products, kits, orders, tenantSettings, productGroups, locales, labelTemplates, stockAlertPending] = await Promise.all([
+    const [products, kits, orders, tenantSettings, productGroups, locales, labelTemplates] = await Promise.all([
       apiFetch('/api/products'),
       apiFetch('/api/kits'),
       apiFetch('/api/orders'),
@@ -2140,7 +2131,6 @@ async function initApp() {
       apiFetch('/api/products?groups=1').catch(() => []),
       apiFetch('/api/locales').catch(() => []),
       apiFetch('/api/products?labels=1').catch(() => []),
-      apiFetch('/api/orders?resource=stock-alerts&scope=pending').catch(() => null),
     ]);
     S.products = Array.isArray(products) ? products : [];
     S.kits = Array.isArray(kits) ? kits : [];
@@ -2148,7 +2138,6 @@ async function initApp() {
     S.productGroups = Array.isArray(productGroups) ? productGroups : [];
     S.locales = Array.isArray(locales) ? locales : [];
     S.labelTemplates = Array.isArray(labelTemplates) ? labelTemplates : [];
-    S._stockAlertPending = stockAlertPending || null;
     if (tenantSettings && typeof tenantSettings === 'object') {
       S._tenantSettings = tenantSettings;
       const dbTab = tenantSettings.invDefaultTab;
@@ -2674,21 +2663,6 @@ function renderHome() {
   bell.style.display = alerts.length ? '' : 'none';
   bell.textContent = alerts.length;
   updateKitAlertBadge();
-  renderTopbarStockAlert();
-}
-
-// Aviso en el header (canal "Home" de Alertas de stock — ver /stock-alerts):
-// una corrida 'pendiente' sin revisar linkea directo a su detalle. No hay
-// tabla de notificaciones — se lee directo de S._stockAlertPending, cargado
-// en initApp() desde ?resource=stock-alerts&scope=pending.
-function renderTopbarStockAlert() {
-  const el = document.getElementById('topbar-stock-alert');
-  if (!el) return;
-  const pending = S._stockAlertPending;
-  if (!pending) { el.style.display = 'none'; return; }
-  el.style.display = '';
-  document.getElementById('topbar-stock-alert-text').textContent =
-    `Nueva lista de compra pendiente — ${pending.item_count} producto${pending.item_count !== 1 ? 's' : ''}`;
 }
 
 // ── INVENTARIO ────────────────────────────────
