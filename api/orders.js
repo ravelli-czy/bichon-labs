@@ -9,6 +9,7 @@ const { loadCostMaps, withFinancialSnapshot } = require('./_finance');
 const { handleFinanceResource, FINANCE_RESOURCES } = require('./_finance_routes');
 const { handleCouponsResource, COUPON_RESOURCES } = require('./_coupons_routes');
 const { claimCoupon, computeDiscountAmount } = require('./_coupons');
+const { handleStockAlertsResource, STOCK_ALERT_RESOURCES, handleStockAlertsCron } = require('./_stock_alerts_routes');
 
 async function _deductKit(sql, kitSku, qty, wid, tenantId) {
   const [kit] = await sql`SELECT items FROM kits WHERE sku = ${kitSku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
@@ -121,6 +122,15 @@ module.exports = async (req, res) => {
   try { sql = getDb(); }
   catch (err) { return res.status(503).json({ error: err.message }); }
 
+  // ── Cron de Alertas de stock ────────────────────────────────────────────
+  // Vercel Cron llama sin sesión de usuario (no hay cookie), así que este
+  // despacho va ANTES de resolver tenant/sesión — se autentica con
+  // CRON_SECRET en vez de login. Ver handleStockAlertsCron en
+  // api/_stock_alerts_routes.js.
+  if (req.query?.resource === 'stock-alerts' && req.query?.action === 'cron-run') {
+    return handleStockAlertsCron(req, res, sql);
+  }
+
   const session  = await getSession(req);
   const tenantId = resolveTenantId(req, session);
   if (!tenantId) return res.status(401).json({ error: 'No autenticado o sin tenant' });
@@ -140,6 +150,11 @@ module.exports = async (req, res) => {
   // propio api/coupons.js (ver comentario ahí).
   if (COUPON_RESOURCES.includes(req.query?.resource)) {
     return handleCouponsResource(req, res, sql, session, tenantId, actor);
+  }
+  // ── Alertas de stock: configuración + historial + detalle ──────────────
+  // Mismo motivo que Finanzas/Cupones — vive en api/_stock_alerts_routes.js.
+  if (STOCK_ALERT_RESOURCES.includes(req.query?.resource)) {
+    return handleStockAlertsResource(req, res, sql, session, tenantId, actor);
   }
 
   try {
