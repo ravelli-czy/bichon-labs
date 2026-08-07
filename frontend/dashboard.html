@@ -70,6 +70,25 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;max-
 a.hero-chip:hover{filter:brightness(1.1)}
 a.hero-chip:active{transform:scale(.96)}
 
+/* Aviso de Alertas de stock — arriba de todo, antes del hero (no en el
+   topbar del shell): fondo rojo sólido + pulso para máximo contraste, tanto
+   sobre el fondo claro de .content como si en el futuro se moviera. Va como
+   hermano de .hero dentro de .content, que ya da el espaciado via flex+gap. */
+.stock-alert-banner{
+  display:flex;align-items:center;gap:8px;
+  background:#ff3b3b;color:#fff;
+  border-radius:var(--r-lg);padding:12px 16px;
+  font-size:13px;font-weight:800;
+  text-decoration:none;
+  box-shadow:0 4px 14px rgba(255,59,59,.35);
+  width:100%;
+}
+.stock-alert-banner:hover{filter:brightness(1.08)}
+.stock-alert-banner .dot{width:8px;height:8px;border-radius:50%;background:#fff;flex-shrink:0;animation:sabPulse 1.4s ease-in-out infinite}
+.stock-alert-banner span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stock-alert-banner i:last-child{font-size:13px;flex-shrink:0;margin-left:auto}
+@keyframes sabPulse{0%,100%{opacity:1}50%{opacity:.35}}
+
 /* PERIOD TOGGLE — controls both the hero totals AND the sparkline below */
 .hero-period-toggle{position:absolute;top:14px;right:14px;display:flex;gap:4px;z-index:2;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 28px)}
 .period-btn{padding:5px 10px;border-radius:20px;border:none;font-family:'Nunito',sans-serif;font-size:11px;font-weight:800;cursor:pointer;transition:all .15s;background:rgba(255,255,255,.18);color:rgba(255,255,255,.75);white-space:nowrap}
@@ -191,6 +210,13 @@ body.embedded #modules-section,body.embedded .footer{display:none}
 </div>
 
 <div class="content">
+
+  <a href="#" id="stock-alert-banner" class="stock-alert-banner" style="display:none">
+    <span class="dot"></span>
+    <i class="ti ti-alert-triangle"></i>
+    <span id="stock-alert-banner-text">Nueva lista de compra pendiente</span>
+    <i class="ti ti-chevron-right"></i>
+  </a>
 
   <!-- HERO -->
   <div class="hero" id="hero-card">
@@ -384,6 +410,19 @@ function renderHero() {
   } else {
     varEl.style.display = 'none';
   }
+}
+
+// Aviso de Alertas de stock (ver /stock-alerts) — vive acá, dentro del hero
+// morado, en vez del topbar del shell: acá tiene el contraste fuerte que
+// necesita para llamar la atención de verdad, y es lo primero que se ve al
+// entrar al Home. `pending` es la corrida 'pendiente' más reciente (o null).
+function renderStockAlertBanner(pending) {
+  const el = document.getElementById('stock-alert-banner');
+  if (!pending) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  document.getElementById('stock-alert-banner-text').textContent =
+    `Nueva lista de compra pendiente — ${pending.item_count} producto${pending.item_count !== 1 ? 's' : ''}`;
+  el.onclick = (e) => { e.preventDefault(); _navigateTop('/stock-alerts?id=' + encodeURIComponent(pending.id)); };
 }
 
 // ── HUINCHA DE PEDIDOS POR HACER — semáforo por fecha de entrega ──────
@@ -638,18 +677,22 @@ function renderModules() {
   const authHeaders = {};
   if (token)    authHeaders['Authorization'] = 'Bearer ' + token;
   if (tenantId) authHeaders['X-Tenant-Id']   = tenantId;
+  let stockAlertPending = null;
   try {
-    const [products, kits, orders] = await Promise.all([
+    const [products, kits, orders, pending] = await Promise.all([
       fetch('/api/products', { headers: authHeaders }).then(r => r.ok ? r.json() : []),
       fetch('/api/kits', { headers: authHeaders }).then(r => r.ok ? r.json() : []),
       fetch('/api/orders', { headers: authHeaders }).then(r => r.ok ? r.json() : []),
+      fetch('/api/orders?resource=stock-alerts&scope=pending', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
     ]);
     PRODUCTS  = Array.isArray(products) ? products : [];
     KITS_LIST = Array.isArray(kits)     ? kits     : [];
     VENTAS    = Array.isArray(orders)   ? orders   : [];
+    stockAlertPending = pending;
   } catch(e) {
     console.warn('[Dashboard] API unavailable:', e.message);
   }
+  renderStockAlertBanner(stockAlertPending);
 
   // Compute derived values
   allTimeVentas = _sumVentasCosto(VENTAS).total; // used by the "Ventas" module card stat, unaffected by the hero range toggle
