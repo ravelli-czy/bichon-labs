@@ -87,6 +87,11 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .empty-state p{font-size:13.5px;font-weight:700;line-height:1.5}
 .skeleton{background:linear-gradient(90deg,var(--bg3) 25%,var(--border) 50%,var(--bg3) 75%);background-size:200% 100%;animation:shimmer 1.2s infinite;border-radius:var(--r-lg);height:56px;margin-bottom:8px}
 @keyframes shimmer{to{background-position:-200% 0}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.card-title{cursor:default}
+.card-title.collapsible{cursor:pointer;user-select:none}
+.card-title .chevron{margin-left:auto;transition:transform .2s;color:var(--text3)}
+.card-title .chevron.collapsed{transform:rotate(-90deg)}
 
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:500}
 .modal-overlay.hidden{display:none}
@@ -140,63 +145,71 @@ table.wh-table tr:last-child td{border-bottom:none}
 
   <!-- CONFIGURACIÓN -->
   <div class="card">
-    <div class="card-title"><i class="ti ti-settings"></i> Configuración</div>
+    <div class="card-title collapsible" onclick="toggleConfigCollapse()">
+      <i class="ti ti-settings"></i> Configuración
+      <i class="ti ti-chevron-down chevron" id="config-chevron"></i>
+    </div>
     <div id="sa-next-run" class="next-run-box" style="display:none">
       <i class="ti ti-calendar-time"></i>
       <span>Próxima generación: <strong id="sa-next-run-text">—</strong></span>
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <div class="form-label">Frecuencia</div>
-        <select class="form-select" id="sa-frequency" onchange="onFrequencyChange()">
-          <option value="diaria">Diaria</option>
-          <option value="semanal">Semanal</option>
-          <option value="quincenal">Quincenal</option>
-          <option value="mensual">Mensual</option>
-        </select>
+    <div id="config-body">
+      <div class="form-row">
+        <div class="form-group">
+          <div class="form-label">Frecuencia</div>
+          <select class="form-select" id="sa-frequency" onchange="onFrequencyChange()">
+            <option value="diaria">Diaria</option>
+            <option value="semanal">Semanal</option>
+            <option value="quincenal">Quincenal</option>
+            <option value="mensual">Mensual</option>
+          </select>
+        </div>
+        <div class="form-group" id="sa-weekday-group">
+          <div class="form-label">Día de la semana</div>
+          <select class="form-select" id="sa-weekday">
+            <option value="0">Domingo</option>
+            <option value="1">Lunes</option>
+            <option value="2">Martes</option>
+            <option value="3">Miércoles</option>
+            <option value="4">Jueves</option>
+            <option value="5">Viernes</option>
+            <option value="6">Sábado</option>
+          </select>
+        </div>
+        <div class="form-group" id="sa-monthday-group" style="display:none">
+          <div class="form-label">Día del mes</div>
+          <select class="form-select" id="sa-monthday"></select>
+        </div>
       </div>
-      <div class="form-group" id="sa-weekday-group">
-        <div class="form-label">Día de la semana</div>
-        <select class="form-select" id="sa-weekday">
-          <option value="0">Domingo</option>
-          <option value="1">Lunes</option>
-          <option value="2">Martes</option>
-          <option value="3">Miércoles</option>
-          <option value="4">Jueves</option>
-          <option value="5">Viernes</option>
-          <option value="6">Sábado</option>
-        </select>
-      </div>
-      <div class="form-group" id="sa-monthday-group" style="display:none">
-        <div class="form-label">Día del mes</div>
-        <select class="form-select" id="sa-monthday"></select>
-      </div>
-    </div>
-    <div class="form-hint" id="sa-quincenal-hint" style="display:none;margin:-4px 0 12px">Se genera los días 1 y 15 de cada mes.</div>
-    <div class="form-hint" id="sa-diaria-hint" style="display:none;margin:-4px 0 12px">Se genera todos los días.</div>
+      <div class="form-hint" id="sa-quincenal-hint" style="display:none;margin:-4px 0 12px">Se genera los días 1 y 15 de cada mes.</div>
+      <div class="form-hint" id="sa-diaria-hint" style="display:none;margin:-4px 0 12px">Se genera todos los días.</div>
 
-    <div class="form-label" style="margin-bottom:8px">Canales de aviso</div>
-    <div class="toggle-row">
-      <span class="toggle-row-label"><i class="ti ti-bell"></i> Home — aviso en el encabezado con link a la lista</span>
-      <label class="switch"><input type="checkbox" id="sa-channel-home"><span class="switch-slider"></span></label>
-    </div>
-    <div class="toggle-row" style="margin-bottom:4px">
-      <span class="toggle-row-label"><i class="ti ti-mail"></i> Correo</span>
-      <label class="switch"><input type="checkbox" id="sa-channel-email" onchange="onEmailChannelChange()"><span class="switch-slider"></span></label>
-    </div>
-    <div class="form-group" id="sa-email-group" style="display:none">
-      <div class="form-label">Correo(s) de aviso</div>
-      <input type="text" class="form-input" id="sa-email-to" placeholder="ej: compras@tutienda.cl, dueño@tutienda.cl">
-      <div class="form-hint">Separá varios correos con coma.</div>
-    </div>
+      <div class="form-label" style="margin-bottom:8px">Canales de aviso</div>
+      <div class="toggle-row">
+        <span class="toggle-row-label"><i class="ti ti-bell"></i> Home — aviso en el encabezado con link a la lista</span>
+        <label class="switch"><input type="checkbox" id="sa-channel-home"><span class="switch-slider"></span></label>
+      </div>
+      <div class="toggle-row" style="margin-bottom:4px">
+        <span class="toggle-row-label"><i class="ti ti-mail"></i> Correo</span>
+        <label class="switch"><input type="checkbox" id="sa-channel-email" onchange="onEmailChannelChange()"><span class="switch-slider"></span></label>
+      </div>
+      <div class="form-group" id="sa-email-group" style="display:none">
+        <div class="form-label">Correo(s) de aviso</div>
+        <input type="text" class="form-input" id="sa-email-to" placeholder="ej: compras@tutienda.cl, dueño@tutienda.cl">
+        <div class="form-hint">Separá varios correos con coma.</div>
+      </div>
 
-    <div class="form-error" id="sa-form-error" style="display:none"></div>
-    <button class="btn btn-primary" id="btn-save-settings" onclick="saveSettings()" style="margin-top:6px"><i class="ti ti-check"></i> Guardar configuración</button>
+      <div class="form-error" id="sa-form-error" style="display:none"></div>
+      <button class="btn btn-primary" id="btn-save-settings" onclick="saveSettings()" style="margin-top:6px"><i class="ti ti-check"></i> Guardar configuración</button>
+    </div>
   </div>
 
   <!-- HISTORIAL -->
   <div class="card">
-    <div class="card-title"><i class="ti ti-history"></i> Historial de listas generadas</div>
+    <div class="card-title">
+      <i class="ti ti-history"></i> Historial de listas generadas
+      <button class="btn btn-outline btn-sm" id="btn-generate-now" onclick="generateNow()" style="margin-left:auto;padding:6px 12px;font-size:12px"><i class="ti ti-refresh"></i> Generar ahora</button>
+    </div>
     <div id="runs-loading"><div class="skeleton"></div><div class="skeleton" style="opacity:.6"></div></div>
     <div id="runs-list"></div>
     <div id="runs-empty" class="empty-state" style="display:none">
@@ -296,6 +309,8 @@ applyDarkMode();
   if (!isAdmin()) {
     document.getElementById('btn-save-settings').disabled = true;
     document.getElementById('btn-save-settings').title = 'Sólo administradores pueden editar esta configuración';
+    document.getElementById('btn-generate-now').disabled = true;
+    document.getElementById('btn-generate-now').title = 'Sólo administradores pueden generar una lista manualmente';
   }
 
   await loadSettings();
@@ -320,7 +335,17 @@ async function loadSettings() {
   onFrequencyChange();
   onEmailChannelChange();
   renderNextRun();
+  // Colapsada de entrada si ya se guardó antes (updated_by no vacío) —
+  // abierta la primera vez, para que el usuario la complete.
+  setConfigCollapsed(!!_settings.updated_by);
 }
+let _configCollapsed = false;
+function setConfigCollapsed(collapsed) {
+  _configCollapsed = collapsed;
+  document.getElementById('config-body').style.display = collapsed ? 'none' : '';
+  document.getElementById('config-chevron').classList.toggle('collapsed', collapsed);
+}
+function toggleConfigCollapse() { setConfigCollapsed(!_configCollapsed); }
 function onFrequencyChange() {
   const freq = document.getElementById('sa-frequency').value;
   document.getElementById('sa-weekday-group').style.display = freq === 'semanal' ? '' : 'none';
@@ -355,9 +380,30 @@ async function saveSettings() {
   try {
     _settings = await api('/api/orders?resource=stock-alerts&scope=settings', { method: 'PUT', body: JSON.stringify(payload) });
     renderNextRun();
+    setConfigCollapsed(true);
     toast('✅ Configuración guardada');
   } catch (e) { errEl.textContent = e.message; errEl.style.display = ''; }
   btn.disabled = isAdmin() ? false : true;
+}
+
+// ── GENERAR AHORA (manual) ──────────────────────────────────────────────
+async function generateNow() {
+  const btn = document.getElementById('btn-generate-now');
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Generando...';
+  try {
+    const { run } = await api('/api/orders?resource=stock-alerts&action=generate-now', { method: 'POST' });
+    if (!run) {
+      toast('ℹ️ Ningún producto está bajo su stock de alerta ahora mismo');
+    } else {
+      toast('✅ Lista generada');
+      await loadRuns();
+      openRunDetail(run.id);
+    }
+  } catch (e) { toast('⚠️ ' + e.message); }
+  btn.disabled = isAdmin() ? false : true;
+  btn.innerHTML = original;
 }
 
 // ── HISTORIAL ────────────────────────────────────────────────────────────
