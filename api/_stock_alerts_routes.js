@@ -37,7 +37,29 @@ function mapSettings(row) {
     email_to:      row.email_to || '',
     last_run_date: row.last_run_date || '',
     next_run:      A.nextRunDate(row),
+    // '' sólo en la fila default que crea getOrCreateSettings antes de que
+    // alguien guarde por primera vez — la UI usa esto para decidir si el
+    // panel de configuración arranca colapsado o abierto.
+    updated_by:    row.updated_by || '',
   };
+}
+
+// Envía el correo de aviso (si el canal está activo) — compartido entre el
+// cron y la generación manual para no duplicar el armado del mensaje.
+async function notifyRunByEmail(settings, run) {
+  if (!settings.channel_email || !settings.email_to) return;
+  const recipients = settings.email_to.split(',').map(s => s.trim()).filter(Boolean);
+  for (const to of recipients) {
+    try {
+      await sendEmail({
+        to,
+        subject: `Nueva lista de compra — ${run.item_count} producto${run.item_count !== 1 ? 's' : ''} con stock bajo`,
+        html: stockAlertEmailHtml({ run }),
+      });
+    } catch (emailErr) {
+      console.error('[stock-alerts] email error:', emailErr.message);
+    }
+  }
 }
 
 async function getOrCreateSettings(sql, tenantId) {
@@ -102,6 +124,26 @@ async function handleStockAlertsResource(req, res, sql, session, tenantId, actor
         details: { frequency, weekday, month_day, channel_home, channel_email },
       });
       return res.json(mapSettings(row));
+    }
+
+    // ── GENERAR AHORA (manual, fuera de la frecuencia configurada) ──────
+    if (q.action === 'generate-now' && req.method === 'POST') {
+      if (!isAdmin(session)) return res.status(403).json({ error: 'Sólo administradores pueden generar una lista manualmente' });
+      const run = await A.generateRun(sql, tenantId);
+      if (!run) return res.json({ ok: true, run: null }); // sin productos con alerta ahora mismo
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const settings = await getOrCreateSettings(sql, tenantId);
+      // Cuenta como la corrida del día — evita que el cron genere una
+      // segunda lista duplicada más tarde el mismo día.
+      await sql`UPDATE stock_alert_settings SET last_run_date = ${todayStr} WHERE tenant_id = ${tenantId}`;
+      await notifyRunByEmail(settings, run);
+      await writeLog(sql, {
+        tenant_id: tenantId, actor, action: 'alertas_stock.lista_generada_manual',
+        entity_type: 'alerta_stock', entity_id: run.id, entity_name: run.id,
+        details: { item_count: run.item_count, estimated_value: Number(run.estimated_value) },
+      });
+      return res.json({ ok: true, run });
     }
 
     // ── AVISO DE HEADER: corrida pendiente más reciente ────────────────
@@ -196,20 +238,7 @@ async function handleStockAlertsCron(req, res, sql) {
         details: { item_count: run.item_count, estimated_value: Number(run.estimated_value) },
       });
 
-      if (settings.channel_email && settings.email_to) {
-        const recipients = settings.email_to.split(',').map(s => s.trim()).filter(Boolean);
-        for (const to of recipients) {
-          try {
-            await sendEmail({
-              to,
-              subject: `Nueva lista de compra — ${run.item_count} producto${run.item_count !== 1 ? 's' : ''} con stock bajo`,
-              html: stockAlertEmailHtml({ run }),
-            });
-          } catch (emailErr) {
-            console.error('[stock-alerts cron] email error:', emailErr.message);
-          }
-        }
-      }
+      await notifyRunByEmail(settings, run);
       // Canal Home: no hay tabla de notificaciones — la UI lee directamente
       // la corrida 'pendiente' más reciente vía scope=pending (ver arriba).
     }
