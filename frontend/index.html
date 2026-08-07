@@ -524,6 +524,25 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .ord-no_entregada{background:var(--red-light);color:var(--red)}
 .ord-pending{background:#f1f0f7;color:#6b6b8a}
 .ord-cancelled{background:#f3f4f6;color:#6b7280}
+
+/* ORDER LIST — column row (desktop/tablet) vs stacked card (mobile) */
+.ord-row-desktop{display:none}
+.ord-row-header{display:none}
+@media(min-width:768px){
+  .ord-row-header{
+    display:grid;grid-template-columns:100px 1fr 1fr 1.3fr 90px 110px 24px;gap:14px;
+    padding:0 14px 8px;font-size:11px;font-weight:800;color:var(--text3);
+    text-transform:uppercase;letter-spacing:.4px;
+  }
+  .ord-row-desktop{
+    display:grid;grid-template-columns:100px 1fr 1fr 1.3fr 90px 110px 24px;gap:14px;
+    align-items:center;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all .15s;
+  }
+  .ord-row-desktop:hover{transform:translateY(-2px)}
+  .ord-row-desktop .ord-cell-2{overflow:hidden}
+  .ord-row-desktop .ord-cell-2 .ord-primary{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ord-row-mobile{display:none}
+}
 .advance-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:9px;border:1.5px solid var(--primary);background:var(--primary-light);color:var(--primary);font-family:'Nunito',sans-serif;font-size:12px;font-weight:800;cursor:pointer;transition:all .15s}
 .advance-btn:hover{background:var(--primary);color:#fff}
 .shp-link-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:9px;border:1.5px solid var(--border);background:var(--bg3);color:var(--text2);font-family:'Nunito',sans-serif;font-size:12px;font-weight:800;cursor:pointer;transition:all .15s;text-decoration:none}
@@ -3139,6 +3158,9 @@ function renderVentas() {
     el.innerHTML = html; return;
   }
   const deliveryIcons = { store_pickup:'ti-building-store', home_delivery:'ti-home', pickup_point:'ti-map-pin', express:'ti-bolt' };
+  if (!S._ventasSelectMode) {
+    html += `<div class="ord-row-header"><div>Orden</div><div>Cliente</div><div>Entrega</div><div>Dirección</div><div>Total</div><div>Estado</div><div></div></div>`;
+  }
   html += ventas.map(v => {
     const dv = v.delivery || {};
     const icon = deliveryIcons[dv.method_type] || 'ti-truck-delivery';
@@ -3172,8 +3194,16 @@ function renderVentas() {
       ${deliveryLine}
     </div>`;
     }
+    // Fecha/ventana de entrega en formato compacto para la columna "Entrega"
+    // (la card mobile de arriba sigue usando deliveryLine con más detalle)
+    const dateSlot = [
+      dv.date ? new Date(dv.date+'T12:00:00').toLocaleDateString('es-CL',{day:'2-digit',month:'short'}).replace(' ', '-').replace(/\.$/, '') : '',
+      dv.slot_label ? `${dv.slot_from||''}-${dv.slot_to||''}` : '',
+    ].filter(Boolean).join(' · ');
+    const address = dv.address_street ? `${dv.address_street}${dv.address_city ? ', '+dv.address_city : ''}` : '—';
+
     return `
-    <div class="card" style="margin-bottom:10px;padding:14px;cursor:pointer;transition:all .15s" onclick="openOrdenDetalle('${v.id}')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
+    <div class="ord-row-mobile card" style="margin-bottom:10px;padding:14px;cursor:pointer;transition:all .15s" onclick="openOrdenDetalle('${v.id}')" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
       <div class="flex justify-between items-center mb-2">
         <div>
           <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:2px">
@@ -3191,6 +3221,29 @@ function renderVentas() {
       </div>
       <div style="font-size:12px;color:var(--text2);font-weight:600">${v.items.map(i=>i.name+' ×'+i.qty).join(' · ')}</div>
       ${deliveryLine}
+    </div>
+    <div class="ord-row-desktop card" onclick="openOrdenDetalle('${v.id}')">
+      <div class="ord-cell-1">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:800;color:var(--primary)">${v.id}</span>
+          ${orderPrefixBadge(v)}
+        </div>
+        <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:2px">${v.fecha}</div>
+      </div>
+      <div class="ord-cell-2">
+        <div class="ord-primary" style="font-size:14px;font-weight:800">${v.cliente||'Cliente'}</div>
+        <div style="font-size:12px;color:var(--text3);font-weight:600">${v.telefono||'—'}</div>
+      </div>
+      <div class="ord-cell-2">
+        <div style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:700">
+          <i class="ti ${icon}" style="color:var(--text3);font-size:14px"></i><span class="ord-primary">${dv.method_label || dv.method_type || '—'}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:2px">${dateSlot || '—'}</div>
+      </div>
+      <div style="font-size:12px;color:var(--text2);font-weight:600;line-height:1.35">${address}</div>
+      <div style="font-size:15px;font-weight:900;color:var(--green-dark)">${fmt(v.total)}</div>
+      <div>${statusBadge(v.status||'por_hacer')}</div>
+      <i class="ti ti-chevron-right" style="font-size:18px;color:var(--text3)"></i>
     </div>`;
   }).join('');
   el.innerHTML = html;
