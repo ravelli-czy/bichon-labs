@@ -477,7 +477,7 @@ function renderRunDetail(run) {
       <div class="wh-group-title"><i class="ti ti-building-store"></i> ${escHtml(g.local_name)}</div>
       <div style="overflow-x:auto">
         <table class="wh-table">
-          <thead><tr><th>Nombre</th><th>ID</th><th>Inventario</th><th>Stock de alerta</th><th>Stock real</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>ID</th><th>Inventario</th><th>Stock de alerta</th><th>Stock real</th><th>Precio costo</th></tr></thead>
           <tbody>
             ${g.items.map(it => `
               <tr>
@@ -486,6 +486,7 @@ function renderRunDetail(run) {
                 <td class="tipo-tag">${TIPO_INVENTARIO_LABEL[it.tipo] || '—'}</td>
                 <td>${it.threshold}</td>
                 <td class="${it.stock === 0 ? 'stock-crit' : ''}">${it.stock}</td>
+                <td>${money(it.cost)}</td>
               </tr>`).join('')}
           </tbody>
         </table>
@@ -520,12 +521,12 @@ function printRun(id) {
     <div class="grp">
       <div class="grp-title">${escHtml(g.local_name)}</div>
       <table>
-        <thead><tr><th>Nombre</th><th>ID</th><th>Inventario</th><th>Stock alerta</th><th>Stock real</th></tr></thead>
+        <thead><tr><th>Nombre</th><th>ID</th><th>Inventario</th><th>Stock alerta</th><th>Stock real</th><th>Precio costo</th></tr></thead>
         <tbody>
           ${g.items.map(it => `<tr>
             <td>${escHtml(it.name)}</td><td>${escHtml(it.sku)}</td>
             <td>${TIPO_INVENTARIO_LABEL[it.tipo] || '—'}</td>
-            <td>${it.threshold}</td><td>${it.stock}</td>
+            <td>${it.threshold}</td><td>${it.stock}</td><td>${money(it.cost)}</td>
           </tr>`).join('')}
         </tbody>
       </table>
