@@ -50,6 +50,14 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;max-
 .hero::before{content:'';position:absolute;top:-40px;right:-40px;width:160px;height:160px;background:rgba(255,255,255,.07);border-radius:50%;pointer-events:none}
 .hero::after{content:'';position:absolute;bottom:-30px;right:20px;width:100px;height:100px;background:rgba(255,255,255,.05);border-radius:50%;pointer-events:none}
 .hero-greeting{font-size:13px;font-weight:700;color:rgba(255,255,255,.75);margin-top:32px;margin-bottom:4px;display:flex;align-items:center;gap:5px}
+/* Cuando el aviso de stock está visible, ES el primer elemento del hero, así
+   que ES el que necesita el despeje de 32px que evita que el toggle de
+   período (arriba a la derecha, se apila en 2 líneas en mobile) lo tape —
+   antes ese despeje estaba fijo en .hero-greeting, que antes era el primero.
+   El selector de hermano adyacente le gana en especificidad a `.hero-greeting`
+   solo (2 clases vs 1), así que no hace falta !important ni duplicar la
+   media query de abajo. */
+.stock-alert-banner + .hero-greeting{margin-top:8px}
 .hero-date{font-size:12px;color:rgba(255,255,255,.55);font-weight:600;margin-bottom:18px}
 .hero-metrics{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
 .hero-metric{}
@@ -79,7 +87,10 @@ a.hero-chip:active{transform:scale(.96)}
   font-size:12.5px;font-weight:800;
   text-decoration:none;
   box-shadow:0 4px 14px rgba(0,0,0,.25);
-  margin-bottom:12px;position:relative;z-index:2;
+  /* Mismo despeje de 32px que .hero-greeting usaba en mobile — acá es el
+     primer elemento en flujo del hero cuando está visible, así que es el
+     que tiene que esquivar el toggle de período (arriba a la derecha). */
+  margin-top:32px;margin-bottom:12px;position:relative;z-index:2;
   width:fit-content;max-width:100%;
 }
 .stock-alert-banner:hover{filter:brightness(1.08)}
@@ -173,6 +184,7 @@ body.embedded #modules-section,body.embedded .footer{display:none}
   /* Plenty of horizontal room here for the top-right period toggle to sit
      beside the greeting without overlapping it — undo the mobile clearance. */
   .hero-greeting{margin-top:0}
+  .stock-alert-banner{margin-top:0}
 
   /* Modules: 3 cols */
   .modules-grid{grid-template-columns:repeat(3,1fr)}
