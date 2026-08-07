@@ -65,6 +65,26 @@ async function _resolveLocationIdFromDelivery(sql, tenantId, delivery) {
   return rows.length === 1 ? rows[0].local_id : '';
 }
 
+// Same traversal as _flattenKitSkus below, but accumulates total quantity
+// per leaf SKU (qty needed per unit of the top-level KIT, times however
+// many of the top-level KIT are being accounted for) instead of just
+// collecting which SKUs are involved — used by the ?action=backfill-kit-stock
+// catch-up (ver más abajo) to compute how much stock SHOULD have been
+// deducted for a past KIT sale.
+async function _flattenKitQty(sql, tenantId, kitSku, multiplier, out = new Map(), depth = 0) {
+  if (depth > 6) return out;
+  const [kit] = await sql`SELECT items FROM kits WHERE sku = ${kitSku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
+  if (!kit?.items) return out;
+  for (const comp of kit.items) {
+    if (comp.type === 'kit') {
+      await _flattenKitQty(sql, tenantId, comp.sku, multiplier * comp.qty, out, depth + 1);
+    } else {
+      out.set(comp.sku, (out.get(comp.sku) || 0) + multiplier * comp.qty);
+    }
+  }
+  return out;
+}
+
 // Flattens a KIT's CURRENT component list into its leaf product SKUs,
 // descending into nested KITs (a KIT built from other KITs via Mesón
 // Creativo) to full depth — same traversal as _deductKit/the frontend's
@@ -258,6 +278,97 @@ module.exports = async (req, res) => {
         details:     { ordersScanned: orders.length, ordersUpdated, ordersSkipped },
       });
       return res.json({ ok: true, ordersScanned: orders.length, ordersUpdated, ordersSkipped });
+    }
+
+    // ── POST ?action=backfill-kit-stock — one-time catch-up deduction for
+    // KIT sales made before the fix to _deductKit's warehouse resolution
+    // (ver _componentWarehouseId más arriba): esas ventas silenciosamente
+    // no descontaron NADA del stock de los componentes (el UPDATE matcheaba
+    // warehouse_id = '', que ninguna fila de producto real tiene). Admin-only.
+    //
+    // dry_run=1 (default) sólo calcula y devuelve el desglose sin tocar
+    // products — revisalo antes de aplicar con dry_run=0. Una vez aplicado,
+    // querer correrlo de nuevo pide &force=1 (ver el chequeo en audit_logs
+    // más abajo) para no descontar dos veces por accidente.
+    //
+    // Limitaciones que esto NO puede resolver perfectamente, por falta de un
+    // registro histórico de qué se descontó en su momento:
+    // - Usa la RECETA ACTUAL de cada KIT — si algún KIT cambió de
+    //   componentes desde que se vendió, el backfill de esas órdenes viejas
+    //   no va a reflejar lo que realmente se vendió entonces.
+    // - Asume que TODAS las ventas de KIT anteriores al fix fallaron en
+    //   descontar — es lo que indica el bug en el 100% de los casos donde el
+    //   componente vive en un warehouse_id específico (o sea, siempre,
+    //   salvo la coincidencia rarísima de que el filtro de Inventario del
+    //   navegador tuviera seleccionado justo ese almacén al vender).
+    // - Órdenes sin location_id resuelta se saltan (no hay forma segura de
+    //   adivinar en qué almacén descontar) — quedan listadas en
+    //   ordersSkippedNoLocation para revisión manual.
+    if (req.method === 'POST' && req.query?.action === 'backfill-kit-stock') {
+      if (!['admin','superadmin','master'].includes(session.role)) {
+        return res.status(403).json({ error: 'No autorizado' });
+      }
+      const dryRun = req.query?.dry_run !== '0';
+
+      if (!dryRun) {
+        const [already] = await sql`
+          SELECT id FROM audit_logs
+          WHERE tenant_id = ${tenantId} AND action = 'ordenes.kit_stock_backfill'
+          LIMIT 1
+        `;
+        if (already && req.query?.force !== '1') {
+          return res.status(409).json({
+            error: 'Este backfill ya se aplicó antes para este tenant — volver a aplicarlo descontaría el stock dos veces. Si estás seguro de que hace falta, agregá &force=1.',
+          });
+        }
+      }
+
+      const orders = await sql`SELECT id, items, location_id FROM orders WHERE tenant_id = ${tenantId}`;
+      const totals = new Map(); // `${sku}|${warehouse_id}` -> { sku, warehouse_id, qty, order_ids }
+      let ordersWithKits = 0, ordersSkippedNoLocation = 0;
+
+      for (const order of orders) {
+        const items = Array.isArray(order.items) ? order.items : [];
+        const kitItems = items.filter(i => i.type === 'kit');
+        if (!kitItems.length) continue;
+        ordersWithKits++;
+        if (!order.location_id) { ordersSkippedNoLocation++; continue; }
+
+        for (const item of kitItems) {
+          const compQty = await _flattenKitQty(sql, tenantId, item.sku, item.qty || 1);
+          for (const [compSku, qty] of compQty) {
+            const wid = await _componentWarehouseId(sql, tenantId, compSku, order.location_id, '');
+            if (!wid) continue; // no se pudo resolver un almacén único — no se toca
+            const key = compSku + '|' + wid;
+            if (!totals.has(key)) totals.set(key, { sku: compSku, warehouse_id: wid, qty: 0, order_ids: [] });
+            const t = totals.get(key);
+            t.qty += qty;
+            t.order_ids.push(order.id);
+          }
+        }
+      }
+
+      const breakdown = [...totals.values()];
+      if (dryRun) {
+        return res.json({ ok: true, dryRun: true, ordersScanned: orders.length, ordersWithKits, ordersSkippedNoLocation, breakdown });
+      }
+
+      for (const t of breakdown) {
+        await sql`
+          UPDATE products SET stock = GREATEST(0, stock - ${t.qty}), updated_at = NOW()
+          WHERE sku = ${t.sku} AND warehouse_id = ${t.warehouse_id} AND tenant_id = ${tenantId}
+        `;
+      }
+      await writeLog(sql, {
+        tenant_id:   tenantId,
+        actor,
+        action:      'ordenes.kit_stock_backfill',
+        entity_type: 'orden',
+        entity_id:   'bulk',
+        entity_name: `${breakdown.length} componentes en ${ordersWithKits} órdenes`,
+        details:     { ordersScanned: orders.length, ordersWithKits, ordersSkippedNoLocation, breakdown },
+      });
+      return res.json({ ok: true, dryRun: false, ordersScanned: orders.length, ordersWithKits, ordersSkippedNoLocation, applied: breakdown.length, breakdown });
     }
 
     // ── POST — create order + decrement stock + create shipment ───────────
