@@ -443,11 +443,11 @@ let _currentRunId = null;
 let _currentRun = null;
 const TIPO_INVENTARIO_LABEL = { insumo: 'Insumos', producto: 'Venta', ambos: 'Venta' };
 
-function groupItemsByWarehouse(items) {
+function groupItemsByLocal(items) {
   const groups = new Map();
   for (const it of items) {
-    const key = it.warehouse_id || '—';
-    if (!groups.has(key)) groups.set(key, { warehouse_name: it.warehouse_name || 'Sin almacén', local_name: it.local_name || '', items: [] });
+    const key = it.local_id || '—';
+    if (!groups.has(key)) groups.set(key, { local_name: it.local_name || 'Sin tienda', items: [] });
     groups.get(key).items.push(it);
   }
   return [...groups.values()];
@@ -471,22 +471,21 @@ function renderRunDetail(run) {
   const markBtn = document.getElementById('rd-mark-btn');
   markBtn.style.display = run.status === 'revisada' ? 'none' : '';
 
-  const groups = groupItemsByWarehouse(run.items || []);
+  const groups = groupItemsByLocal(run.items || []);
   document.getElementById('rd-groups').innerHTML = groups.map(g => `
     <div class="wh-group">
-      <div class="wh-group-title"><i class="ti ti-building-warehouse"></i> ${escHtml(g.local_name ? g.local_name + ' — ' + g.warehouse_name : g.warehouse_name)}</div>
+      <div class="wh-group-title"><i class="ti ti-building-store"></i> ${escHtml(g.local_name)}</div>
       <div style="overflow-x:auto">
         <table class="wh-table">
-          <thead><tr><th>Nombre</th><th>ID</th><th>Inventario</th><th>Tienda</th><th>Stock real</th><th>Stock de alerta</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>ID</th><th>Inventario</th><th>Stock de alerta</th><th>Stock real</th></tr></thead>
           <tbody>
             ${g.items.map(it => `
               <tr>
                 <td style="font-weight:700">${escHtml(it.name)}</td>
                 <td style="color:var(--text3)">${escHtml(it.sku)}</td>
                 <td class="tipo-tag">${TIPO_INVENTARIO_LABEL[it.tipo] || '—'}</td>
-                <td>${escHtml(it.local_name || '—')}</td>
-                <td class="${it.stock === 0 ? 'stock-crit' : ''}">${it.stock}</td>
                 <td>${it.threshold}</td>
+                <td class="${it.stock === 0 ? 'stock-crit' : ''}">${it.stock}</td>
               </tr>`).join('')}
           </tbody>
         </table>
@@ -516,17 +515,17 @@ async function markReviewed(id) {
 function printRun(id) {
   const run = _currentRun && _currentRun.id === id ? _currentRun : null;
   if (!run) { toast('⚠️ Abrí el detalle de una lista para imprimirla'); return; }
-  const groups = groupItemsByWarehouse(run.items || []);
+  const groups = groupItemsByLocal(run.items || []);
   const groupsHtml = groups.map(g => `
     <div class="grp">
-      <div class="grp-title">${escHtml(g.local_name ? g.local_name + ' — ' + g.warehouse_name : g.warehouse_name)}</div>
+      <div class="grp-title">${escHtml(g.local_name)}</div>
       <table>
-        <thead><tr><th>Nombre</th><th>ID</th><th>Inventario</th><th>Tienda</th><th>Stock real</th><th>Stock alerta</th></tr></thead>
+        <thead><tr><th>Nombre</th><th>ID</th><th>Inventario</th><th>Stock alerta</th><th>Stock real</th></tr></thead>
         <tbody>
           ${g.items.map(it => `<tr>
             <td>${escHtml(it.name)}</td><td>${escHtml(it.sku)}</td>
-            <td>${TIPO_INVENTARIO_LABEL[it.tipo] || '—'}</td><td>${escHtml(it.local_name || '—')}</td>
-            <td>${it.stock}</td><td>${it.threshold}</td>
+            <td>${TIPO_INVENTARIO_LABEL[it.tipo] || '—'}</td>
+            <td>${it.threshold}</td><td>${it.stock}</td>
           </tr>`).join('')}
         </tbody>
       </table>
