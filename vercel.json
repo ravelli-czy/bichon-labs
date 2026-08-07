@@ -8,6 +8,9 @@
       "maxDuration": 30
     }
   },
+  "crons": [
+    { "path": "/api/orders?resource=stock-alerts&action=cron-run", "schedule": "0 13 * * *" }
+  ],
   "rewrites": [
     { "source": "/api/v1/:slug/OMS/orders",           "destination": "/api/orders" },
     { "source": "/api/v1/:slug/OMS/orders/:id",        "destination": "/api/orders/:id" },

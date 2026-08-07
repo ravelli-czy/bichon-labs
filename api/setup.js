@@ -278,6 +278,44 @@ module.exports = async (req, res) => {
     `;
     await sql`CREATE INDEX IF NOT EXISTS coupons_tenant_idx ON coupons (tenant_id)`;
 
+    // ── Alertas de stock: configuración (una fila por tenant) + historial de
+    // corridas generadas por el cron (ver api/_stock_alerts.js). weekday/
+    // month_day sólo se usan según frequency ('semanal'/'mensual' —
+    // 'quincenal' son fechas fijas de calendario, no necesita día propio).
+    // last_run_date evita que el tenant reciba dos corridas el mismo día si
+    // el cron llegara a dispararse más de una vez.
+    await sql`
+      CREATE TABLE IF NOT EXISTS stock_alert_settings (
+        tenant_id     TEXT PRIMARY KEY,
+        frequency     TEXT NOT NULL DEFAULT 'semanal',
+        weekday       INTEGER,
+        month_day     INTEGER,
+        channel_home  BOOLEAN NOT NULL DEFAULT TRUE,
+        channel_email BOOLEAN NOT NULL DEFAULT FALSE,
+        email_to      TEXT DEFAULT '',
+        last_run_date TEXT DEFAULT '',
+        updated_by    TEXT DEFAULT '',
+        updated_at    TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    // items: snapshot inmutable de los productos con alerta al momento de
+    // generar (sku, nombre, almacén, tienda, stock, stock de alerta, costo)
+    // — nunca se recalcula después, ver generateRun en api/_stock_alerts.js.
+    await sql`
+      CREATE TABLE IF NOT EXISTS stock_alert_runs (
+        id              TEXT PRIMARY KEY,
+        tenant_id       TEXT NOT NULL DEFAULT 'TEN-001',
+        generated_at    TIMESTAMPTZ DEFAULT NOW(),
+        item_count      INTEGER NOT NULL DEFAULT 0,
+        estimated_value NUMERIC NOT NULL DEFAULT 0,
+        status          TEXT NOT NULL DEFAULT 'pendiente',
+        reviewed_by     TEXT DEFAULT '',
+        reviewed_at     TIMESTAMPTZ,
+        items           JSONB NOT NULL DEFAULT '[]'::jsonb
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS stock_alert_runs_tenant_idx ON stock_alert_runs (tenant_id, generated_at DESC)`;
+
     // ── Finanzas: categorías de gasto ──────────────────────────────────────
     await sql`
       CREATE TABLE IF NOT EXISTS expense_categories (
@@ -523,7 +561,7 @@ module.exports = async (req, res) => {
     await sql`CREATE INDEX IF NOT EXISTS api_keys_tenant_idx  ON api_keys (tenant_id)`;
     await sql`CREATE INDEX IF NOT EXISTS api_keys_user_idx    ON api_keys (user_id)`;
 
-    const created = ['tenants', 'products', 'kits', 'product_groups', 'label_templates', 'orders', 'coupons', 'purchases', 'suppliers', 'shipments', 'users', 'sessions', 'audit_logs', 'api_keys', 'locales', 'warehouses', 'delivery_methods', 'delivery_slots', 'expense_categories', 'expenses'];
+    const created = ['tenants', 'products', 'kits', 'product_groups', 'label_templates', 'orders', 'coupons', 'stock_alert_settings', 'stock_alert_runs', 'purchases', 'suppliers', 'shipments', 'users', 'sessions', 'audit_logs', 'api_keys', 'locales', 'warehouses', 'delivery_methods', 'delivery_slots', 'expense_categories', 'expenses'];
 
     // Always ensure superadmin user exists
     const [{ ucount }] = await sql`SELECT COUNT(*) AS ucount FROM users WHERE username = 'admin'`;

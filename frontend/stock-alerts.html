@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow — Alertas de stock</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f5f6fa;--bg2:#fff;--bg3:#f0f1f7;
+  --text:#1a1a2e;--text2:#5a5b7a;--text3:#9a9bb8;--border:#e4e5f0;
+  --primary:#5b4fff;--primary-light:#ede9ff;--primary-dark:#4035cc;
+  --green:#16c98d;--green-light:#e6faf4;--green-dark:#0da070;
+  --red:#ff4d6d;--red-light:#fff0f3;--red-dark:#cc3a56;
+  --amber:#f59e0b;--amber-light:#fffbeb;--amber-dark:#d97706;
+  --r:12px;--r-lg:16px;--sh:0 2px 12px rgba(91,79,255,.08);
+}
+body.dark-mode{
+  --bg:#14141f;--bg2:#1c1c2b;--bg3:#242438;
+  --text:#f0f0f5;--text2:#b8b8cc;--text3:#7d7d99;--border:#34344a;
+  --primary-light:#26224a;--green-light:#12332a;--red-light:#3a1620;--amber-light:#3a2c10;
+  --sh:0 2px 14px rgba(0,0,0,.4);
+}
+body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh}
+
+.topbar{background:var(--bg2);padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:var(--sh)}
+.back-btn{display:flex;align-items:center;gap:6px;background:var(--bg3);border:none;border-radius:10px;padding:7px 12px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;color:var(--text2);cursor:pointer;text-decoration:none}
+.logo-icon{width:36px;height:36px;background:var(--primary);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-icon i{color:#fff;font-size:19px}
+.topbar-title{font-weight:900;font-size:17px}
+.topbar-sub{font-size:10px;color:var(--text3);font-weight:700}
+.topbar-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.icon-btn{width:36px;height:36px;border-radius:10px;background:var(--bg3);border:none;display:flex;align-items:center;justify-content:center;color:var(--text2);cursor:pointer;font-size:17px}
+.icon-btn:hover{background:var(--border)}
+
+.content{padding:16px;max-width:900px;margin:0 auto;padding-bottom:60px}
+.card{background:var(--bg2);border-radius:var(--r-lg);padding:18px;margin-bottom:16px;box-shadow:var(--sh)}
+.card-title{font-size:15px;font-weight:900;display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.card-title i{color:var(--primary)}
+
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;border:none;border-radius:10px;padding:10px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-outline{background:var(--bg2);color:var(--text2);border:1.5px solid var(--border)}
+.btn-outline:hover{border-color:var(--primary);color:var(--primary)}
+.btn-sm{padding:6px 10px;font-size:12px;border-radius:8px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.form-group{margin-bottom:12px}
+.form-row{display:flex;gap:10px;flex-wrap:wrap}
+.form-row .form-group{flex:1;min-width:160px}
+.form-label{font-size:12px;font-weight:800;color:var(--text2);margin-bottom:5px}
+.form-input, .form-select{width:100%;background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:'Nunito',sans-serif;font-size:13.5px;color:var(--text);outline:none}
+.form-input:focus, .form-select:focus{border-color:var(--primary);background:var(--bg2)}
+.form-hint{font-size:11px;color:var(--text3);font-weight:600;margin-top:5px}
+.form-error{color:var(--red-dark);font-size:12px;font-weight:700;margin-top:8px}
+
+.toggle-row{display:flex;align-items:center;justify-content:space-between;background:var(--bg3);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.toggle-row-label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800}
+.toggle-row-label i{color:var(--text3);font-size:16px}
+.switch{position:relative;width:42px;height:24px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.switch-slider{position:absolute;inset:0;background:var(--border);border-radius:24px;cursor:pointer;transition:.2s}
+.switch-slider::before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.switch input:checked + .switch-slider{background:var(--green)}
+.switch input:checked + .switch-slider::before{transform:translateX(18px)}
+
+.next-run-box{display:flex;align-items:center;gap:10px;background:var(--primary-light);color:var(--primary-dark);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;font-weight:700}
+.next-run-box i{font-size:18px;flex-shrink:0}
+.next-run-box strong{font-weight:900}
+
+.run-row{background:var(--bg3);border-radius:12px;padding:12px 14px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto auto auto auto;gap:14px;align-items:center;cursor:pointer}
+.run-row:hover{background:var(--border)}
+.run-date{font-weight:900;font-size:13.5px}
+.run-period{font-size:11px;color:var(--text3);font-weight:700}
+.run-kpi{text-align:right}
+.run-kpi-val{font-weight:900;font-size:14px}
+.run-kpi-lbl{font-size:10px;color:var(--text3);font-weight:800;text-transform:uppercase}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:800;white-space:nowrap}
+.pill.pendiente{background:var(--amber-light);color:var(--amber-dark)}
+.pill.revisada{background:var(--green-light);color:var(--green-dark)}
+
+.empty-state{text-align:center;padding:50px 20px;color:var(--text3)}
+.empty-state i{font-size:42px;margin-bottom:10px;display:block}
+.empty-state p{font-size:13.5px;font-weight:700;line-height:1.5}
+.skeleton{background:linear-gradient(90deg,var(--bg3) 25%,var(--border) 50%,var(--bg3) 75%);background-size:200% 100%;animation:shimmer 1.2s infinite;border-radius:var(--r-lg);height:56px;margin-bottom:8px}
+@keyframes shimmer{to{background-position:-200% 0}}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:500}
+.modal-overlay.hidden{display:none}
+@media(min-width:640px){.modal-overlay{align-items:center}}
+.modal{background:var(--bg2);border-radius:20px 20px 0 0;width:100%;max-width:720px;max-height:92vh;overflow-y:auto;padding:20px}
+@media(min-width:640px){.modal{border-radius:var(--r-lg)}}
+.modal-title{font-size:16px;font-weight:900;margin-bottom:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.modal-footer{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+
+.detail-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px}
+.detail-kpi{background:var(--bg3);border-radius:10px;padding:10px 12px}
+.detail-kpi-lbl{font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px}
+.detail-kpi-val{font-size:17px;font-weight:900}
+
+.wh-group{margin-bottom:16px}
+.wh-group-title{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:900;color:var(--text2);margin-bottom:6px}
+.wh-group-title i{color:var(--primary);font-size:14px}
+table.wh-table{width:100%;border-collapse:collapse;font-size:12.5px}
+table.wh-table th{text-align:left;font-size:10.5px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.2px;padding:6px 8px;border-bottom:1.5px solid var(--border)}
+table.wh-table td{padding:7px 8px;border-bottom:1px solid var(--border)}
+table.wh-table tr:last-child td{border-bottom:none}
+.stock-crit{color:var(--red-dark);font-weight:900}
+.tipo-tag{font-size:10px;font-weight:800;color:var(--text3)}
+
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;padding:11px 20px;border-radius:24px;font-size:13px;font-weight:800;z-index:999;opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap;max-width:90vw;text-overflow:ellipsis;overflow:hidden}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:640px){
+  .run-row{grid-template-columns:1fr auto;grid-template-areas:"date status" "kpis kpis"}
+  .run-row .run-date-wrap{grid-area:date}
+  .run-row .pill{grid-area:status;justify-self:end}
+  .run-row .run-kpis-wrap{grid-area:kpis;display:flex;gap:16px;margin-top:4px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/" class="back-btn"><i class="ti ti-arrow-left"></i> Inicio</a>
+  <div class="logo-icon"><i class="ti ti-bell-ringing"></i></div>
+  <div>
+    <div class="topbar-title">Alertas de stock</div>
+    <div class="topbar-sub">Avisos periódicos + historial de listas de compra</div>
+  </div>
+  <div class="topbar-right">
+    <button class="icon-btn" id="dark-mode-btn" onclick="toggleDarkMode()" title="Modo oscuro"><span id="dark-mode-icon">🌙</span></button>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- CONFIGURACIÓN -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-settings"></i> Configuración</div>
+    <div id="sa-next-run" class="next-run-box" style="display:none">
+      <i class="ti ti-calendar-time"></i>
+      <span>Próxima generación: <strong id="sa-next-run-text">—</strong></span>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <div class="form-label">Frecuencia</div>
+        <select class="form-select" id="sa-frequency" onchange="onFrequencyChange()">
+          <option value="diaria">Diaria</option>
+          <option value="semanal">Semanal</option>
+          <option value="quincenal">Quincenal</option>
+          <option value="mensual">Mensual</option>
+        </select>
+      </div>
+      <div class="form-group" id="sa-weekday-group">
+        <div class="form-label">Día de la semana</div>
+        <select class="form-select" id="sa-weekday">
+          <option value="0">Domingo</option>
+          <option value="1">Lunes</option>
+          <option value="2">Martes</option>
+          <option value="3">Miércoles</option>
+          <option value="4">Jueves</option>
+          <option value="5">Viernes</option>
+          <option value="6">Sábado</option>
+        </select>
+      </div>
+      <div class="form-group" id="sa-monthday-group" style="display:none">
+        <div class="form-label">Día del mes</div>
+        <select class="form-select" id="sa-monthday"></select>
+      </div>
+    </div>
+    <div class="form-hint" id="sa-quincenal-hint" style="display:none;margin:-4px 0 12px">Se genera los días 1 y 15 de cada mes.</div>
+    <div class="form-hint" id="sa-diaria-hint" style="display:none;margin:-4px 0 12px">Se genera todos los días.</div>
+
+    <div class="form-label" style="margin-bottom:8px">Canales de aviso</div>
+    <div class="toggle-row">
+      <span class="toggle-row-label"><i class="ti ti-bell"></i> Home — aviso en el encabezado con link a la lista</span>
+      <label class="switch"><input type="checkbox" id="sa-channel-home"><span class="switch-slider"></span></label>
+    </div>
+    <div class="toggle-row" style="margin-bottom:4px">
+      <span class="toggle-row-label"><i class="ti ti-mail"></i> Correo</span>
+      <label class="switch"><input type="checkbox" id="sa-channel-email" onchange="onEmailChannelChange()"><span class="switch-slider"></span></label>
+    </div>
+    <div class="form-group" id="sa-email-group" style="display:none">
+      <div class="form-label">Correo(s) de aviso</div>
+      <input type="text" class="form-input" id="sa-email-to" placeholder="ej: compras@tutienda.cl, dueño@tutienda.cl">
+      <div class="form-hint">Separá varios correos con coma.</div>
+    </div>
+
+    <div class="form-error" id="sa-form-error" style="display:none"></div>
+    <button class="btn btn-primary" id="btn-save-settings" onclick="saveSettings()" style="margin-top:6px"><i class="ti ti-check"></i> Guardar configuración</button>
+  </div>
+
+  <!-- HISTORIAL -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-history"></i> Historial de listas generadas</div>
+    <div id="runs-loading"><div class="skeleton"></div><div class="skeleton" style="opacity:.6"></div></div>
+    <div id="runs-list"></div>
+    <div id="runs-empty" class="empty-state" style="display:none">
+      <i class="ti ti-clipboard-off"></i>
+      <p>Todavía no se generó ninguna lista.<br>Se va a crear automáticamente según la frecuencia configurada arriba.</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL: DETALLE DE LISTA -->
+<div class="modal-overlay hidden" id="modal-run-detail" onclick="if(event.target===this)closeRunDetail()">
+  <div class="modal">
+    <div class="modal-title">
+      <i class="ti ti-clipboard-list" style="color:var(--primary)"></i>
+      <span id="rd-id">ALR-0000</span>
+      <span id="rd-status"></span>
+    </div>
+    <div class="detail-kpis">
+      <div class="detail-kpi"><div class="detail-kpi-lbl">Generada</div><div class="detail-kpi-val" id="rd-date" style="font-size:14px">—</div></div>
+      <div class="detail-kpi"><div class="detail-kpi-lbl">Productos</div><div class="detail-kpi-val" id="rd-count">—</div></div>
+      <div class="detail-kpi"><div class="detail-kpi-lbl">Valor estimado</div><div class="detail-kpi-val" id="rd-value" style="color:var(--green-dark)">—</div></div>
+    </div>
+    <div id="rd-groups"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="printRun(_currentRunId)"><i class="ti ti-printer"></i> Imprimir / Descargar</button>
+      <button class="btn btn-primary" id="rd-mark-btn" onclick="markReviewed(_currentRunId)"><i class="ti ti-check"></i> Marcar como revisada</button>
+      <button class="btn btn-outline" style="margin-left:auto" onclick="closeRunDetail()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Auth / tenant context (mismo esquema que cupones.html) ─────────────────
+const token    = localStorage.getItem('sf_token') || '';
+const tenantId = localStorage.getItem('sf_tenant_id') || '';
+let CURRENT_ROLE = localStorage.getItem('sf_role') || 'staff';
+const ADMIN_ROLES = ['admin', 'superadmin', 'master'];
+const isAdmin = () => ADMIN_ROLES.includes(CURRENT_ROLE);
+
+function authHeaders(extra = {}) {
+  const h = { Authorization: 'Bearer ' + token, ...extra };
+  if (tenantId) h['X-Tenant-Id'] = tenantId;
+  return h;
+}
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(opts.headers || {}) } });
+  if (r.status === 401) { localStorage.removeItem('sf_token'); location.replace('/login'); throw new Error('Unauthorized'); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || 'Error de red');
+  return data;
+}
+
+const money = n => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Math.round(n || 0));
+const WEEKDAY_LABELS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('es-CL', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('es-CL', { day:'2-digit', month:'short', year:'numeric' });
+}
+
+// ── Dark mode (comparte localStorage con index.html) ────────────────────────
+function _prefsKey() { return 'sf_prefs_' + (tenantId || 'default'); }
+function getPrefs() { try { return JSON.parse(localStorage.getItem(_prefsKey()) || '{}'); } catch { return {}; } }
+function savePref(key, val) { try { const p = getPrefs(); p[key] = val; localStorage.setItem(_prefsKey(), JSON.stringify(p)); } catch {} }
+function applyDarkMode() {
+  const on = !!getPrefs().darkMode;
+  document.body.classList.toggle('dark-mode', on);
+  const icon = document.getElementById('dark-mode-icon');
+  if (icon) icon.textContent = on ? '☀️' : '🌙';
+}
+function toggleDarkMode() { savePref('darkMode', !document.body.classList.contains('dark-mode')); applyDarkMode(); }
+applyDarkMode();
+
+(function applyTenantColor() {
+  const color = localStorage.getItem('sf_tenant_color');
+  if (color) document.documentElement.style.setProperty('--primary', color);
+})();
+
+// ── Auth guard ───────────────────────────────────────────────────────────
+(async () => {
+  if (!token) { location.href = '/login'; return; }
+  try {
+    const me = await fetch('/api/auth/me', { headers: authHeaders() }).then(r => r.ok ? r.json() : null);
+    if (!me) { location.href = '/login'; return; }
+    CURRENT_ROLE = me.role;
+    localStorage.setItem('sf_role', me.role);
+    if ((me.role === 'superadmin' || me.role === 'master') && !tenantId) { location.href = '/admin'; return; }
+  } catch { location.href = '/login'; return; }
+
+  document.getElementById('sa-monthday').innerHTML = Array.from({length:31}, (_,i) => `<option value="${i+1}">${i+1}</option>`).join('');
+  if (!isAdmin()) {
+    document.getElementById('btn-save-settings').disabled = true;
+    document.getElementById('btn-save-settings').title = 'Sólo administradores pueden editar esta configuración';
+  }
+
+  await loadSettings();
+  await loadRuns();
+
+  // Deep link desde el email/aviso de header: /stock-alerts?id=ALR-0001
+  const deepId = new URLSearchParams(location.search).get('id');
+  if (deepId) openRunDetail(deepId);
+})();
+
+// ── CONFIGURACIÓN ────────────────────────────────────────────────────────
+let _settings = null;
+async function loadSettings() {
+  try { _settings = await api('/api/orders?resource=stock-alerts&scope=settings'); }
+  catch (e) { toast('⚠️ ' + e.message); return; }
+  document.getElementById('sa-frequency').value = _settings.frequency || 'semanal';
+  document.getElementById('sa-weekday').value = String(_settings.weekday ?? 1);
+  document.getElementById('sa-monthday').value = String(_settings.month_day ?? 1);
+  document.getElementById('sa-channel-home').checked = !!_settings.channel_home;
+  document.getElementById('sa-channel-email').checked = !!_settings.channel_email;
+  document.getElementById('sa-email-to').value = _settings.email_to || '';
+  onFrequencyChange();
+  onEmailChannelChange();
+  renderNextRun();
+}
+function onFrequencyChange() {
+  const freq = document.getElementById('sa-frequency').value;
+  document.getElementById('sa-weekday-group').style.display = freq === 'semanal' ? '' : 'none';
+  document.getElementById('sa-monthday-group').style.display = freq === 'mensual' ? '' : 'none';
+  document.getElementById('sa-quincenal-hint').style.display = freq === 'quincenal' ? '' : 'none';
+  document.getElementById('sa-diaria-hint').style.display = freq === 'diaria' ? '' : 'none';
+}
+function onEmailChannelChange() {
+  document.getElementById('sa-email-group').style.display = document.getElementById('sa-channel-email').checked ? '' : 'none';
+}
+function renderNextRun() {
+  const box = document.getElementById('sa-next-run');
+  if (!_settings?.next_run) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  document.getElementById('sa-next-run-text').textContent = fmtDate(_settings.next_run);
+}
+async function saveSettings() {
+  const errEl = document.getElementById('sa-form-error');
+  errEl.style.display = 'none';
+  const frequency = document.getElementById('sa-frequency').value;
+  const channel_home = document.getElementById('sa-channel-home').checked;
+  const channel_email = document.getElementById('sa-channel-email').checked;
+  const email_to = document.getElementById('sa-email-to').value.trim();
+  if (channel_email && !email_to) { errEl.textContent = 'Ingresa al menos un correo para el canal Correo'; errEl.style.display = ''; return; }
+
+  const payload = { frequency, channel_home, channel_email, email_to };
+  if (frequency === 'semanal') payload.weekday = parseInt(document.getElementById('sa-weekday').value, 10);
+  if (frequency === 'mensual') payload.month_day = parseInt(document.getElementById('sa-monthday').value, 10);
+
+  const btn = document.getElementById('btn-save-settings');
+  btn.disabled = true;
+  try {
+    _settings = await api('/api/orders?resource=stock-alerts&scope=settings', { method: 'PUT', body: JSON.stringify(payload) });
+    renderNextRun();
+    toast('✅ Configuración guardada');
+  } catch (e) { errEl.textContent = e.message; errEl.style.display = ''; }
+  btn.disabled = isAdmin() ? false : true;
+}
+
+// ── HISTORIAL ────────────────────────────────────────────────────────────
+let _runs = [];
+let _runsById = {};
+async function loadRuns() {
+  document.getElementById('runs-loading').style.display = '';
+  try { _runs = await api('/api/orders?resource=stock-alerts'); }
+  catch (e) { toast('⚠️ ' + e.message); _runs = []; }
+  _runsById = Object.fromEntries(_runs.map(r => [r.id, r]));
+  document.getElementById('runs-loading').style.display = 'none';
+  renderRuns();
+}
+const STATUS_LABEL = { pendiente: 'Pendiente', revisada: 'Revisada' };
+function renderRuns() {
+  const list = document.getElementById('runs-list');
+  const empty = document.getElementById('runs-empty');
+  if (!_runs.length) { list.innerHTML = ''; empty.style.display = ''; return; }
+  empty.style.display = 'none';
+  list.innerHTML = _runs.map(r => `
+    <div class="run-row" onclick="openRunDetail('${r.id}')">
+      <div class="run-date-wrap">
+        <div class="run-date">${fmtDate(r.generated_at)}</div>
+        <div class="run-period">${r.id}</div>
+      </div>
+      <div class="run-kpis-wrap" style="display:contents">
+        <div class="run-kpi"><div class="run-kpi-val">${r.item_count}</div><div class="run-kpi-lbl">Productos</div></div>
+        <div class="run-kpi"><div class="run-kpi-val">${money(r.estimated_value)}</div><div class="run-kpi-lbl">Estimado</div></div>
+      </div>
+      <span class="pill ${r.status}">${STATUS_LABEL[r.status] || r.status}</span>
+      <i class="ti ti-chevron-right" style="color:var(--text3)"></i>
+    </div>`).join('');
+}
+
+// ── DETALLE ──────────────────────────────────────────────────────────────
+let _currentRunId = null;
+let _currentRun = null;
+const TIPO_INVENTARIO_LABEL = { insumo: 'Insumos', producto: 'Venta', ambos: 'Venta' };
+
+function groupItemsByWarehouse(items) {
+  const groups = new Map();
+  for (const it of items) {
+    const key = it.warehouse_id || '—';
+    if (!groups.has(key)) groups.set(key, { warehouse_name: it.warehouse_name || 'Sin almacén', local_name: it.local_name || '', items: [] });
+    groups.get(key).items.push(it);
+  }
+  return [...groups.values()];
+}
+
+async function openRunDetail(id) {
+  _currentRunId = id;
+  document.getElementById('rd-id').textContent = id;
+  document.getElementById('rd-groups').innerHTML = '<div class="skeleton" style="height:120px"></div>';
+  document.getElementById('modal-run-detail').classList.remove('hidden');
+  try { _currentRun = await api(`/api/orders?resource=stock-alerts&id=${encodeURIComponent(id)}`); }
+  catch (e) { toast('⚠️ ' + e.message); closeRunDetail(); return; }
+  renderRunDetail(_currentRun);
+}
+function renderRunDetail(run) {
+  document.getElementById('rd-id').textContent = run.id;
+  document.getElementById('rd-status').innerHTML = `<span class="pill ${run.status}">${STATUS_LABEL[run.status] || run.status}</span>`;
+  document.getElementById('rd-date').textContent = fmtDateTime(run.generated_at);
+  document.getElementById('rd-count').textContent = run.item_count;
+  document.getElementById('rd-value').textContent = money(run.estimated_value);
+  const markBtn = document.getElementById('rd-mark-btn');
+  markBtn.style.display = run.status === 'revisada' ? 'none' : '';
+
+  const groups = groupItemsByWarehouse(run.items || []);
+  document.getElementById('rd-groups').innerHTML = groups.map(g => `
+    <div class="wh-group">
+      <div class="wh-group-title"><i class="ti ti-building-warehouse"></i> ${escHtml(g.local_name ? g.local_name + ' — ' + g.warehouse_name : g.warehouse_name)}</div>
+      <div style="overflow-x:auto">
+        <table class="wh-table">
+          <thead><tr><th>Nombre</th><th>ID</th><th>Inventario</th><th>Tienda</th><th>Stock real</th><th>Stock de alerta</th></tr></thead>
+          <tbody>
+            ${g.items.map(it => `
+              <tr>
+                <td style="font-weight:700">${escHtml(it.name)}</td>
+                <td style="color:var(--text3)">${escHtml(it.sku)}</td>
+                <td class="tipo-tag">${TIPO_INVENTARIO_LABEL[it.tipo] || '—'}</td>
+                <td>${escHtml(it.local_name || '—')}</td>
+                <td class="${it.stock === 0 ? 'stock-crit' : ''}">${it.stock}</td>
+                <td>${it.threshold}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`).join('');
+}
+function closeRunDetail() {
+  document.getElementById('modal-run-detail').classList.add('hidden');
+  // Limpia el ?id= del deep link para que cerrar no lo vuelva a abrir en un refresh
+  if (new URLSearchParams(location.search).get('id')) history.replaceState({}, '', '/stock-alerts');
+}
+
+async function markReviewed(id) {
+  if (!id) return;
+  try {
+    const updated = await api(`/api/orders?resource=stock-alerts&id=${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ status: 'revisada' }) });
+    _currentRun = updated;
+    renderRunDetail(updated);
+    const idx = _runs.findIndex(r => r.id === id);
+    if (idx >= 0) _runs[idx] = { ..._runs[idx], status: updated.status, reviewed_by: updated.reviewed_by, reviewed_at: updated.reviewed_at };
+    renderRuns();
+    toast('✅ Lista marcada como revisada');
+  } catch (e) { toast('⚠️ ' + e.message); }
+}
+
+// ── IMPRIMIR / DESCARGAR ─────────────────────────────────────────────────
+function printRun(id) {
+  const run = _currentRun && _currentRun.id === id ? _currentRun : null;
+  if (!run) { toast('⚠️ Abrí el detalle de una lista para imprimirla'); return; }
+  const groups = groupItemsByWarehouse(run.items || []);
+  const groupsHtml = groups.map(g => `
+    <div class="grp">
+      <div class="grp-title">${escHtml(g.local_name ? g.local_name + ' — ' + g.warehouse_name : g.warehouse_name)}</div>
+      <table>
+        <thead><tr><th>Nombre</th><th>ID</th><th>Inventario</th><th>Tienda</th><th>Stock real</th><th>Stock alerta</th></tr></thead>
+        <tbody>
+          ${g.items.map(it => `<tr>
+            <td>${escHtml(it.name)}</td><td>${escHtml(it.sku)}</td>
+            <td>${TIPO_INVENTARIO_LABEL[it.tipo] || '—'}</td><td>${escHtml(it.local_name || '—')}</td>
+            <td>${it.stock}</td><td>${it.threshold}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Lista de compra ${run.id}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#000;background:#fff;padding:10mm}
+@page{size:letter;margin:10mm}
+h1{font-size:17px;margin-bottom:2px}
+.sub{font-size:11px;color:#333;margin-bottom:14px}
+.kpis{display:flex;gap:16px;margin-bottom:16px}
+.kpi{border:1px solid #000;border-radius:4px;padding:6px 10px}
+.kpi-lbl{font-size:9px;text-transform:uppercase;color:#333}
+.kpi-val{font-size:15px;font-weight:700}
+.grp{margin-bottom:14px;break-inside:avoid}
+.grp-title{font-size:12.5px;font-weight:700;margin-bottom:4px;padding-bottom:2px;border-bottom:1.5px solid #000}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{text-align:left;font-size:9.5px;text-transform:uppercase;color:#333;padding:3px 4px;border-bottom:1px solid #999}
+td{padding:4px;border-bottom:1px solid #ddd}
+</style></head><body>
+<h1>Lista de compra — ${run.id}</h1>
+<div class="sub">Generada: ${fmtDateTime(run.generated_at)}</div>
+<div class="kpis">
+  <div class="kpi"><div class="kpi-lbl">Productos</div><div class="kpi-val">${run.item_count}</div></div>
+  <div class="kpi"><div class="kpi-lbl">Valor estimado</div><div class="kpi-val">${money(run.estimated_value)}</div></div>
+</div>
+${groupsHtml}
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=900,height=720');
+  if (win) { win.document.write(html); win.document.close(); }
+}
+
+// ── Utils ────────────────────────────────────────────────────────────────
+function escHtml(s) { return (s || '').toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
