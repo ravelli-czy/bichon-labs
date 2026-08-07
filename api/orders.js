@@ -11,15 +11,39 @@ const { handleCouponsResource, COUPON_RESOURCES } = require('./_coupons_routes')
 const { claimCoupon, computeDiscountAmount } = require('./_coupons');
 const { handleStockAlertsResource, STOCK_ALERT_RESOURCES, handleStockAlertsCron } = require('./_stock_alerts_routes');
 
-async function _deductKit(sql, kitSku, qty, wid, tenantId) {
+// Resolves which specific warehouse row to decrement a KIT component's
+// stock from. A KIT's components can live in DIFFERENT almacenes of the
+// SAME store (ver _resolveLocalIdFromItems más abajo), so the single `wid`
+// the caller has (usually '' for a KIT item — KITs are warehouse-agnostic,
+// ver _populateVentaAddItemSelect en el frontend) is often just wrong for a
+// given component. Prefer the warehouse that belongs to the order's actual
+// store (locationId) and stocks this SKU; only fall back to the blanket wid
+// when that's ambiguous (0 or >1 matches) or there's no location at all —
+// this used to silently no-op (UPDATE matching 0 rows) whenever wid didn't
+// happen to equal the component's real warehouse_id.
+async function _componentWarehouseId(sql, tenantId, sku, locationId, fallbackWid) {
+  if (locationId) {
+    const rows = await sql`
+      SELECT p.warehouse_id
+      FROM products p
+      JOIN warehouses w ON w.id = p.warehouse_id AND w.tenant_id = p.tenant_id
+      WHERE p.sku = ${sku} AND p.tenant_id = ${tenantId} AND w.local_id = ${locationId}
+    `;
+    if (rows.length === 1) return rows[0].warehouse_id;
+  }
+  return fallbackWid;
+}
+
+async function _deductKit(sql, kitSku, qty, wid, tenantId, locationId) {
   const [kit] = await sql`SELECT items FROM kits WHERE sku = ${kitSku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
   if (!kit?.items) return;
   for (const comp of kit.items) {
     if (comp.type === 'kit') {
-      await _deductKit(sql, comp.sku, comp.qty * qty, wid, tenantId);
+      await _deductKit(sql, comp.sku, comp.qty * qty, wid, tenantId, locationId);
     } else {
+      const compWid = await _componentWarehouseId(sql, tenantId, comp.sku, locationId, wid);
       await sql`UPDATE products SET stock = GREATEST(0, stock - ${comp.qty * qty}), updated_at = NOW()
-        WHERE sku = ${comp.sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}`;
+        WHERE sku = ${comp.sku} AND warehouse_id = ${compWid} AND tenant_id = ${tenantId}`;
     }
   }
 }
@@ -387,7 +411,7 @@ module.exports = async (req, res) => {
         // warehouse_id per item; fall back to order-level warehouse_id
         const wid = item.warehouse_id || orderWarehouseId || '';
         if (item.type === 'kit') {
-          await _deductKit(sql, item.sku, item.qty, wid, tenantId);
+          await _deductKit(sql, item.sku, item.qty, wid, tenantId, locationId);
         } else {
           await sql`
             UPDATE products
