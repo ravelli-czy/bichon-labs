@@ -6495,6 +6495,7 @@ async function saveVenta() {
     items:          S.tempVentaItems.slice(),
     delivery,
     warehouse_id:   S.warehouseId || '',  // order-level warehouse (fallback for kit components)
+    location_id:    S._ventaSelectedLocale?.id || '',  // tienda elegida en el picker — resuelve el prefijo aunque la orden sea sólo KITs
     payment_method: document.getElementById('venta-payment-method').value || '',
     sales_channel:  document.getElementById('venta-sales-channel').value || '',
     coupon_code:    S.tempVentaCoupon ? S.tempVentaCoupon.code : '',

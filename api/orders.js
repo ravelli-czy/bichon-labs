@@ -226,6 +226,7 @@ module.exports = async (req, res) => {
       const {
         cliente = 'Cliente', telefono = '', dedicatoria = '',
         items: rawItems = [], delivery = {}, warehouse_id: orderWarehouseId = '',
+        location_id: orderLocationId = '',
         payment_method = '', sales_channel = '',
         coupon_code = '', refund_amount = 0,
         label_selections = {},
@@ -285,17 +286,24 @@ module.exports = async (req, res) => {
       const id = 'ORD-' + String(parseInt(max_num) + 1).padStart(4, '0');
       const fecha = new Date().toLocaleDateString('es-CL');
 
-      // Best-effort location for Finanzas filtering: orders don't carry their
-      // own local/sucursal, only a warehouse per item — resolve it from the
-      // first item's (or order-level) warehouse_id via warehouses.local_id.
-      let locationId = '';
-      const firstWarehouseId = rawItems.find(i => i.warehouse_id)?.warehouse_id || orderWarehouseId || '';
-      if (firstWarehouseId) {
-        try {
-          const [wh] = await sql`SELECT local_id FROM warehouses WHERE id = ${firstWarehouseId} AND tenant_id = ${tenantId}`;
+      // Location (store) for Finanzas filtering and the order-id prefix.
+      // Priority: (1) the store the frontend's Nueva venta picker explicitly
+      // selected (S._ventaSelectedLocale) — the client always knows this now
+      // and it's the most reliable signal; (2) the delivery method's name,
+      // which is unique per local (ver _resolveLocationIdFromDelivery); (3)
+      // resolving from the items themselves, which also handles KIT-only
+      // orders whose components live in different warehouses of the same
+      // store (ver _resolveLocalIdFromItems — same logic used by the
+      // ?action=backfill-location endpoint above, kept in sync with it).
+      let locationId = orderLocationId || '';
+      try {
+        if (!locationId) locationId = await _resolveLocationIdFromDelivery(sql, tenantId, delivery);
+        if (!locationId) locationId = await _resolveLocalIdFromItems(sql, tenantId, rawItems);
+        if (!locationId && orderWarehouseId) {
+          const [wh] = await sql`SELECT local_id FROM warehouses WHERE id = ${orderWarehouseId} AND tenant_id = ${tenantId}`;
           locationId = wh?.local_id || '';
-        } catch { /* non-fatal — location filter just won't apply to this order */ }
-      }
+        }
+      } catch { /* non-fatal — location filter just won't apply to this order */ }
 
       // Insert order. label_selections and coupon_id/coupon_code are newer
       // columns (migration via POST /api/setup) — each tier falls back to
