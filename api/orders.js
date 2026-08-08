@@ -80,6 +80,26 @@ async function _flattenKitSkus(sql, tenantId, kitSku, depth = 0, out = new Set()
   return out;
 }
 
+// Flattens a KIT item into its leaf product SKUs with accumulated
+// quantities needed, descending into nested KITs to full depth — same
+// traversal as _deductKit, but collecting {sku: totalQty} instead of
+// mutating stock. Used by the ?action=backfill-kit-stock one-time
+// correction (ver más abajo) to recompute what a historical KIT sale
+// should have deducted.
+async function _flattenKitQtys(sql, tenantId, kitSku, qty, depth = 0, out = new Map()) {
+  if (depth > 6) return out;
+  const [kit] = await sql`SELECT items FROM kits WHERE sku = ${kitSku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
+  if (!kit?.items) return out;
+  for (const comp of kit.items) {
+    if (comp.type === 'kit') {
+      await _flattenKitQtys(sql, tenantId, comp.sku, comp.qty * qty, depth + 1, out);
+    } else {
+      out.set(comp.sku, (out.get(comp.sku) || 0) + comp.qty * qty);
+    }
+  }
+  return out;
+}
+
 // Set of local_ids a SKU is stocked in, resolved through whichever
 // warehouse(s) carry it (a product can be stocked in more than one
 // warehouse — usually within the same store, e.g. distinct almacenes/
@@ -258,6 +278,106 @@ module.exports = async (req, res) => {
         details:     { ordersScanned: orders.length, ordersUpdated, ordersSkipped },
       });
       return res.json({ ok: true, ordersScanned: orders.length, ordersUpdated, ordersSkipped });
+    }
+
+    // ── POST ?action=backfill-kit-stock — one-time correction of stock for
+    // orders placed before #72 (5456b8d) fixed KIT stock deduction silently
+    // no-oping. Before that fix, a KIT item's component UPDATE always used
+    // warehouse_id = '' (KIT items are added with warehouse_id: '' by the
+    // frontend — ver _populateVentaAddItemSelect — and the order-level
+    // fallback was never persisted on the order), which never matches a
+    // real product row, so stock never moved for ANY kit sale made before
+    // the fix went live. That same '' signature is still present on every
+    // KIT item today (kits are still warehouse-agnostic by design), so
+    // there's no way to tell "broken" from "already fixed" orders except by
+    // creation time — hence `before` (ISO timestamp, required) must be the
+    // moment the fix went live; anything at/after it is assumed already
+    // correctly deducted by the new code and is left untouched.
+    // Defaults to a dry run (no writes) so an admin can review the
+    // preview — pass dry_run=0 to actually apply it. Optional order_ids
+    // (comma-separated) narrows the scope to specific orders (e.g. ones
+    // already confirmed by a physical stock count). Idempotent: an order is
+    // only ever fully corrected once (stock_corrected_at), and orders whose
+    // components can't be resolved to a single warehouse (no location_id,
+    // or the SKU isn't uniquely stocked in that store) are left unmarked
+    // and reported for manual review instead of guessing.
+    if (req.method === 'POST' && req.query?.action === 'backfill-kit-stock') {
+      if (!['admin','superadmin','master'].includes(session.role)) {
+        return res.status(403).json({ error: 'No autorizado' });
+      }
+      const { before, dry_run = '1', order_ids = '' } = req.query;
+      if (!before || isNaN(Date.parse(before))) {
+        return res.status(400).json({ error: 'before (ISO timestamp) is required — cutoff must be the moment the #72 fix went live' });
+      }
+      const dryRun = dry_run !== '0';
+      const idFilter = order_ids ? order_ids.split(',').map(s => s.trim()).filter(Boolean) : null;
+
+      // Filtered in JS rather than SQL ANY(...) — keeps this consistent with
+      // the rest of the codebase, which avoids relying on array-bind support
+      // in the Neon serverless driver (ver mismo comentario en locales.js).
+      let orders = await sql`SELECT id, cliente, fecha, created_at, items, location_id, stock_corrected_at FROM orders
+                              WHERE tenant_id = ${tenantId} AND created_at < ${before}`;
+      if (idFilter) orders = orders.filter(o => idFilter.includes(o.id));
+
+      const details = [];
+      let ordersAffected = 0, ordersAlreadyCorrected = 0, ordersFullyCorrected = 0, ordersNeedingReview = 0;
+
+      for (const order of orders) {
+        const items = Array.isArray(order.items) ? order.items : [];
+        const kitItems = items.filter(i => i.type === 'kit' && !i.warehouse_id);
+        if (!kitItems.length) continue; // no KIT lines — never hit the bug
+        ordersAffected++;
+
+        if (order.stock_corrected_at) {
+          ordersAlreadyCorrected++;
+          details.push({ orderId: order.id, cliente: order.cliente, fecha: order.fecha, skipped: 'already_corrected' });
+          continue;
+        }
+
+        const needed = new Map();
+        for (const item of kitItems) await _flattenKitQtys(sql, tenantId, item.sku, item.qty, 0, needed);
+
+        const itemResults = [];
+        let allResolved = true;
+        for (const [sku, qty] of needed) {
+          const wid = await _componentWarehouseId(sql, tenantId, sku, order.location_id, '');
+          if (!wid) { allResolved = false; itemResults.push({ sku, qty, resolved: false, reason: 'no unique warehouse for this store' }); continue; }
+          const [product] = await sql`SELECT name, stock FROM products WHERE sku = ${sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}`;
+          if (!product) { allResolved = false; itemResults.push({ sku, qty, resolved: false, warehouse_id: wid, reason: 'product row not found' }); continue; }
+          const newStock = Math.max(0, product.stock - qty);
+          itemResults.push({ sku, name: product.name, qty, warehouse_id: wid, resolved: true, currentStock: product.stock, newStock });
+          if (!dryRun) {
+            await sql`UPDATE products SET stock = ${newStock}, updated_at = NOW()
+              WHERE sku = ${sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}`;
+          }
+        }
+
+        if (allResolved) {
+          ordersFullyCorrected++;
+          if (!dryRun) await sql`UPDATE orders SET stock_corrected_at = NOW() WHERE id = ${order.id} AND tenant_id = ${tenantId}`;
+        } else {
+          ordersNeedingReview++;
+        }
+        details.push({ orderId: order.id, cliente: order.cliente, fecha: order.fecha, fullyResolved: allResolved, items: itemResults });
+      }
+
+      if (!dryRun) {
+        await writeLog(sql, {
+          tenant_id:   tenantId,
+          actor,
+          action:      'ordenes.stock_kit_regularizado',
+          entity_type: 'orden',
+          entity_id:   'bulk',
+          entity_name: `${ordersFullyCorrected} órdenes`,
+          details:     { before, ordersScanned: orders.length, ordersAffected, ordersFullyCorrected, ordersNeedingReview },
+        });
+      }
+
+      return res.json({
+        dryRun, cutoff: before,
+        ordersScanned: orders.length, ordersAffected, ordersAlreadyCorrected, ordersFullyCorrected, ordersNeedingReview,
+        details,
+      });
     }
 
     // ── POST — create order + decrement stock + create shipment ───────────

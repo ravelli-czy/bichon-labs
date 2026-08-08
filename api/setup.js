@@ -237,6 +237,10 @@ module.exports = async (req, res) => {
     // mostrarlo en la orden aunque el cupón se edite o elimine después.
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_id       TEXT`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_code     TEXT DEFAULT ''`;
+    // Marca que esta orden ya pasó por el backfill de stock de KITs (ver
+    // ?action=backfill-kit-stock en api/orders.js, arreglando #72) — evita
+    // volver a descontar dos veces si el endpoint se corre más de una vez.
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS stock_corrected_at TIMESTAMPTZ`;
     await sql`CREATE INDEX IF NOT EXISTS orders_tenant_status_idx    ON orders (tenant_id, status)`;
     await sql`CREATE INDEX IF NOT EXISTS orders_delivered_at_idx     ON orders (delivered_at)`;
     await sql`CREATE INDEX IF NOT EXISTS orders_tenant_delivered_idx ON orders (tenant_id, delivered_at)`;
