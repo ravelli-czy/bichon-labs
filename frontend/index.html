@@ -1286,12 +1286,12 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       </div>
       <div id="oe-address-group" style="display:none">
         <div class="section-label" style="margin-top:10px"><i class="ti ti-map-pin"></i> Dirección de entrega</div>
-        <div class="form-group"><div class="form-label">Calle y número</div><input class="form-input" id="oe-addr-street" placeholder="Ej: Av. Providencia 1234"></div>
+        <div class="form-group"><div class="form-label">Calle y número</div><input class="form-input" id="oe-addr-street" placeholder="Ej: Av. Providencia 1234" oninput="S._oeAddressTouched=true"></div>
         <div class="form-row">
-          <div class="form-group"><div class="form-label">Ciudad</div><input class="form-input" id="oe-addr-city" placeholder="Santiago"></div>
-          <div class="form-group"><div class="form-label">Región</div><input class="form-input" id="oe-addr-region" placeholder="RM"></div>
+          <div class="form-group"><div class="form-label">Ciudad</div><input class="form-input" id="oe-addr-city" placeholder="Santiago" oninput="S._oeAddressTouched=true"></div>
+          <div class="form-group"><div class="form-label">Región</div><input class="form-input" id="oe-addr-region" placeholder="RM" oninput="S._oeAddressTouched=true"></div>
         </div>
-        <div class="form-group"><div class="form-label">Referencia</div><input class="form-input" id="oe-addr-notes" placeholder="Depto, piso, timbre..."></div>
+        <div class="form-group"><div class="form-label">Referencia</div><input class="form-input" id="oe-addr-notes" placeholder="Depto, piso, timbre..." oninput="S._oeAddressTouched=true"></div>
       </div>
       <div class="section-label" style="margin-top:14px"><i class="ti ti-building-store"></i> Local / Sucursal</div>
       <div class="form-group">
@@ -6821,6 +6821,7 @@ function _oePopulateDelivery(v) {
   const d = v.delivery || {};
   S._oeLocale = _oeResolveLocale(v);
   S._oeDeliveryTouched = false;
+  S._oeAddressTouched = false;
   const loc = S._oeLocale;
   const mData = loc?.delivery_methods?.find(m => m.type === d.method_type);
   S._oeDelivery = {
@@ -7141,6 +7142,15 @@ async function saveOrderEdit() {
       payload.delivery_update.address_region = document.getElementById('oe-addr-region').value.trim();
       payload.delivery_update.address_notes  = document.getElementById('oe-addr-notes').value.trim();
     }
+  } else if (S._oeAddressTouched && document.getElementById('oe-address-group').style.display !== 'none') {
+    // Address-only edit: don't force the full method/date/slot re-selection
+    // flow (and its validation) just because the street text changed.
+    payload.delivery_update = {
+      address_street: document.getElementById('oe-addr-street').value.trim(),
+      address_city:   document.getElementById('oe-addr-city').value.trim(),
+      address_region: document.getElementById('oe-addr-region').value.trim(),
+      address_notes:  document.getElementById('oe-addr-notes').value.trim(),
+    };
   }
   // The backend recomputes discount_amount/total authoritatively from the
   // claimed/released coupon — these are only a same-shape preview for the
