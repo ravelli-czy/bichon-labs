@@ -268,10 +268,15 @@ module.exports = async (req, res) => {
         location_id: orderLocationId = '',
         payment_method = '', sales_channel = '',
         coupon_code = '', refund_amount = 0,
-        label_selections = {},
+        label_selections = {}, order_type = 'normal',
       } = req.body || {};
 
       if (!rawItems.length) return res.status(400).json({ error: 'items is required' });
+      // Pre Compra: sistemas terceros marcan la orden con order_type:'pre_compra'
+      // para que nazca 'por_confirmar' en vez de 'por_hacer' — el equipo la
+      // revisa/confirma manualmente antes de que entre al flujo normal.
+      const orderType = order_type === 'pre_compra' ? 'pre_compra' : 'normal';
+      const initialStatus = orderType === 'pre_compra' ? 'por_confirmar' : 'por_hacer';
       // Item 8.2: elegir un template de etiqueta ya cargado puede ser
       // obligatorio para completar la venta — configurable por tenant en
       // Preferencias → Flujos → Etiquetado (default: obligatorio). Solo
@@ -359,50 +364,68 @@ module.exports = async (req, res) => {
           INSERT INTO orders (
             id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
             created_by, tenant_id, payment_method, sales_channel,
-            coupon_id, coupon_code, discount_amount, refund_amount, location_id, label_selections
+            coupon_id, coupon_code, discount_amount, refund_amount, location_id, label_selections, order_type
           )
           VALUES (
             ${id}, ${cliente}, ${telefono}, ${total},
             ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
-            ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
-            ${couponId}, ${couponCode}, ${discountAmount}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}
+            ${dedicatoria}, ${fecha}, ${initialStatus}, ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
+            ${couponId}, ${couponCode}, ${discountAmount}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}, ${orderType}
           )
           RETURNING *
         `;
       } catch (insertErr) {
         if (insertErr.code !== '42703') throw insertErr; // no es "columna no existe" — error real, no lo ocultamos
-        console.warn('[orders] label_selections and/or coupon_id/coupon_code column not migrated yet, retrying without them');
+        console.warn('[orders] label_selections and/or coupon_id/coupon_code and/or order_type column not migrated yet, retrying without them');
         try {
           [order] = await sql`
             INSERT INTO orders (
               id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
               created_by, tenant_id, payment_method, sales_channel,
-              discount_amount, refund_amount, location_id, label_selections
+              discount_amount, refund_amount, location_id, label_selections, order_type
             )
             VALUES (
               ${id}, ${cliente}, ${telefono}, ${total},
               ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
-              ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
-              ${discountAmount}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}
+              ${dedicatoria}, ${fecha}, ${initialStatus}, ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
+              ${discountAmount}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}, ${orderType}
             )
             RETURNING *
           `;
         } catch (insertErr2) {
           if (insertErr2.code !== '42703') throw insertErr2;
-          [order] = await sql`
-            INSERT INTO orders (
-              id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
-              created_by, tenant_id, payment_method, sales_channel,
-              discount_amount, refund_amount, location_id
-            )
-            VALUES (
-              ${id}, ${cliente}, ${telefono}, ${total},
-              ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
-              ${dedicatoria}, ${fecha}, 'por_hacer', ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
-              ${discountAmount}, ${refund_amount || 0}, ${locationId}
-            )
-            RETURNING *
-          `;
+          try {
+            [order] = await sql`
+              INSERT INTO orders (
+                id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
+                created_by, tenant_id, payment_method, sales_channel,
+                discount_amount, refund_amount, location_id, order_type
+              )
+              VALUES (
+                ${id}, ${cliente}, ${telefono}, ${total},
+                ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
+                ${dedicatoria}, ${fecha}, ${initialStatus}, ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
+                ${discountAmount}, ${refund_amount || 0}, ${locationId}, ${orderType}
+              )
+              RETURNING *
+            `;
+          } catch (insertErr3) {
+            if (insertErr3.code !== '42703') throw insertErr3;
+            [order] = await sql`
+              INSERT INTO orders (
+                id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
+                created_by, tenant_id, payment_method, sales_channel,
+                discount_amount, refund_amount, location_id
+              )
+              VALUES (
+                ${id}, ${cliente}, ${telefono}, ${total},
+                ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
+                ${dedicatoria}, ${fecha}, ${initialStatus}, ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
+                ${discountAmount}, ${refund_amount || 0}, ${locationId}
+              )
+              RETURNING *
+            `;
+          }
         }
       }
 

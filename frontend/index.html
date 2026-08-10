@@ -524,6 +524,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .ord-no_entregada{background:var(--red-light);color:var(--red)}
 .ord-pending{background:#f1f0f7;color:#6b6b8a}
 .ord-cancelled{background:#f3f4f6;color:#6b7280}
+.ord-por_confirmar{background:var(--red-light);color:var(--red)}
 
 /* ORDER LIST — column row (desktop/tablet) vs stacked card (mobile) */
 .ord-row-desktop{display:none}
@@ -1890,6 +1891,7 @@ function exitTenant() {
 
 // ── ORDER STATUS META ─────────────────────────
 const ORDER_STATUS_META = {
+  por_confirmar:       { label:'Por confirmar',     css:'ord-por_confirmar',      icon:'ti-clock-exclamation' },
   por_hacer:           { label:'Por hacer',         css:'ord-por_hacer',          icon:'ti-circle' },
   en_preparacion:      { label:'En preparación',    css:'ord-en_preparacion',     icon:'ti-tool' },
   lista_para_facturar: { label:'Lista p/ facturar', css:'ord-lista_para_facturar',icon:'ti-receipt' },
@@ -1978,6 +1980,22 @@ async function advanceOrderStatus(id) {
     if (S.currentPage === 'ventas') renderVentas();
     if (currentDetalleId === id) openOrdenDetalle(id, false);
   } catch(e) { toast('⚠️ Error al actualizar estado'); }
+}
+
+// Pre Compra: la orden llegó vía API de un sistema tercero (order_type:
+// 'pre_compra') y nació en 'por_confirmar'. Este botón la pasa a 'por_hacer'
+// para que entre al flujo normal — si hay que corregir algo antes, se usa
+// el botón "Editar info" (lápiz) que ya existe en el detalle de la orden.
+async function confirmPreCompra(id) {
+  const v = S.ventas.find(x => x.id === id);
+  if (!v) return;
+  try {
+    const updated = await apiFetch(`/api/orders/${id}`, { method:'PUT', body: JSON.stringify({ status: 'por_hacer' }) });
+    v.status = updated.status;
+    toast('✅ Pre compra confirmada');
+    if (S.currentPage === 'ventas') renderVentas();
+    if (currentDetalleId === id) openOrdenDetalle(id, false);
+  } catch(e) { toast('⚠️ Error al confirmar'); }
 }
 
 // ── CHECKLIST "INICIAR PREPARACIÓN" ───────────
@@ -6684,7 +6702,11 @@ function openOrdenDetalle(id, pushURL = true) {
         <div style="font-size:12px;color:var(--text3);font-weight:600;margin-top:5px">${v.fecha}</div>
         ${v.payment_method?`<div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:5px;display:flex;align-items:center;gap:5px"><i class="ti ti-credit-card" style="font-size:13px;color:var(--text3)"></i>${v.payment_method}</div>`:''}
         ${v.sales_channel?`<div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:3px;display:flex;align-items:center;gap:5px"><i class="ti ti-broadcast" style="font-size:13px;color:var(--text3)"></i>${v.sales_channel}</div>`:''}
-        ${STATUS_NEXT[v.status]
+        ${v.status==='por_confirmar'
+          ? `<button class="advance-btn" onclick="event.stopPropagation();confirmPreCompra('${v.id}')" style="margin-top:10px;width:100%;justify-content:center;background:var(--red-light);border-color:var(--red);color:var(--red)">
+               <i class="ti ti-check"></i> Confirmar pre compra
+             </button>`
+          : (STATUS_NEXT[v.status]
           ? `<button class="advance-btn" onclick="event.stopPropagation();${STATUS_NEXT[v.status]==='en_preparacion' ? `openPrepChecklist('${v.id}')` : `advanceOrderStatus('${v.id}')`}" style="margin-top:10px;width:100%;justify-content:center">
                <i class="ti ti-arrow-right"></i>${STATUS_NEXT_LABEL[v.status]||'Avanzar'}
              </button>`
@@ -6696,6 +6718,7 @@ function openOrdenDetalle(id, pushURL = true) {
                   ? `<div style="margin-top:8px;font-size:12px;font-weight:700;color:var(--green-dark);display:flex;align-items:center;gap:5px"><i class="ti ti-circle-check"></i>Completada</div>`
                   : '')
              )
+          )
         }
       </div>
 
