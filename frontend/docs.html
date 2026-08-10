@@ -386,6 +386,7 @@ code{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;color
           <tr><td><span class="param-name">items</span></td><td><span class="param-type">array</span></td><td><span class="param-req">req</span></td><td>Array de <code style="font-family:monospace;font-size:11px">{ sku, qty, type }</code> (type: product | kit)</td></tr>
           <tr><td><span class="param-name">delivery</span></td><td><span class="param-type">object</span></td><td><span class="param-opt">opt</span></td><td>Objeto de entrega (ver abajo)</td></tr>
           <tr><td><span class="param-name">dedicatoria</span></td><td><span class="param-type">string</span></td><td><span class="param-opt">opt</span></td><td>Mensaje dedicatoria</td></tr>
+          <tr><td><span class="param-name">order_type</span></td><td><span class="param-type">string</span></td><td><span class="param-opt">opt</span></td><td><code style="font-family:monospace;font-size:11px">normal</code> (default) · <code style="font-family:monospace;font-size:11px">pre_compra</code> — con <code style="font-family:monospace;font-size:11px">pre_compra</code> la orden nace en estado <code style="font-family:monospace;font-size:11px">por_confirmar</code> en vez de <code style="font-family:monospace;font-size:11px">por_hacer</code>, para que el equipo la revise y confirme manualmente antes de entrar al flujo normal</td></tr>
         </table>
         <div class="code-block">
           <div class="code-block-header"><span class="code-lang">JSON Body</span><button class="copy-btn" onclick="copyCode(this)"><i class="ti ti-copy" style="font-size:12px"></i> Copiar</button></div>
@@ -393,6 +394,7 @@ code{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;color
   <span class="token-key">"cliente"</span>: <span class="token-str">"María González"</span>,
   <span class="token-key">"telefono"</span>: <span class="token-str">"+56912345678"</span>,
   <span class="token-key">"fecha"</span>: <span class="token-str">"2026-05-30"</span>,
+  <span class="token-key">"order_type"</span>: <span class="token-str">"pre_compra"</span>,
   <span class="token-key">"items"</span>: [
     { <span class="token-key">"sku"</span>: <span class="token-str">"KIT-001"</span>, <span class="token-key">"qty"</span>: <span class="token-num">2</span>, <span class="token-key">"type"</span>: <span class="token-str">"kit"</span> },
     { <span class="token-key">"sku"</span>: <span class="token-str">"PRD-001"</span>, <span class="token-key">"qty"</span>: <span class="token-num">1</span>, <span class="token-key">"type"</span>: <span class="token-str">"product"</span> }
@@ -418,7 +420,7 @@ code{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;color
         <p class="doc-p">Actualiza el estado u otros campos de una orden existente.</p>
         <table class="params-table">
           <tr><th>Campo</th><th>Tipo</th><th>Descripción</th></tr>
-          <tr><td><span class="param-name">status</span></td><td><span class="param-type">string</span></td><td><code style="font-family:monospace;font-size:11px">pending</code> · <code style="font-family:monospace;font-size:11px">processing</code> · <code style="font-family:monospace;font-size:11px">done</code> · <code style="font-family:monospace;font-size:11px">cancelled</code></td></tr>
+          <tr><td><span class="param-name">status</span></td><td><span class="param-type">string</span></td><td><code style="font-family:monospace;font-size:11px">por_confirmar</code> · <code style="font-family:monospace;font-size:11px">pending</code> · <code style="font-family:monospace;font-size:11px">processing</code> · <code style="font-family:monospace;font-size:11px">done</code> · <code style="font-family:monospace;font-size:11px">cancelled</code></td></tr>
           <tr><td><span class="param-name">dedicatoria</span></td><td><span class="param-type">string</span></td><td>Mensaje dedicatoria</td></tr>
         </table>
       </div>

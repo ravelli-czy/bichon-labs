@@ -208,6 +208,13 @@ module.exports = async (req, res) => {
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tenant_id      TEXT NOT NULL DEFAULT 'TEN-001'`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT ''`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS sales_channel  TEXT DEFAULT ''`;
+    // Pre Compra: 'normal' (default, creada desde la app o por una API que no
+    // manda el flag) | 'pre_compra' (creada por un sistema tercero vía API
+    // con order_type:'pre_compra' — ver api/orders.js). Una pre_compra nace
+    // con status 'por_confirmar' en vez de 'por_hacer'; al confirmarla pasa
+    // a 'por_hacer' y sigue el flujo normal. order_type queda tal cual para
+    // siempre (no se re-normaliza al confirmar), es solo el origen.
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_type     TEXT NOT NULL DEFAULT 'normal'`;
 
     // ── Finanzas: columnas financieras de la orden ────────────────────────
     // discount_amount / refund_amount reducen el ingreso neto (ver
