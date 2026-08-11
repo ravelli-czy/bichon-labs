@@ -109,6 +109,12 @@ module.exports = async (req, res) => {
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS warehouse_id TEXT NOT NULL DEFAULT ''`;
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode      TEXT DEFAULT ''`;
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS groups       JSONB NOT NULL DEFAULT '[]'`;
+    // Unidad en la que se lleva el stock (ej: "lámina", "ml", "unidad") y su
+    // equivalencia opcional con la unidad en que se compra (ej: 1 "paquete" =
+    // 16 "lámina"), para poder cargar stock convirtiendo automáticamente.
+    await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_unit      TEXT NOT NULL DEFAULT 'unidad'`;
+    await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS purchase_unit   TEXT NOT NULL DEFAULT ''`;
+    await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS purchase_factor INTEGER NOT NULL DEFAULT 1`;
     // Migrate PK from global sku → composite (sku, warehouse_id, tenant_id)
     try {
       await sql`ALTER TABLE products DROP CONSTRAINT IF EXISTS products_pkey CASCADE`;

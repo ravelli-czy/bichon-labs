@@ -112,6 +112,7 @@ module.exports = async (req, res) => {
         tipo = 'producto', cost = 0, price = 0,
         stock = 0, threshold = 10, warehouse_id = '', barcode = '',
         groups = [], sku: explicitSku,
+        stock_unit = 'unidad', purchase_unit = '', purchase_factor = 1,
       } = req.body || {};
 
       if (!name) return res.status(400).json({ error: 'name is required' });
@@ -134,8 +135,8 @@ module.exports = async (req, res) => {
       }
 
       const [row] = await sql`
-        INSERT INTO products (sku, name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, created_by, tenant_id, warehouse_id)
-        VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${cost}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${actor}, ${tenantId}, ${warehouse_id})
+        INSERT INTO products (sku, name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, created_by, tenant_id, warehouse_id, stock_unit, purchase_unit, purchase_factor)
+        VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${cost}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${actor}, ${tenantId}, ${warehouse_id}, ${stock_unit}, ${purchase_unit}, ${purchase_factor})
         RETURNING *
       `;
 

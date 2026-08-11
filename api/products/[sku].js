@@ -150,22 +150,28 @@ module.exports = async (req, res) => {
 
     // ── PUT — update product ──────────────────────────────────────────────
     if (req.method === 'PUT') {
-      const { name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, new_warehouse_id } = req.body || {};
+      const {
+        name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, new_warehouse_id,
+        stock_unit, purchase_unit, purchase_factor,
+      } = req.body || {};
       if (groups !== undefined && !Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
       const groupsJson = groups !== undefined ? JSON.stringify(groups) : null;
       const [row] = await sql`
         UPDATE products SET
-          name         = COALESCE(${name         ?? null}, name),
-          brand        = COALESCE(${brand        ?? null}, brand),
-          cat          = COALESCE(${cat          ?? null}, cat),
-          tipo         = COALESCE(${tipo         ?? null}, tipo),
-          cost         = COALESCE(${cost         ?? null}, cost),
-          price        = COALESCE(${price        ?? null}, price),
-          stock        = COALESCE(${stock        ?? null}, stock),
-          threshold    = COALESCE(${threshold    ?? null}, threshold),
-          barcode      = COALESCE(${barcode      ?? null}, barcode),
-          groups       = COALESCE(${groupsJson}::jsonb, groups),
-          warehouse_id = COALESCE(${new_warehouse_id ?? null}, warehouse_id),
+          name            = COALESCE(${name            ?? null}, name),
+          brand           = COALESCE(${brand           ?? null}, brand),
+          cat             = COALESCE(${cat             ?? null}, cat),
+          tipo            = COALESCE(${tipo            ?? null}, tipo),
+          cost            = COALESCE(${cost            ?? null}, cost),
+          price           = COALESCE(${price           ?? null}, price),
+          stock           = COALESCE(${stock           ?? null}, stock),
+          threshold       = COALESCE(${threshold       ?? null}, threshold),
+          barcode         = COALESCE(${barcode         ?? null}, barcode),
+          groups          = COALESCE(${groupsJson}::jsonb, groups),
+          warehouse_id    = COALESCE(${new_warehouse_id ?? null}, warehouse_id),
+          stock_unit      = COALESCE(${stock_unit      ?? null}, stock_unit),
+          purchase_unit   = COALESCE(${purchase_unit   ?? null}, purchase_unit),
+          purchase_factor = COALESCE(${purchase_factor ?? null}, purchase_factor),
           updated_by = ${actor},
           updated_at = NOW()
         WHERE sku = ${sku} AND warehouse_id = ${warehouse_id} AND tenant_id = ${tenantId}
