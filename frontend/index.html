@@ -525,6 +525,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .ord-pending{background:#f1f0f7;color:#6b6b8a}
 .ord-cancelled{background:#f3f4f6;color:#6b7280}
 .ord-por_confirmar{background:var(--red-light);color:var(--red)}
+.ord-confirmando{background:var(--blue-light);color:var(--blue-dark)}
 
 /* ORDER LIST — column row (desktop/tablet) vs stacked card (mobile) */
 .ord-row-desktop{display:none}
@@ -1248,14 +1249,22 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   </div>
 </div>
 
-<!-- SHEET: EDITAR ORDEN -->
+<!-- SHEET: EDITAR ORDEN (también usado para "Confirmar Compra" de una Pre Compra) -->
 <div class="overlay-page hidden" id="sheet-orden-edit">
   <div class="overlay-topbar">
     <button class="icon-btn" onclick="closeOrderEditSheet()" title="Volver"><i class="ti ti-arrow-left"></i></button>
-    <div class="overlay-topbar-title sheet-title"><i class="ti ti-pencil" style="color:var(--primary)"></i> Editar orden</div>
+    <div class="overlay-topbar-title sheet-title" id="oe-sheet-title"><i class="ti ti-pencil" style="color:var(--primary)"></i> Editar orden</div>
   </div>
   <div class="overlay-scroll">
     <div class="page-form-wrap">
+      <div id="oe-items-section" style="display:none">
+        <div class="section-label"><i class="ti ti-shopping-cart"></i> Productos</div>
+        <div id="oe-items-list"></div>
+        <div class="add-row mt-2">
+          <select id="oe-add-item" class="form-input" style="flex:1;font-size:13px"><option value="">Agregar producto o KIT...</option></select>
+          <button class="add-row-btn" onclick="addOeItem()"><i class="ti ti-plus"></i></button>
+        </div>
+      </div>
       <div class="form-row">
         <div class="form-group"><div class="form-label">Cliente</div><input class="form-input" id="oe-cliente" placeholder="Nombre"></div>
         <div class="form-group"><div class="form-label">Teléfono</div><input class="form-input" id="oe-telefono" placeholder="+56 9..." type="tel"></div>
@@ -1332,7 +1341,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   </div>
   <div class="sheet-footer">
     <button class="btn btn-outline" onclick="closeOrderEditSheet()" style="flex:1;width:auto">Cancelar</button>
-    <button class="btn btn-primary" onclick="saveOrderEdit()" style="flex:2"><i class="ti ti-check"></i> Guardar cambios</button>
+    <button class="btn btn-primary" id="oe-save-btn" onclick="saveOrderEdit()" style="flex:2"><i class="ti ti-check"></i> Guardar cambios</button>
   </div>
 </div>
 
@@ -1892,6 +1901,7 @@ function exitTenant() {
 // ── ORDER STATUS META ─────────────────────────
 const ORDER_STATUS_META = {
   por_confirmar:       { label:'Por confirmar',     css:'ord-por_confirmar',      icon:'ti-clock-exclamation' },
+  confirmando:         { label:'Confirmando',       css:'ord-confirmando',        icon:'ti-edit' },
   por_hacer:           { label:'Por hacer',         css:'ord-por_hacer',          icon:'ti-circle' },
   en_preparacion:      { label:'En preparación',    css:'ord-en_preparacion',     icon:'ti-tool' },
   lista_para_facturar: { label:'Lista p/ facturar', css:'ord-lista_para_facturar',icon:'ti-receipt' },
@@ -1983,19 +1993,19 @@ async function advanceOrderStatus(id) {
 }
 
 // Pre Compra: la orden llegó vía API de un sistema tercero (order_type:
-// 'pre_compra') y nació en 'por_confirmar'. Este botón la pasa a 'por_hacer'
-// para que entre al flujo normal — si hay que corregir algo antes, se usa
-// el botón "Editar info" (lápiz) que ya existe en el detalle de la orden.
-async function confirmPreCompra(id) {
+// 'pre_compra') y nació en 'por_confirmar'. Este botón la pasa a
+// 'confirmando' y abre el editor completo (incluye agregar/quitar
+// productos) — de ahí, "Confirmar Compra" la deja en 'por_hacer' y sigue
+// el flujo normal (ver openOrderEditSheet / saveOrderEdit).
+async function startPreCompraConfirmation(id) {
   const v = S.ventas.find(x => x.id === id);
   if (!v) return;
   try {
-    const updated = await apiFetch(`/api/orders/${id}`, { method:'PUT', body: JSON.stringify({ status: 'por_hacer' }) });
+    const updated = await apiFetch(`/api/orders/${id}`, { method:'PUT', body: JSON.stringify({ status: 'confirmando' }) });
     v.status = updated.status;
-    toast('✅ Pre compra confirmada');
     if (S.currentPage === 'ventas') renderVentas();
-    if (currentDetalleId === id) openOrdenDetalle(id, false);
-  } catch(e) { toast('⚠️ Error al confirmar'); }
+    openOrderEditSheet(id);
+  } catch(e) { toast('⚠️ Error al iniciar la confirmación'); }
 }
 
 // ── CHECKLIST "INICIAR PREPARACIÓN" ───────────
@@ -6703,8 +6713,12 @@ function openOrdenDetalle(id, pushURL = true) {
         ${v.payment_method?`<div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:5px;display:flex;align-items:center;gap:5px"><i class="ti ti-credit-card" style="font-size:13px;color:var(--text3)"></i>${v.payment_method}</div>`:''}
         ${v.sales_channel?`<div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:3px;display:flex;align-items:center;gap:5px"><i class="ti ti-broadcast" style="font-size:13px;color:var(--text3)"></i>${v.sales_channel}</div>`:''}
         ${v.status==='por_confirmar'
-          ? `<button class="advance-btn" onclick="event.stopPropagation();confirmPreCompra('${v.id}')" style="margin-top:10px;width:100%;justify-content:center;background:var(--red-light);border-color:var(--red);color:var(--red)">
-               <i class="ti ti-check"></i> Confirmar pre compra
+          ? `<button class="advance-btn" onclick="event.stopPropagation();startPreCompraConfirmation('${v.id}')" style="margin-top:10px;width:100%;justify-content:center;background:var(--red-light);border-color:var(--red);color:var(--red)">
+               <i class="ti ti-edit"></i> Iniciar confirmación de compra
+             </button>`
+          : (v.status==='confirmando'
+          ? `<button class="advance-btn" onclick="event.stopPropagation();openOrderEditSheet('${v.id}')" style="margin-top:10px;width:100%;justify-content:center;background:var(--blue-light);border-color:var(--blue);color:var(--blue-dark)">
+               <i class="ti ti-edit"></i> Continuar confirmación
              </button>`
           : (STATUS_NEXT[v.status]
           ? `<button class="advance-btn" onclick="event.stopPropagation();${STATUS_NEXT[v.status]==='en_preparacion' ? `openPrepChecklist('${v.id}')` : `advanceOrderStatus('${v.id}')`}" style="margin-top:10px;width:100%;justify-content:center">
@@ -6718,6 +6732,7 @@ function openOrdenDetalle(id, pushURL = true) {
                   ? `<div style="margin-top:8px;font-size:12px;font-weight:700;color:var(--green-dark);display:flex;align-items:center;gap:5px"><i class="ti ti-circle-check"></i>Completada</div>`
                   : '')
              )
+          )
           )
         }
       </div>
@@ -6795,6 +6810,23 @@ function openOrderEditSheet(id, pushURL = true) {
   const v = S.ventas.find(o => o.id === id);
   if (!v) return;
   S._editingOrderId = id;
+  // Pre Compra en 'confirmando': habilita la sección de productos
+  // (agregar/quitar) y cambia el sheet a modo "Confirmar Compra".
+  S._oeConfirmingItems = v.status === 'confirmando';
+  document.getElementById('oe-items-section').style.display = S._oeConfirmingItems ? '' : 'none';
+  const oeTitleEl = document.getElementById('oe-sheet-title');
+  const oeSaveBtn = document.getElementById('oe-save-btn');
+  if (S._oeConfirmingItems) {
+    S._oeItems = (v.items || []).map(i => ({ ...i }));
+    oeTitleEl.innerHTML = '<i class="ti ti-edit" style="color:var(--blue-dark)"></i> Confirmar compra';
+    oeSaveBtn.innerHTML = '<i class="ti ti-check"></i> Confirmar compra';
+    _populateOeItemSelect();
+    renderOeItemsList();
+  } else {
+    S._oeItems = null;
+    oeTitleEl.innerHTML = '<i class="ti ti-pencil" style="color:var(--primary)"></i> Editar orden';
+    oeSaveBtn.innerHTML = '<i class="ti ti-check"></i> Guardar cambios';
+  }
   document.getElementById('oe-cliente').value = v.cliente || '';
   document.getElementById('oe-telefono').value = v.telefono || '';
   _populateOptionSelect('oe-payment-method', 'paymentMethods', v.payment_method || '');
@@ -7091,11 +7123,80 @@ async function applyOeCoupon() {
   }
   oeUpdateTotal();
 }
+// ── Pre Compra "Confirmando": agregar/quitar productos ──
+// Mismo patrón que el picker de "Duplicar orden" (_populateDupSelect /
+// renderDuplicarItemsList), pero opera sobre S._oeItems y termina guardando
+// contra la orden existente (ver saveOrderEdit) en vez de crear una nueva.
+function _populateOeItemSelect() {
+  const sel = document.getElementById('oe-add-item');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Agregar producto o KIT...</option>';
+  S.kits.filter(k => (k.warehouse_id||'') === '').forEach(k => {
+    const o = document.createElement('option');
+    o.value = 'kit:' + k.sku + ':';
+    o.textContent = `[KIT] ${_truncLabel(k.name)} — ${fmt(k.price)} (${kitStock(k)} disp.)`;
+    sel.appendChild(o);
+  });
+  const whs = getWarehouses();
+  S.products.filter(p => p.tipo==='producto' || p.tipo==='ambos').forEach(p => {
+    const wh = whs.find(w => w.id === p.warehouse_id);
+    const wLabel = wh ? ` [${_truncLabel(wh.name, 14)}]` : '';
+    const o = document.createElement('option');
+    o.value = `prod:${p.sku}:${p.warehouse_id||''}`;
+    o.textContent = `[${tipoMeta[p.tipo]?.label||p.tipo}] ${_truncLabel(p.name)}${wLabel} — ${fmt(p.price)} (${p.stock} stk)`;
+    sel.appendChild(o);
+  });
+}
+function renderOeItemsList() {
+  document.getElementById('oe-items-list').innerHTML = (S._oeItems||[]).map((item, idx) => `
+    <div class="venta-item-row">
+      ${tipoBadge(item.type === 'kit' ? 'kit' : (item.tipo||'producto'))}
+      <div class="venta-item-info">
+        <div class="venta-item-name">${item.name}</div>
+        <div class="venta-item-price">${fmt(item.price)} c/u</div>
+      </div>
+      <div class="qty-ctrl">
+        <button onclick="adjOeItemQty(${idx},-1)">−</button>
+        <span>${item.qty}</span>
+        <button onclick="adjOeItemQty(${idx},1)">+</button>
+      </div>
+      <span class="venta-subtotal">${fmt(item.qty * item.price)}</span>
+      <button class="btn-icon-sm" onclick="S._oeItems.splice(${idx},1);renderOeItemsList();oeUpdateTotal()"><i class="ti ti-trash"></i></button>
+    </div>`).join('') || '<div style="color:var(--text3);font-size:13px;font-weight:600;padding:8px 0">Sin productos</div>';
+  oeUpdateTotal();
+}
+function adjOeItemQty(idx, d) {
+  S._oeItems[idx].qty = Math.max(1, S._oeItems[idx].qty + d);
+  renderOeItemsList();
+}
+function addOeItem() {
+  const sel = document.getElementById('oe-add-item');
+  const val = sel.value;
+  if (!val) { toast('⚠️ Selecciona un producto'); return; }
+  const parts = val.split(':');
+  const type = parts[0], sku = parts[1], warehouse_id = parts[2] || '';
+  let name, price, tipo;
+  if (type === 'kit') {
+    const k = S.kits.find(x => x.sku === sku && (x.warehouse_id||'') === '');
+    if (!k) return;
+    name = k.name; price = k.price; tipo = 'kit';
+  } else {
+    const p = S.products.find(x => x.sku === sku && (x.warehouse_id||'') === warehouse_id);
+    if (!p) return;
+    name = p.name; price = p.price; tipo = p.tipo;
+  }
+  const ex = S._oeItems.find(i => i.sku === sku && i.type === type && (i.warehouse_id||'') === warehouse_id);
+  if (ex) ex.qty++;
+  else S._oeItems.push({ type, sku, name, price, qty:1, tipo, warehouse_id });
+  sel.value = '';
+  renderOeItemsList();
+}
+
 function oeUpdateTotal() {
   const el = document.getElementById('oe-total');
   const v  = S.ventas.find(o => o.id === S._editingOrderId);
   if (!el || !v) return;
-  const itemsTotal = (v.items||[]).reduce((s,i)=>s+i.qty*i.price,0);
+  const itemsTotal = (S._oeConfirmingItems ? (S._oeItems||[]) : (v.items||[])).reduce((s,i)=>s+i.qty*i.price,0);
   const discount = _oeCouponDiscountAmount(itemsTotal);
   // Only trust the live-computed shipping once delivery was actually
   // touched — until then S._oeDelivery.slot_cost is reset to 0 (see
@@ -7123,6 +7224,9 @@ function closeOrderEditSheet() {
 async function saveOrderEdit() {
   const id = S._editingOrderId;
   if (!id) return;
+  if (S._oeConfirmingItems && (!S._oeItems || !S._oeItems.length)) {
+    toast('⚠️ Agrega al menos un producto'); return;
+  }
   if (S._oeDeliveryTouched) {
     if (!S._oeDelivery.method_type) { toast('⚠️ Selecciona una forma de entrega'); return; }
     if (!S._oeDelivery.date)        { toast('⚠️ Selecciona la fecha de entrega'); return; }
@@ -7131,7 +7235,7 @@ async function saveOrderEdit() {
     if (addrVisible && !document.getElementById('oe-addr-street').value.trim()) { toast('⚠️ Ingresa la dirección de entrega'); return; }
   }
   const v = S.ventas.find(o => o.id === id);
-  const itemsTotal = v ? (v.items||[]).reduce((s,i)=>s+i.qty*i.price,0) : 0;
+  const itemsTotal = (S._oeConfirmingItems ? (S._oeItems||[]) : (v?.items||[])).reduce((s,i)=>s+i.qty*i.price,0);
   // '' means "no coupon" (cleared or never had one); the backend claims/
   // releases/swaps against the coupon this differs from on the stored order.
   const couponCode = S._oeCouponCleared ? '' : (S._oeCoupon ? S._oeCoupon.code : (v?.coupon_code || ''));
@@ -7191,10 +7295,19 @@ async function saveOrderEdit() {
       coupon_code: couponCode, discount_amount: discountPreview, refund_amount: payload.refund_amount,
       total: totalPreview,
       delivery: { ...(S.ventas[idx].delivery||{}), receptor: payload.receptor, receptor_telefono: payload.receptor_telefono, ...(payload.delivery_update||{}) },
+      ...(S._oeConfirmingItems ? { items: S._oeItems, status: 'por_hacer' } : {}),
     };
   };
   if (S._apiReady) {
     try {
+      // Pre Compra "Confirmando": guarda primero los productos (reconcilia
+      // stock) y transiciona a 'por_hacer' en la misma llamada, ANTES del
+      // PUT de info — así el total que recalcula el PUT de info ya parte
+      // de los items finales.
+      if (S._oeConfirmingItems) {
+        const { updatedProducts } = await apiFetch(`/api/orders/${id}`, { method:'PUT', body: JSON.stringify({ action:'items', items: S._oeItems, status:'por_hacer' }) });
+        if (updatedProducts) S.products = updatedProducts;
+      }
       const updated = await apiFetch(`/api/orders/${id}`, { method:'PUT', body: JSON.stringify(payload) });
       applyLocal(updated);
     } catch(e) {
@@ -7203,9 +7316,12 @@ async function saveOrderEdit() {
   } else {
     applyLocal(null);
   }
+  const wasConfirming = S._oeConfirmingItems;
   S._editingOrderId = null;
+  S._oeConfirmingItems = false;
+  S._oeItems = null;
   closeOrderEditSheet();
-  toast('✅ Orden actualizada');
+  toast(wasConfirming ? '✅ Pre compra confirmada' : '✅ Orden actualizada');
   openOrdenDetalle(id);
   renderVentas();
 }
