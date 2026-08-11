@@ -1050,7 +1050,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="form-row">
         <div class="form-group">
           <div class="form-label">Unidad de stock</div>
-          <input class="form-input" id="p-stock-unit" list="datalist-stock-units" placeholder="Ej: unidad, lámina, ml" oninput="_refreshStockCalcVisibility()">
+          <input class="form-input" id="p-stock-unit" list="datalist-stock-units" placeholder="Ej: unidad, lámina, ml" oninput="_onUnitFieldsInput()">
           <datalist id="datalist-stock-units">
             <option value="unidad"><option value="lámina"><option value="gramo"><option value="ml"><option value="kg"><option value="litro">
           </datalist>
@@ -1059,8 +1059,8 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="form-group">
         <div class="form-label">Unidad de compra <span style="font-weight:600;color:var(--text3)">(opcional — para convertir al cargar stock)</span></div>
         <div class="form-row">
-          <div class="form-group"><input class="form-input" id="p-purchase-unit" placeholder="Ej: paquete, botella" oninput="_refreshStockCalcVisibility()"></div>
-          <div class="form-group" style="max-width:110px"><input class="form-input" type="number" min="1" id="p-purchase-factor" placeholder="Ej: 16" oninput="_refreshStockCalcVisibility()"></div>
+          <div class="form-group"><input class="form-input" id="p-purchase-unit" placeholder="Ej: paquete, botella" oninput="_onUnitFieldsInput()"></div>
+          <div class="form-group" style="max-width:110px"><input class="form-input" type="number" min="1" id="p-purchase-factor" placeholder="Ej: 16" oninput="_onUnitFieldsInput()"></div>
         </div>
         <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:2px">Ej: 1 "paquete" = 16 "lámina". Déjalo vacío si compras en la misma unidad del stock.</div>
       </div>
@@ -3363,6 +3363,8 @@ function _renderProdStockRows() {
   const container = document.getElementById('p-stock-multi-rows');
   if (!container) return;
   const usedIds = S.tempProdStockRows.map(r => r.warehouse_id);
+  const calcCfg = _stockCalcConfig();
+  const showCalc = !!(calcCfg && calcCfg.unit && calcCfg.factor > 1);
   container.innerHTML = S.tempProdStockRows.map((r, idx) => {
     const available = whs.filter(w => w.id === r.warehouse_id || !usedIds.includes(w.id));
     const whOptions = whs.length
@@ -3372,9 +3374,27 @@ function _renderProdStockRows() {
       <div class="form-group"><div class="form-label">Tienda</div><select class="form-input" onchange="updateProdStockRow(${idx},'warehouse_id',this.value)">${whOptions}</select></div>
       <div class="form-group" style="max-width:90px"><div class="form-label">Stock</div><input class="form-input" type="number" value="${r.stock}" oninput="updateProdStockRow(${idx},'stock',this.value)"></div>
       <div class="form-group" style="max-width:90px"><div class="form-label">Alerta &lt;</div><input class="form-input" type="number" value="${r.threshold}" oninput="updateProdStockRow(${idx},'threshold',this.value)"></div>
+      ${showCalc ? `<button type="button" class="btn-icon-sm" onclick="promptMultiRowStockCalc(${idx})" title="Cargar por unidad de compra (${calcCfg.unit})" style="margin-bottom:10px"><i class="ti ti-calculator"></i></button>` : ''}
       ${S.tempProdStockRows.length>1 ? `<button type="button" class="btn-icon-sm" onclick="removeProdStockRow(${idx})" title="Quitar" style="margin-bottom:10px"><i class="ti ti-trash"></i></button>` : '<span style="width:32px"></span>'}
     </div>`;
   }).join('');
+}
+// Calculadora por fila del grid "stock inicial por tienda" — usa un prompt()
+// simple (mismo patrón que renombrar grupo/categoría en esta app) porque cada
+// fila es angosta y no hay espacio para el bloque expandible de p-stock-calc.
+function promptMultiRowStockCalc(idx) {
+  const cfg = _stockCalcConfig();
+  if (!cfg || !cfg.unit || cfg.factor <= 1) return;
+  const input = prompt(`¿Cuántas "${cfg.unit}" recibiste en esta tienda?\n(1 ${cfg.unit} = ${cfg.factor} ${cfg.stockUnit})`, '1');
+  if (input === null) return;
+  const qty = parseFloat(input) || 0;
+  if (qty <= 0) { toast('⚠️ Ingresa una cantidad válida'); return; }
+  const row = S.tempProdStockRows[idx];
+  if (!row) return;
+  const add = Math.round(qty * cfg.factor);
+  row.stock = (row.stock || 0) + add;
+  _renderProdStockRows();
+  toast(`✅ +${add} ${cfg.stockUnit} agregado${add===1?'':'s'} (${qty} ${cfg.unit})`);
 }
 function addProdStockRow() {
   const whs = getWarehouses();
@@ -3717,6 +3737,15 @@ function _refreshStockCalcVisibility() {
     wrap.style.display = 'none';
     document.getElementById('p-stock-calc-body').style.display = 'none';
   }
+}
+// Se llama al tipear en Unidad de stock / Unidad de compra / Factor: refresca
+// la calculadora de la fila única (p-stock-calc) y, si está abierto el grid
+// de "stock inicial por tienda" (producto nuevo en varias tiendas), lo
+// vuelve a pintar para que cada fila muestre/oculte su propio botón 🧮.
+function _onUnitFieldsInput() {
+  _refreshStockCalcVisibility();
+  const multi = document.getElementById('p-stock-multi');
+  if (multi && multi.style.display !== 'none') _renderProdStockRows();
 }
 function toggleStockCalc() {
   const body = document.getElementById('p-stock-calc-body');
