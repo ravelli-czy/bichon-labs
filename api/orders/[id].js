@@ -4,6 +4,8 @@ const cors = require('../_cors');
 const { writeLog } = require('../_log');
 const { getSession, resolveTenantId } = require('../_tenant');
 const { claimCoupon, releaseCoupon, computeDiscountAmount, normalizeCode } = require('../_coupons');
+const { loadCostMaps, withFinancialSnapshot } = require('../_finance');
+const { deductStockForItems, restoreStockForItems } = require('../_stock');
 
 module.exports = async (req, res) => {
   if (cors(req, res)) return;
@@ -32,8 +34,77 @@ module.exports = async (req, res) => {
       const {
         status, action, cliente, telefono, dedicatoria, receptor, receptor_telefono,
         payment_method, sales_channel, location_id, delivery_update,
-        coupon_code, refund_amount, label_selections,
+        coupon_code, refund_amount, label_selections, items: rawItems,
       } = req.body || {};
+
+      // ── Pre Compra "Confirmando": editar productos (agregar/quitar) ───────
+      // Solo se permite mientras la orden está en 'confirmando' — es la única
+      // pantalla que ofrece este botón. Reconcilia el stock ya descontado al
+      // crear la orden contra los items nuevos (solo ajusta el delta, no
+      // restaura+rededuce todo), y opcionalmente transiciona el estado en la
+      // misma llamada (ver saveOrderEdit → 'Confirmar Compra' en el frontend,
+      // que manda status:'por_hacer' junto con los items finales).
+      if (action === 'items') {
+        if (!Array.isArray(rawItems) || !rawItems.length) {
+          return res.status(400).json({ error: 'items is required' });
+        }
+        const [before] = await sql`SELECT items, delivery, discount_amount, status, location_id FROM orders WHERE id = ${id} AND tenant_id = ${tenantId}`;
+        if (!before) return res.status(404).json({ error: 'Order not found' });
+        if (before.status !== 'confirmando') {
+          return res.status(400).json({ error: 'Solo se pueden editar productos mientras la orden está en Confirmando' });
+        }
+
+        const items = withFinancialSnapshot(rawItems, await loadCostMaps(sql, tenantId));
+
+        // Diff contra los items anteriores para solo mover el delta de stock
+        // (no restaurar todo y volver a descontar todo), agrupando por
+        // sku+type+warehouse_id igual que hace el picker de productos.
+        const keyOf = i => `${i.type || 'product'}:${i.sku}:${i.warehouse_id || ''}`;
+        const oldMap = new Map((before.items || []).map(i => [keyOf(i), i]));
+        const newMap = new Map(items.map(i => [keyOf(i), i]));
+        const toDeduct = [], toRestore = [];
+        for (const [key, item] of newMap) {
+          const delta = (item.qty || 0) - (oldMap.get(key)?.qty || 0);
+          if (delta > 0) toDeduct.push({ ...item, qty: delta });
+          else if (delta < 0) toRestore.push({ ...item, qty: -delta });
+        }
+        for (const [key, item] of oldMap) {
+          if (!newMap.has(key)) toRestore.push(item);
+        }
+        const locationId = before.location_id || '';
+        if (toDeduct.length) await deductStockForItems(sql, toDeduct, tenantId, '', locationId);
+        if (toRestore.length) await restoreStockForItems(sql, toRestore, tenantId, '', locationId);
+
+        const itemsSubtotal = items.reduce((s, i) => s + (i.price || 0) * (i.qty || 0), 0);
+        const shippingRevenue = before.delivery?.slot_cost || 0;
+        const total = itemsSubtotal - (before.discount_amount || 0) + shippingRevenue;
+        const nextStatus = status || before.status;
+
+        const [row] = await sql`
+          UPDATE orders SET
+            items      = ${JSON.stringify(items)},
+            total      = ${total},
+            status     = ${nextStatus},
+            updated_by = ${actor},
+            updated_at = NOW()
+          WHERE id = ${id} AND tenant_id = ${tenantId}
+          RETURNING *
+        `;
+        if (!row) return res.status(404).json({ error: 'Order not found' });
+
+        await writeLog(sql, {
+          tenant_id:   tenantId,
+          actor,
+          action:      'orden.items_editados',
+          entity_type: 'orden',
+          entity_id:   id,
+          entity_name: `${id} — ${row.cliente}`,
+          details:     { items_count: items.length, total, from_status: before.status, to_status: nextStatus },
+        });
+
+        const updatedProducts = await sql`SELECT * FROM products WHERE tenant_id = ${tenantId} ORDER BY name`;
+        return res.json({ order: row, updatedProducts });
+      }
 
       // Update customer-facing info fields
       if (action === 'info') {

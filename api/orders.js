@@ -10,6 +10,7 @@ const { handleFinanceResource, FINANCE_RESOURCES } = require('./_finance_routes'
 const { handleCouponsResource, COUPON_RESOURCES } = require('./_coupons_routes');
 const { claimCoupon, computeDiscountAmount } = require('./_coupons');
 const { handleStockAlertsResource, STOCK_ALERT_RESOURCES, handleStockAlertsCron } = require('./_stock_alerts_routes');
+const { deductStockForItems } = require('./_stock');
 
 // Resolves which specific warehouse row to decrement a KIT component's
 // stock from. A KIT's components can live in DIFFERENT almacenes of the
@@ -21,33 +22,6 @@ const { handleStockAlertsResource, STOCK_ALERT_RESOURCES, handleStockAlertsCron 
 // when that's ambiguous (0 or >1 matches) or there's no location at all —
 // this used to silently no-op (UPDATE matching 0 rows) whenever wid didn't
 // happen to equal the component's real warehouse_id.
-async function _componentWarehouseId(sql, tenantId, sku, locationId, fallbackWid) {
-  if (locationId) {
-    const rows = await sql`
-      SELECT p.warehouse_id
-      FROM products p
-      JOIN warehouses w ON w.id = p.warehouse_id AND w.tenant_id = p.tenant_id
-      WHERE p.sku = ${sku} AND p.tenant_id = ${tenantId} AND w.local_id = ${locationId}
-    `;
-    if (rows.length === 1) return rows[0].warehouse_id;
-  }
-  return fallbackWid;
-}
-
-async function _deductKit(sql, kitSku, qty, wid, tenantId, locationId) {
-  const [kit] = await sql`SELECT items FROM kits WHERE sku = ${kitSku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
-  if (!kit?.items) return;
-  for (const comp of kit.items) {
-    if (comp.type === 'kit') {
-      await _deductKit(sql, comp.sku, comp.qty * qty, wid, tenantId, locationId);
-    } else {
-      const compWid = await _componentWarehouseId(sql, tenantId, comp.sku, locationId, wid);
-      await sql`UPDATE products SET stock = GREATEST(0, stock - ${comp.qty * qty}), updated_at = NOW()
-        WHERE sku = ${comp.sku} AND warehouse_id = ${compWid} AND tenant_id = ${tenantId}`;
-    }
-  }
-}
-
 // Resolves a local_id for an order's location_id backfill (ver
 // ?action=backfill-location más abajo) straight from its delivery method —
 // each local configures its own delivery_methods with its own name
@@ -430,19 +404,7 @@ module.exports = async (req, res) => {
       }
 
       // Decrement stock for each sold item (scoped to tenant + warehouse)
-      for (const item of items) {
-        // warehouse_id per item; fall back to order-level warehouse_id
-        const wid = item.warehouse_id || orderWarehouseId || '';
-        if (item.type === 'kit') {
-          await _deductKit(sql, item.sku, item.qty, wid, tenantId, locationId);
-        } else {
-          await sql`
-            UPDATE products
-            SET stock = GREATEST(0, stock - ${item.qty}), updated_at = NOW()
-            WHERE sku = ${item.sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
-          `;
-        }
-      }
+      await deductStockForItems(sql, items, tenantId, orderWarehouseId, locationId);
 
       // Auto-create shipment from order data
       let shipment = null;
