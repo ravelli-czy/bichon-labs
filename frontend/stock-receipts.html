@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockFlow — Ingreso de inventario</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.8.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f5f6fa;--bg2:#fff;--bg3:#f0f1f7;
+  --text:#1a1a2e;--text2:#5a5b7a;--text3:#9a9bb8;--border:#e4e5f0;
+  --primary:#5b4fff;--primary-light:#ede9ff;--primary-dark:#4035cc;
+  --green:#16c98d;--green-light:#e6faf4;--green-dark:#0da070;
+  --red:#ff4d6d;--red-light:#fff0f3;--red-dark:#cc3a56;
+  --amber:#f59e0b;--amber-light:#fffbeb;--amber-dark:#d97706;
+  --r:12px;--r-lg:16px;--sh:0 2px 12px rgba(91,79,255,.08);
+}
+body.dark-mode{
+  --bg:#14141f;--bg2:#1c1c2b;--bg3:#242438;
+  --text:#f0f0f5;--text2:#b8b8cc;--text3:#7d7d99;--border:#34344a;
+  --primary-light:#26224a;--green-light:#12332a;--red-light:#3a1620;--amber-light:#3a2c10;
+  --sh:0 2px 14px rgba(0,0,0,.4);
+}
+body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh}
+
+.topbar{background:var(--bg2);padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:var(--sh)}
+.back-btn{display:flex;align-items:center;gap:6px;background:var(--bg3);border:none;border-radius:10px;padding:7px 12px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;color:var(--text2);cursor:pointer;text-decoration:none}
+.logo-icon{width:36px;height:36px;background:var(--primary);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-icon i{color:#fff;font-size:19px}
+.topbar-title{font-weight:900;font-size:17px}
+.topbar-sub{font-size:10px;color:var(--text3);font-weight:700}
+.topbar-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.icon-btn{width:36px;height:36px;border-radius:10px;background:var(--bg3);border:none;display:flex;align-items:center;justify-content:center;color:var(--text2);cursor:pointer;font-size:17px}
+.icon-btn:hover{background:var(--border)}
+
+.content{padding:16px;max-width:900px;margin:0 auto;padding-bottom:60px}
+.card{background:var(--bg2);border-radius:var(--r-lg);padding:18px;margin-bottom:16px;box-shadow:var(--sh)}
+.card-title{font-size:15px;font-weight:900;display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.card-title i{color:var(--primary)}
+
+.tabs{display:flex;gap:6px;background:var(--bg3);border-radius:12px;padding:4px;margin-bottom:16px}
+.tab-btn{flex:1;font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;border:none;border-radius:9px;padding:9px 12px;cursor:pointer;background:transparent;color:var(--text2);display:flex;align-items:center;justify-content:center;gap:6px}
+.tab-btn.active{background:var(--bg2);color:var(--primary);box-shadow:var(--sh)}
+
+.btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;border:none;border-radius:10px;padding:10px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-outline{background:var(--bg2);color:var(--text2);border:1.5px solid var(--border)}
+.btn-outline:hover{border-color:var(--primary);color:var(--primary)}
+.btn-sm{padding:6px 10px;font-size:12px;border-radius:8px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-icon-sm{width:32px;height:32px;border-radius:8px;background:var(--bg3);border:none;color:var(--text3);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.btn-icon-sm:hover{background:var(--red-light);color:var(--red-dark)}
+
+.form-group{margin-bottom:12px}
+.form-row{display:flex;gap:10px;flex-wrap:wrap}
+.form-row .form-group{flex:1;min-width:160px}
+.form-label{font-size:12px;font-weight:800;color:var(--text2);margin-bottom:5px}
+.form-input, .form-select{width:100%;background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-family:'Nunito',sans-serif;font-size:13.5px;color:var(--text);outline:none}
+.form-input:focus, .form-select:focus{border-color:var(--primary);background:var(--bg2)}
+.form-hint{font-size:11px;color:var(--text3);font-weight:600;margin-top:5px}
+.form-error{color:var(--red-dark);font-size:12px;font-weight:700;margin-top:8px}
+
+.receipt-line{background:var(--bg3);border-radius:12px;padding:14px;margin-bottom:10px;border:1px solid var(--border)}
+.receipt-line-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.receipt-line-num{font-size:11px;font-weight:900;color:var(--text3);text-transform:uppercase}
+.receipt-preview{font-size:12.5px;font-weight:800;color:var(--green-dark);background:var(--green-light);border-radius:8px;padding:8px 10px;margin-top:2px}
+.receipt-preview.muted{color:var(--text3);background:var(--bg2)}
+
+.empty-state{text-align:center;padding:50px 20px;color:var(--text3)}
+.empty-state i{font-size:42px;margin-bottom:10px;display:block}
+.empty-state p{font-size:13.5px;font-weight:700;line-height:1.5}
+.skeleton{background:linear-gradient(90deg,var(--bg3) 25%,var(--border) 50%,var(--bg3) 75%);background-size:200% 100%;animation:shimmer 1.2s infinite;border-radius:var(--r-lg);height:56px;margin-bottom:8px}
+@keyframes shimmer{to{background-position:-200% 0}}
+
+table.wh-table{width:100%;border-collapse:collapse;font-size:12.5px}
+table.wh-table th{text-align:left;font-size:10.5px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.2px;padding:6px 8px;border-bottom:1.5px solid var(--border);white-space:nowrap}
+table.wh-table td{padding:8px;border-bottom:1px solid var(--border);white-space:nowrap}
+table.wh-table tr:last-child td{border-bottom:none}
+
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;padding:11px 20px;border-radius:24px;font-size:13px;font-weight:800;z-index:999;opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap;max-width:90vw;text-overflow:ellipsis;overflow:hidden}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/" class="back-btn"><i class="ti ti-arrow-left"></i> Inicio</a>
+  <div class="logo-icon"><i class="ti ti-truck-delivery"></i></div>
+  <div>
+    <div class="topbar-title">Ingreso de inventario</div>
+    <div class="topbar-sub">Registra compras y conviértelas a stock automáticamente</div>
+  </div>
+  <div class="topbar-right">
+    <button class="icon-btn" id="dark-mode-btn" onclick="toggleDarkMode()" title="Modo oscuro"><span id="dark-mode-icon">🌙</span></button>
+  </div>
+</div>
+
+<div class="content">
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-btn-ingresar" onclick="switchTab('ingresar')"><i class="ti ti-package-import"></i> Ingresar</button>
+    <button class="tab-btn" id="tab-btn-historial" onclick="switchTab('historial')"><i class="ti ti-history"></i> Historial</button>
+  </div>
+
+  <!-- INGRESAR -->
+  <div id="panel-ingresar">
+    <div class="card">
+      <div class="card-title"><i class="ti ti-shopping-cart"></i> Compra a registrar</div>
+      <div id="receipt-lines"></div>
+      <button class="btn btn-outline btn-sm" onclick="addReceiptLine()" style="margin-top:2px"><i class="ti ti-plus"></i> Agregar línea</button>
+      <div class="form-error" id="receipt-error" style="display:none;margin-top:12px"></div>
+      <button class="btn btn-primary" id="btn-confirm-receipt" onclick="confirmReceipt()" style="margin-top:16px"><i class="ti ti-check"></i> Confirmar ingreso</button>
+    </div>
+  </div>
+
+  <!-- HISTORIAL -->
+  <div id="panel-historial" style="display:none">
+    <div class="card">
+      <div class="card-title"><i class="ti ti-history"></i> Historial de recepciones</div>
+      <div id="receipts-loading"><div class="skeleton"></div><div class="skeleton" style="opacity:.6"></div></div>
+      <div style="overflow-x:auto">
+        <table class="wh-table" id="receipts-table" style="display:none">
+          <thead><tr><th>Fecha</th><th>Producto</th><th>Forma de compra</th><th>Cantidad</th><th>Costo total</th><th>+ Stock</th><th>Costo unit.</th><th>Costo prom.</th><th>Usuario</th></tr></thead>
+          <tbody id="receipts-tbody"></tbody>
+        </table>
+      </div>
+      <div id="receipts-empty" class="empty-state" style="display:none">
+        <i class="ti ti-clipboard-off"></i>
+        <p>Todavía no se registró ninguna recepción de inventario.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Auth / tenant context (mismo esquema que stock-alerts.html) ────────────
+const token    = localStorage.getItem('sf_token') || '';
+const tenantId = localStorage.getItem('sf_tenant_id') || '';
+let CURRENT_ROLE = localStorage.getItem('sf_role') || 'staff';
+
+function authHeaders(extra = {}) {
+  const h = { Authorization: 'Bearer ' + token, ...extra };
+  if (tenantId) h['X-Tenant-Id'] = tenantId;
+  return h;
+}
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(opts.headers || {}) } });
+  if (r.status === 401) { localStorage.removeItem('sf_token'); location.replace('/login'); throw new Error('Unauthorized'); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || 'Error de red');
+  return data;
+}
+
+const money = n => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Math.round(n || 0));
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('es-CL', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+function escHtml(s) { return (s || '').toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+// ── Dark mode (comparte localStorage con index.html) ────────────────────────
+function _prefsKey() { return 'sf_prefs_' + (tenantId || 'default'); }
+function getPrefs() { try { return JSON.parse(localStorage.getItem(_prefsKey()) || '{}'); } catch { return {}; } }
+function savePref(key, val) { try { const p = getPrefs(); p[key] = val; localStorage.setItem(_prefsKey(), JSON.stringify(p)); } catch {} }
+function applyDarkMode() {
+  const on = !!getPrefs().darkMode;
+  document.body.classList.toggle('dark-mode', on);
+  const icon = document.getElementById('dark-mode-icon');
+  if (icon) icon.textContent = on ? '☀️' : '🌙';
+}
+function toggleDarkMode() { savePref('darkMode', !document.body.classList.contains('dark-mode')); applyDarkMode(); }
+applyDarkMode();
+
+(function applyTenantColor() {
+  const color = localStorage.getItem('sf_tenant_color');
+  if (color) document.documentElement.style.setProperty('--primary', color);
+})();
+
+// ── Tabs ─────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById('panel-ingresar').style.display  = tab === 'ingresar'  ? '' : 'none';
+  document.getElementById('panel-historial').style.display = tab === 'historial' ? '' : 'none';
+  document.getElementById('tab-btn-ingresar').classList.toggle('active', tab === 'ingresar');
+  document.getElementById('tab-btn-historial').classList.toggle('active', tab === 'historial');
+  if (tab === 'historial') loadReceipts();
+}
+
+// ── Auth guard ───────────────────────────────────────────────────────────
+let PRODUCTS = [];
+let WAREHOUSE_NAMES = {}; // warehouse_id -> "Tienda — Almacén"
+(async () => {
+  if (!token) { location.href = '/login'; return; }
+  try {
+    const me = await fetch('/api/auth/me', { headers: authHeaders() }).then(r => r.ok ? r.json() : null);
+    if (!me) { location.href = '/login'; return; }
+    CURRENT_ROLE = me.role;
+    localStorage.setItem('sf_role', me.role);
+    if ((me.role === 'superadmin' || me.role === 'master') && !tenantId) { location.href = '/admin'; return; }
+  } catch { location.href = '/login'; return; }
+
+  try {
+    const locales = await api('/api/locales');
+    (locales || []).forEach(loc => (loc.warehouses || []).forEach(w => {
+      WAREHOUSE_NAMES[w.id] = (loc.warehouses.length > 1 || locales.length > 1) ? `${loc.name} — ${w.name}` : loc.name;
+    }));
+  } catch (e) { toast('⚠️ ' + e.message); }
+
+  try {
+    // Igual que Inventario (ver renderInventory en index.html): las filas con
+    // warehouse_id vacío son el registro de catálogo (sin stock físico), no
+    // se pueden reponer acá.
+    PRODUCTS = (await api('/api/products')).filter(p => (p.warehouse_id || '') !== '');
+  } catch (e) { toast('⚠️ ' + e.message); }
+
+  addReceiptLine();
+})();
+
+// ── INGRESAR: carrito de líneas ─────────────────────────────────────────
+let _lines = [];
+let _lineSeq = 0;
+function addReceiptLine() {
+  _lines.push({ id: ++_lineSeq, sku: '', warehouse_id: '', form_index: '', qty_purchased: '', total_cost: '' });
+  renderReceiptLines();
+}
+function removeReceiptLine(id) {
+  _lines = _lines.filter(l => l.id !== id);
+  if (!_lines.length) addReceiptLine(); else renderReceiptLines();
+}
+function _productKey(p) { return p.sku + '::' + (p.warehouse_id || ''); }
+function _lineProduct(line) {
+  return PRODUCTS.find(p => p.sku === line.sku && (p.warehouse_id || '') === line.warehouse_id);
+}
+function _lineForms(line) {
+  const p = _lineProduct(line);
+  return (p && Array.isArray(p.purchase_forms)) ? p.purchase_forms : [];
+}
+function _lineFactor(line) {
+  const forms = _lineForms(line);
+  if (line.form_index !== '' && forms[line.form_index]) return forms[line.form_index].factor || 1;
+  return 1; // "Directo" — compras en la misma unidad del stock
+}
+function _lineFormLabel(line) {
+  const forms = _lineForms(line);
+  if (line.form_index !== '' && forms[line.form_index]) return forms[line.form_index].label || '';
+  return '';
+}
+// El preview (+X unidades, $Y c/u) se actualiza aparte (updateLinePreview),
+// sin re-renderizar toda la línea — si qty/costo tecleado disparara un
+// wrap.innerHTML completo en cada tecla, el input perdería el foco después
+// de cada carácter (mismo problema que ya resolvió _renderProdStockRows en
+// index.html para stock/alerta).
+function _linePreviewHtml(line) {
+  const p = _lineProduct(line);
+  if (!p) return '';
+  const qty = parseFloat(line.qty_purchased) || 0;
+  const factor = _lineFactor(line);
+  const unitsAdded = Math.floor(qty * factor);
+  const totalCost = parseFloat(line.total_cost) || 0;
+  const unitCost = unitsAdded > 0 ? Math.round(totalCost / unitsAdded) : 0;
+  return qty > 0
+    ? `<div class="receipt-preview">+${unitsAdded} ${escHtml(p.stock_unit || 'unidad')}${totalCost > 0 ? ` · ${money(unitCost)} c/u` : ''}</div>`
+    : `<div class="receipt-preview muted">Ingresa la cantidad comprada para ver la conversión</div>`;
+}
+function updateLinePreview(id) {
+  const line = _lines.find(l => l.id === id);
+  const el = document.getElementById(`receipt-preview-${id}`);
+  if (line && el) el.innerHTML = _linePreviewHtml(line);
+}
+function renderReceiptLines() {
+  const wrap = document.getElementById('receipt-lines');
+  const productOptions = '<option value="">Selecciona un producto...</option>' + PRODUCTS
+    .slice().sort((a,b) => a.name.localeCompare(b.name))
+    .map(p => `<option value="${_productKey(p)}">${escHtml(p.name)} (${escHtml(p.sku)})${WAREHOUSE_NAMES[p.warehouse_id] ? ' — ' + escHtml(WAREHOUSE_NAMES[p.warehouse_id]) : ''} · stock actual: ${p.stock} ${escHtml(p.stock_unit || 'unidad')}</option>`)
+    .join('');
+
+  wrap.innerHTML = _lines.map((line, idx) => {
+    const p = _lineProduct(line);
+    const forms = _lineForms(line);
+
+    const formSelect = p
+      ? (forms.length
+          ? `<select class="form-input" onchange="updateReceiptLine(${line.id},'form_index',this.value)">
+               <option value="">Directo (${escHtml(p.stock_unit || 'unidad')}, factor 1)</option>
+               ${forms.map((f,fi) => `<option value="${fi}"${String(fi)===String(line.form_index)?' selected':''}>${escHtml(f.label)} (1 = ${f.factor} ${escHtml(p.stock_unit || 'unidad')})</option>`).join('')}
+             </select>`
+          : `<div class="form-input" style="background:var(--bg2);color:var(--text3)">Directo (${escHtml(p.stock_unit || 'unidad')}) — sin formas de compra configuradas</div>`)
+      : `<div class="form-input" style="background:var(--bg2);color:var(--text3)">Elige un producto primero</div>`;
+
+    return `<div class="receipt-line">
+      <div class="receipt-line-head">
+        <span class="receipt-line-num">Línea ${idx+1}</span>
+        ${_lines.length > 1 ? `<button type="button" class="btn-icon-sm" style="margin-left:auto" onclick="removeReceiptLine(${line.id})" title="Quitar"><i class="ti ti-trash"></i></button>` : ''}
+      </div>
+      <div class="form-group">
+        <div class="form-label">Producto</div>
+        <select class="form-input" onchange="updateReceiptLine(${line.id},'product',this.value)">${productOptions.replace(`value="${_productKey({sku:line.sku,warehouse_id:line.warehouse_id})}"`, `value="${_productKey({sku:line.sku,warehouse_id:line.warehouse_id})}" selected`)}</select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <div class="form-label">Forma de compra</div>
+          ${formSelect}
+        </div>
+        <div class="form-group">
+          <div class="form-label">Cantidad comprada</div>
+          <input class="form-input" type="number" min="0" step="any" value="${line.qty_purchased}" oninput="updateReceiptLine(${line.id},'qty_purchased',this.value)">
+        </div>
+        <div class="form-group">
+          <div class="form-label">Costo total pagado</div>
+          <input class="form-input" type="number" min="0" step="any" placeholder="$0" value="${line.total_cost}" oninput="updateReceiptLine(${line.id},'total_cost',this.value)">
+        </div>
+      </div>
+      <div id="receipt-preview-${line.id}">${_linePreviewHtml(line)}</div>
+    </div>`;
+  }).join('');
+}
+function updateReceiptLine(id, field, value) {
+  const line = _lines.find(l => l.id === id);
+  if (!line) return;
+  if (field === 'product') {
+    const [sku, warehouse_id] = value.split('::');
+    line.sku = sku || '';
+    line.warehouse_id = warehouse_id || '';
+    line.form_index = '';
+    renderReceiptLines();
+  } else if (field === 'form_index') {
+    line.form_index = value;
+    updateLinePreview(id);
+  } else {
+    line[field] = value;
+    updateLinePreview(id);
+  }
+}
+
+async function confirmReceipt() {
+  const errEl = document.getElementById('receipt-error');
+  errEl.style.display = 'none';
+
+  const payloadLines = [];
+  for (const line of _lines) {
+    if (!line.sku && !line.qty_purchased && !line.total_cost) continue; // ignora líneas vacías
+    if (!line.sku) { errEl.textContent = 'Selecciona un producto en cada línea'; errEl.style.display = ''; return; }
+    const qty = parseFloat(line.qty_purchased);
+    if (!(qty > 0)) { errEl.textContent = `Ingresa una cantidad válida para ${_lineProduct(line)?.name || line.sku}`; errEl.style.display = ''; return; }
+    payloadLines.push({
+      sku: line.sku,
+      warehouse_id: line.warehouse_id || '',
+      form_label: _lineFormLabel(line),
+      factor: _lineFactor(line),
+      qty_purchased: qty,
+      total_cost: parseFloat(line.total_cost) || 0,
+    });
+  }
+  if (!payloadLines.length) { errEl.textContent = 'Agrega al menos una línea con producto y cantidad'; errEl.style.display = ''; return; }
+
+  const btn = document.getElementById('btn-confirm-receipt');
+  btn.disabled = true;
+  try {
+    const { receipts } = await api('/api/products?resource=stock-receipts', { method: 'POST', body: JSON.stringify({ lines: payloadLines }) });
+    // Refresca stock/costo local con lo que devolvió el backend
+    receipts.forEach(r => {
+      const idx = PRODUCTS.findIndex(p => p.sku === r.product.sku && (p.warehouse_id||'') === (r.product.warehouse_id||''));
+      if (idx >= 0) PRODUCTS[idx] = r.product;
+    });
+    const summary = receipts.map(r => `${r.product.name}: +${r.units_added} ${r.product.stock_unit||'unidad'}`).join(' · ');
+    toast(`✅ Inventario ingresado — ${summary}`);
+    _lines = [];
+    addReceiptLine();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = '';
+  }
+  btn.disabled = false;
+}
+
+// ── HISTORIAL ────────────────────────────────────────────────────────────
+async function loadReceipts() {
+  document.getElementById('receipts-loading').style.display = '';
+  document.getElementById('receipts-table').style.display = 'none';
+  document.getElementById('receipts-empty').style.display = 'none';
+  let receipts = [];
+  try { receipts = await api('/api/products?resource=stock-receipts'); }
+  catch (e) { toast('⚠️ ' + e.message); }
+  document.getElementById('receipts-loading').style.display = 'none';
+  if (!receipts.length) { document.getElementById('receipts-empty').style.display = ''; return; }
+  document.getElementById('receipts-table').style.display = '';
+  document.getElementById('receipts-tbody').innerHTML = receipts.map(r => `
+    <tr>
+      <td>${fmtDateTime(r.created_at)}</td>
+      <td style="font-weight:700">${escHtml(r.product_name)}${WAREHOUSE_NAMES[r.warehouse_id] ? `<br><span style="color:var(--text3);font-weight:600;font-size:11px">${escHtml(WAREHOUSE_NAMES[r.warehouse_id])}</span>` : ''}</td>
+      <td>${escHtml(r.form_label) || 'Directo'}</td>
+      <td>${r.qty_purchased}</td>
+      <td>${money(r.total_cost)}</td>
+      <td style="color:var(--green-dark);font-weight:800">+${r.units_added}</td>
+      <td>${money(r.unit_cost)}</td>
+      <td>${money(r.new_avg_cost)}</td>
+      <td style="color:var(--text3)">${escHtml(r.created_by)}</td>
+    </tr>`).join('');
+}
+
+// ── Utils ────────────────────────────────────────────────────────────────
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
