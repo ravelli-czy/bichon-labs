@@ -944,6 +944,9 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <a href="/stock-alerts" class="nav-tab sidebar-only-item" title="Alertas de stock">
     <i class="ti ti-bell-ringing"></i><span>Alertas de stock</span>
   </a>
+  <a href="/stock-receipts" class="nav-tab sidebar-only-item" title="Ingreso de inventario">
+    <i class="ti ti-truck-delivery"></i><span>Ingreso de inventario</span>
+  </a>
   <a href="/users" class="nav-tab sidebar-only-item" id="admin-users-btn" title="Gestión de usuarios" style="display:none;text-decoration:none">
     <i class="ti ti-users"></i><span>Perfiles y Usuarios</span>
   </a>
@@ -975,6 +978,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <a href="/finanzas" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-heart nav-fin-icon"></i> Finanzas</a>
       <a href="/cupones" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-discount-2"></i> Cupones</a>
       <a href="/stock-alerts" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-bell-ringing"></i> Alertas de stock</a>
+      <a href="/stock-receipts" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-truck-delivery"></i> Ingreso de inventario</a>
       <a href="/users" class="btn btn-outline" id="admin-users-btn-mobile" style="display:none;text-decoration:none"><i class="ti ti-users"></i> Perfiles y Usuarios</a>
       <a href="/logs" class="btn btn-outline" id="admin-logs-btn-mobile" style="display:none;text-decoration:none"><i class="ti ti-history"></i> Logs</a>
       <button class="btn btn-outline" id="prefs-btn-mobile" onclick="closeSheet('sheet-mobile-more');openPrefs()" style="display:none"><i class="ti ti-settings"></i> Settings</button>
@@ -1050,19 +1054,17 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="form-row">
         <div class="form-group">
           <div class="form-label">Unidad de stock</div>
-          <input class="form-input" id="p-stock-unit" list="datalist-stock-units" placeholder="Ej: unidad, lámina, ml" oninput="_onUnitFieldsInput()">
+          <input class="form-input" id="p-stock-unit" list="datalist-stock-units" placeholder="Ej: unidad, lámina, ml">
           <datalist id="datalist-stock-units">
             <option value="unidad"><option value="lámina"><option value="gramo"><option value="ml"><option value="kg"><option value="litro">
           </datalist>
         </div>
       </div>
       <div class="form-group">
-        <div class="form-label">Unidad de compra <span style="font-weight:600;color:var(--text3)">(opcional — para convertir al cargar stock)</span></div>
-        <div class="form-row">
-          <div class="form-group"><input class="form-input" id="p-purchase-unit" placeholder="Ej: paquete, botella" oninput="_onUnitFieldsInput()"></div>
-          <div class="form-group" style="max-width:110px"><input class="form-input" type="number" min="1" id="p-purchase-factor" placeholder="Ej: 16" oninput="_onUnitFieldsInput()"></div>
-        </div>
-        <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:2px">Ej: 1 "paquete" = 16 "lámina". Déjalo vacío si compras en la misma unidad del stock.</div>
+        <div class="form-label">Formas de compra <span style="font-weight:600;color:var(--text3)">(opcional — para convertir al ingresar inventario)</span></div>
+        <div id="p-purchase-forms-wrap"></div>
+        <button type="button" class="btn btn-outline btn-sm" onclick="addPurchaseFormRow()"><i class="ti ti-plus"></i> Agregar forma de compra</button>
+        <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:6px">Ej: "Pack x3" → 3 unidades, o "Botella 1.5L" → 7.5 (si la unidad de stock es una porción de 200ml). Se usan en <a href="/stock-receipts" style="color:var(--primary)">Ingreso de inventario</a> para convertir la compra a stock automáticamente.</div>
       </div>
       <div class="form-group">
         <div class="form-label">Grupo de Productos <span style="font-weight:600;color:var(--text3)">(opcional, puedes elegir varios)</span></div>
@@ -1072,19 +1074,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="form-row" id="p-stock-row">
         <div class="form-group"><div class="form-label">Stock inicial</div><input class="form-input" type="number" id="p-stock" value="0"></div>
         <div class="form-group"><div class="form-label">Alerta bajo de</div><input class="form-input" type="number" id="p-threshold" value="10"></div>
-      </div>
-      <!-- Calculadora: convierte "cuántas unidades de compra recibiste" a la unidad de stock -->
-      <div id="p-stock-calc" style="display:none;margin:-6px 0 12px">
-        <button type="button" class="btn btn-outline btn-sm" onclick="toggleStockCalc()"><i class="ti ti-calculator"></i> Cargar por unidad de compra</button>
-        <div id="p-stock-calc-body" style="display:none;margin-top:8px;padding:10px;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border)">
-          <div class="form-row">
-            <div class="form-group"><div class="form-label" id="p-stock-calc-label">Cantidad</div><input class="form-input" type="number" min="0" step="any" id="p-stock-calc-qty" value="1"></div>
-            <div style="display:flex;align-items:flex-end;padding-bottom:2px">
-              <button type="button" class="btn btn-primary btn-sm" onclick="applyStockCalc()"><i class="ti ti-plus"></i> Agregar al stock</button>
-            </div>
-          </div>
-          <div id="p-stock-calc-hint" style="font-size:11px;color:var(--text3);font-weight:600"></div>
-        </div>
       </div>
       <!-- Stock inicial por tienda (varias filas) — sólo al crear un producto nuevo en modo inventario -->
       <div id="p-stock-multi" style="display:none">
@@ -1856,6 +1845,7 @@ const S = {
   productGroups: [],
   labelTemplates: [],
   tempProdGroups: [],
+  tempPurchaseForms: [],
   tempKitGroups: [],
   tempKitItems: [],
   mesonItems: [],
@@ -3363,8 +3353,6 @@ function _renderProdStockRows() {
   const container = document.getElementById('p-stock-multi-rows');
   if (!container) return;
   const usedIds = S.tempProdStockRows.map(r => r.warehouse_id);
-  const calcCfg = _stockCalcConfig();
-  const showCalc = !!(calcCfg && calcCfg.unit && calcCfg.factor > 1);
   container.innerHTML = S.tempProdStockRows.map((r, idx) => {
     const available = whs.filter(w => w.id === r.warehouse_id || !usedIds.includes(w.id));
     const whOptions = whs.length
@@ -3374,27 +3362,9 @@ function _renderProdStockRows() {
       <div class="form-group"><div class="form-label">Tienda</div><select class="form-input" onchange="updateProdStockRow(${idx},'warehouse_id',this.value)">${whOptions}</select></div>
       <div class="form-group" style="max-width:90px"><div class="form-label">Stock</div><input class="form-input" type="number" value="${r.stock}" oninput="updateProdStockRow(${idx},'stock',this.value)"></div>
       <div class="form-group" style="max-width:90px"><div class="form-label">Alerta &lt;</div><input class="form-input" type="number" value="${r.threshold}" oninput="updateProdStockRow(${idx},'threshold',this.value)"></div>
-      ${showCalc ? `<button type="button" class="btn-icon-sm" onclick="promptMultiRowStockCalc(${idx})" title="Cargar por unidad de compra (${calcCfg.unit})" style="margin-bottom:10px"><i class="ti ti-calculator"></i></button>` : ''}
       ${S.tempProdStockRows.length>1 ? `<button type="button" class="btn-icon-sm" onclick="removeProdStockRow(${idx})" title="Quitar" style="margin-bottom:10px"><i class="ti ti-trash"></i></button>` : '<span style="width:32px"></span>'}
     </div>`;
   }).join('');
-}
-// Calculadora por fila del grid "stock inicial por tienda" — usa un prompt()
-// simple (mismo patrón que renombrar grupo/categoría en esta app) porque cada
-// fila es angosta y no hay espacio para el bloque expandible de p-stock-calc.
-function promptMultiRowStockCalc(idx) {
-  const cfg = _stockCalcConfig();
-  if (!cfg || !cfg.unit || cfg.factor <= 1) return;
-  const input = prompt(`¿Cuántas "${cfg.unit}" recibiste en esta tienda?\n(1 ${cfg.unit} = ${cfg.factor} ${cfg.stockUnit})`, '1');
-  if (input === null) return;
-  const qty = parseFloat(input) || 0;
-  if (qty <= 0) { toast('⚠️ Ingresa una cantidad válida'); return; }
-  const row = S.tempProdStockRows[idx];
-  if (!row) return;
-  const add = Math.round(qty * cfg.factor);
-  row.stock = (row.stock || 0) + add;
-  _renderProdStockRows();
-  toast(`✅ +${add} ${cfg.stockUnit} agregado${add===1?'':'s'} (${qty} ${cfg.unit})`);
 }
 function addProdStockRow() {
   const whs = getWarehouses();
@@ -3464,7 +3434,7 @@ function openAddSkuSheet(prodSku, fromInventory = false) {
   S._catalogMode = false;
   S._addSkuMode  = true;
   S._addSkuFromInventory = fromInventory;
-  S._addSkuData  = { sku: master.sku, name: master.name, brand: master.brand, cat: master.cat, tipo: master.tipo, cost: master.cost, price: master.price, groups: master.groups, stock_unit: master.stock_unit, purchase_unit: master.purchase_unit, purchase_factor: master.purchase_factor };
+  S._addSkuData  = { sku: master.sku, name: master.name, brand: master.brand, cat: master.cat, tipo: master.tipo, cost: master.cost, price: master.price, groups: master.groups, stock_unit: master.stock_unit, purchase_forms: master.purchase_forms };
   document.getElementById('prod-sheet-title').innerHTML = fromInventory
     ? '<i class="ti ti-package-import" style="color:var(--teal-dark,#0d9488)"></i> Agregar inventario'
     : '<i class="ti ti-barcode" style="color:var(--primary)"></i> Agregar SKU';
@@ -3506,7 +3476,6 @@ function openAddSkuSheet(prodSku, fromInventory = false) {
     return;
   }
   _populateWarehouseSelect('', false, usedWarehouseIds);
-  _refreshStockCalcVisibility();
   openSheet('sheet-prod');
 }
 
@@ -3523,7 +3492,7 @@ function openSheetProd(pushURL = true) {
   document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-box" style="color:var(--primary)"></i> Nuevo producto';
   document.getElementById('prod-save-btn').innerHTML = '<i class="ti ti-check"></i> Guardar';
   document.getElementById('prod-dup-btn').style.display = 'none';
-  ['p-name','p-brand','p-cost','p-price','p-purchase-unit','p-purchase-factor'].forEach(id => document.getElementById(id).value='');
+  ['p-name','p-brand','p-cost','p-price'].forEach(id => document.getElementById(id).value='');
   document.getElementById('p-stock-unit').value = 'unidad';
   document.getElementById('p-barcode-row').style.display  = '';
   document.getElementById('p-sku-section').style.display  = 'none';
@@ -3542,7 +3511,8 @@ function openSheetProd(pushURL = true) {
   populateCatSelects('');
   S.tempProdGroups = [];
   renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
-  _refreshStockCalcVisibility();
+  S.tempPurchaseForms = [];
+  renderPurchaseFormRows();
   openSheet('sheet-prod');
   if (pushURL) history.pushState({ prodNew: true }, '', '/' + _editPagePrefix() + '/sku/new');
 }
@@ -3555,7 +3525,7 @@ function openSheetProdCatalog(pushURL = true) {
   document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-package" style="color:var(--primary)"></i> Nuevo producto';
   document.getElementById('prod-save-btn').innerHTML = '<i class="ti ti-check"></i> Guardar';
   document.getElementById('prod-dup-btn').style.display = 'none';
-  ['p-name','p-brand','p-cost','p-price','p-purchase-unit','p-purchase-factor'].forEach(id => document.getElementById(id).value='');
+  ['p-name','p-brand','p-cost','p-price'].forEach(id => document.getElementById(id).value='');
   document.getElementById('p-stock-unit').value = 'unidad';
   document.getElementById('prod-meta').style.display = 'none';
   // Catalog mode: hide warehouse + stock rows, show SKU toggle
@@ -3578,7 +3548,8 @@ function openSheetProdCatalog(pushURL = true) {
   populateCatSelects('');
   S.tempProdGroups = [];
   renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
-  _refreshStockCalcVisibility();
+  S.tempPurchaseForms = [];
+  renderPurchaseFormRows();
   openSheet('sheet-prod');
   if (pushURL) history.pushState({ prodNew: true }, '', '/catalog/sku/new');
 }
@@ -3622,8 +3593,7 @@ function editProd(sku, warehouseId, pushURL = true) {
   document.getElementById('p-stock').value     = p.stock;
   document.getElementById('p-threshold').value = p.threshold;
   document.getElementById('p-stock-unit').value      = p.stock_unit || 'unidad';
-  document.getElementById('p-purchase-unit').value   = p.purchase_unit || '';
-  document.getElementById('p-purchase-factor').value = p.purchase_factor && p.purchase_factor > 1 ? p.purchase_factor : '';
+  S.tempPurchaseForms = Array.isArray(p.purchase_forms) ? p.purchase_forms.map(f => ({ ...f })) : [];
   const tipoIndex = {insumo:0, producto:1, ambos:2};
   const idx = tipoIndex[p.tipo] ?? 1;
   selectTipo(p.tipo, document.querySelectorAll('.tipo-option')[idx]);
@@ -3634,6 +3604,7 @@ function editProd(sku, warehouseId, pushURL = true) {
   document.getElementById('p-barcode').value   = p.barcode || '';
   S.tempProdGroups = Array.isArray(p.groups) ? [...p.groups] : [];
   renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
+  renderPurchaseFormRows();
   // Show/hide fields based on mode
   const wg = document.getElementById('p-warehouse-group');
   if (S._catalogMode) {
@@ -3648,7 +3619,6 @@ function editProd(sku, warehouseId, pushURL = true) {
     _populateWarehouseSelect(p.warehouse_id || '', false); // editable when there's more than 1 warehouse
   }
   _populateCatalogLists();
-  _refreshStockCalcVisibility();
   openSheet('sheet-prod');
   if (pushURL) {
     const url = '/' + _editPagePrefix() + '/sku/' + encodeURIComponent(sku) + '/edit' + (wid ? ('?warehouse=' + encodeURIComponent(wid)) : '');
@@ -3670,7 +3640,7 @@ function editProdStock(sku, warehouseId, pushURL = true) {
   S.editingProdWarehouseId = wid;
   S._catalogMode = false;
   S._stockOnlyMode = true;
-  S._stockOnlyBaseData = { name: p.name, brand: p.brand, cat: p.cat, tipo: p.tipo, cost: p.cost, price: p.price, groups: p.groups, stock_unit: p.stock_unit, purchase_unit: p.purchase_unit, purchase_factor: p.purchase_factor };
+  S._stockOnlyBaseData = { name: p.name, brand: p.brand, cat: p.cat, tipo: p.tipo, cost: p.cost, price: p.price, groups: p.groups, stock_unit: p.stock_unit, purchase_forms: p.purchase_forms };
   document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-pencil" style="color:var(--primary)"></i> Editar stock';
   document.getElementById('prod-save-btn').innerHTML = '<i class="ti ti-check"></i> Guardar cambios';
   document.getElementById('prod-dup-btn').style.display = 'none';
@@ -3701,65 +3671,38 @@ function editProdStock(sku, warehouseId, pushURL = true) {
     const url = '/inventory/sku/' + encodeURIComponent(sku) + '/edit' + (wid ? ('?warehouse=' + encodeURIComponent(wid)) : '');
     history.pushState({ prodSku: sku, warehouseId: wid, stockOnly: true }, '', url);
   }
-  _refreshStockCalcVisibility();
 }
 
-// ── CALCULADORA "Cargar por unidad de compra" ──────────────────────────
-// Convierte una cantidad en la unidad en que compras el insumo (ej: 1
-// "paquete") a la unidad en que se lleva el stock (ej: 16 "lámina") y la
-// suma al campo p-stock. Lee la equivalencia (purchase_unit/purchase_factor)
-// de los campos del formulario si están visibles (creando/editando catálogo)
-// o si no, del producto que se está editando (Agregar SKU / Editar stock,
-// donde esos campos de catálogo están ocultos).
-function _stockCalcConfig() {
-  const fieldsVisible = document.getElementById('p-prod-fields')?.style.display !== 'none';
-  if (fieldsVisible) {
-    return {
-      unit:      document.getElementById('p-purchase-unit')?.value.trim() || '',
-      factor:    parseFloat(document.getElementById('p-purchase-factor')?.value) || 0,
-      stockUnit: document.getElementById('p-stock-unit')?.value.trim() || 'unidad',
-    };
-  }
-  const sku = S.editingProdSku || (S._addSkuData && S._addSkuData.sku);
-  const p = sku ? S.products.find(x => x.sku === sku) : null;
-  if (!p) return null;
-  return { unit: p.purchase_unit || '', factor: p.purchase_factor || 0, stockUnit: p.stock_unit || 'unidad' };
-}
-function _refreshStockCalcVisibility() {
-  const wrap = document.getElementById('p-stock-calc');
+// ── FORMAS DE COMPRA (config del producto) ──────────────────────────────
+// Lista de formas en que se compra este producto (ej: "Pack x3" → 3,
+// "A granel" → 1) — el costo NO vive acá (varía en cada compra), sólo el
+// factor de conversión a stock_unit. Se usan en /stock-receipts (Ingreso de
+// inventario) para convertir la compra a stock automáticamente; ver
+// api/_stock_receipts_routes.js.
+function renderPurchaseFormRows() {
+  const wrap = document.getElementById('p-purchase-forms-wrap');
   if (!wrap) return;
-  const cfg = _stockCalcConfig();
-  if (cfg && cfg.unit && cfg.factor > 1) {
-    wrap.style.display = '';
-    document.getElementById('p-stock-calc-label').textContent = `Cantidad de "${cfg.unit}"`;
-    document.getElementById('p-stock-calc-hint').textContent  = `1 ${cfg.unit} = ${cfg.factor} ${cfg.stockUnit}`;
-  } else {
-    wrap.style.display = 'none';
-    document.getElementById('p-stock-calc-body').style.display = 'none';
-  }
+  const rows = S.tempPurchaseForms || [];
+  wrap.innerHTML = rows.map((f, idx) => `
+    <div class="form-row" style="align-items:flex-end;margin-bottom:6px">
+      <div class="form-group"><input class="form-input" placeholder="Ej: pack x3, a granel" value="${(f.label||'').replace(/"/g,'&quot;')}" oninput="updatePurchaseFormRow(${idx},'label',this.value)"></div>
+      <div class="form-group" style="max-width:110px"><input class="form-input" type="number" min="0" step="any" placeholder="Ej: 3" value="${f.factor ?? ''}" oninput="updatePurchaseFormRow(${idx},'factor',this.value)"></div>
+      <button type="button" class="btn-icon-sm" onclick="removePurchaseFormRow(${idx})" title="Quitar" style="margin-bottom:10px"><i class="ti ti-trash"></i></button>
+    </div>`).join('');
 }
-// Se llama al tipear en Unidad de stock / Unidad de compra / Factor: refresca
-// la calculadora de la fila única (p-stock-calc) y, si está abierto el grid
-// de "stock inicial por tienda" (producto nuevo en varias tiendas), lo
-// vuelve a pintar para que cada fila muestre/oculte su propio botón 🧮.
-function _onUnitFieldsInput() {
-  _refreshStockCalcVisibility();
-  const multi = document.getElementById('p-stock-multi');
-  if (multi && multi.style.display !== 'none') _renderProdStockRows();
+function addPurchaseFormRow() {
+  S.tempPurchaseForms = S.tempPurchaseForms || [];
+  S.tempPurchaseForms.push({ label: '', factor: 1 });
+  renderPurchaseFormRows();
 }
-function toggleStockCalc() {
-  const body = document.getElementById('p-stock-calc-body');
-  body.style.display = body.style.display === 'none' ? '' : 'none';
+function updatePurchaseFormRow(idx, field, value) {
+  const row = S.tempPurchaseForms?.[idx];
+  if (!row) return;
+  row[field] = field === 'factor' ? (parseFloat(value) || 0) : value;
 }
-function applyStockCalc() {
-  const cfg = _stockCalcConfig();
-  if (!cfg) return;
-  const qty = parseFloat(document.getElementById('p-stock-calc-qty').value) || 0;
-  if (qty <= 0) { toast('⚠️ Ingresa una cantidad válida'); return; }
-  const add = Math.round(qty * cfg.factor);
-  const stockInput = document.getElementById('p-stock');
-  stockInput.value = (parseInt(stockInput.value) || 0) + add;
-  toast(`✅ +${add} ${cfg.stockUnit} agregado${add===1?'':'s'} (${qty} ${cfg.unit})`);
+function removePurchaseFormRow(idx) {
+  S.tempPurchaseForms.splice(idx, 1);
+  renderPurchaseFormRows();
 }
 
 async function deleteProd(sku, warehouseId) {
@@ -3825,6 +3768,8 @@ function duplicateProd() {
   selectTipo(p.tipo || 'producto', document.querySelectorAll('.tipo-option')[tipoIndex[p.tipo] ?? 1]);
   S.tempProdGroups = Array.isArray(p.groups) ? [...p.groups] : [];
   renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
+  S.tempPurchaseForms = Array.isArray(p.purchase_forms) ? p.purchase_forms.map(f => ({ ...f })) : [];
+  renderPurchaseFormRows();
   // Título indicativo
   document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-copy" style="color:var(--primary)"></i> Duplicar producto';
 }
@@ -3876,8 +3821,7 @@ async function _saveNewProductMultiRow() {
     barcode: document.getElementById('p-barcode')?.value.trim() || '',
     groups:  S.tempProdGroups || [],
     stock_unit:      document.getElementById('p-stock-unit').value.trim() || 'unidad',
-    purchase_unit:   document.getElementById('p-purchase-unit').value.trim() || '',
-    purchase_factor: parseInt(document.getElementById('p-purchase-factor').value) || 1,
+    purchase_forms:  (S.tempPurchaseForms || []).filter(f => f.label && f.factor > 0),
   };
 
   let createdSku = null;
@@ -3975,8 +3919,7 @@ async function _saveProdImpl() {
     warehouse_id,
     groups:    baseData ? (baseData.groups || []) : (S.tempProdGroups || []),
     stock_unit:      baseData ? (baseData.stock_unit || 'unidad') : (document.getElementById('p-stock-unit').value.trim() || 'unidad'),
-    purchase_unit:   baseData ? (baseData.purchase_unit || '') : (document.getElementById('p-purchase-unit').value.trim() || ''),
-    purchase_factor: baseData ? (baseData.purchase_factor || 1) : (parseInt(document.getElementById('p-purchase-factor').value) || 1),
+    purchase_forms:  baseData ? (baseData.purchase_forms || []) : (S.tempPurchaseForms || []).filter(f => f.label && f.factor > 0),
     ...(isAddSku ? { sku: S._addSkuData.sku } : {}), // explicit SKU for add-SKU mode
   };
   if (S.editingProdSku) {

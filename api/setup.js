@@ -109,12 +109,19 @@ module.exports = async (req, res) => {
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS warehouse_id TEXT NOT NULL DEFAULT ''`;
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode      TEXT DEFAULT ''`;
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS groups       JSONB NOT NULL DEFAULT '[]'`;
-    // Unidad en la que se lleva el stock (ej: "lámina", "ml", "unidad") y su
-    // equivalencia opcional con la unidad en que se compra (ej: 1 "paquete" =
-    // 16 "lámina"), para poder cargar stock convirtiendo automáticamente.
+    // Unidad en la que se lleva el stock (ej: "lámina", "ml", "unidad").
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_unit      TEXT NOT NULL DEFAULT 'unidad'`;
+    // purchase_unit/purchase_factor (columnas legacy, ya no se escriben desde
+    // la app): asumían una única forma de compra por producto. Reemplazadas
+    // por purchase_forms, una lista — un mismo producto puede comprarse de
+    // varias formas distintas (ej: Croissant "pack x3" o "a granel"; Jugo
+    // "botella 1.5L") cada una con su propio factor de conversión a
+    // stock_unit. El costo NO vive acá — varía en cada compra y se ingresa
+    // en /stock-receipts (ver api/_stock_receipts_routes.js), que también
+    // actualiza el costo promedio ponderado del producto.
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS purchase_unit   TEXT NOT NULL DEFAULT ''`;
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS purchase_factor INTEGER NOT NULL DEFAULT 1`;
+    await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS purchase_forms  JSONB NOT NULL DEFAULT '[]'`;
     // Migrate PK from global sku → composite (sku, warehouse_id, tenant_id)
     try {
       await sql`ALTER TABLE products DROP CONSTRAINT IF EXISTS products_pkey CASCADE`;
@@ -190,6 +197,32 @@ module.exports = async (req, res) => {
       )
     `;
     await sql`CREATE INDEX IF NOT EXISTS label_templates_tenant_idx ON label_templates (tenant_id)`;
+
+    // Ingreso de inventario (recepciones de compra): registra cada reposición
+    // de stock con la forma de compra usada (ej: "pack x3"), la cantidad
+    // comprada, cuánto se pagó en total y cuántas unidades de stock_unit
+    // resultaron — para llevar historial y actualizar el costo promedio
+    // ponderado del producto sin necesitar lotes/FIFO. Ver
+    // api/_stock_receipts_routes.js.
+    await sql`
+      CREATE TABLE IF NOT EXISTS stock_receipts (
+        id            TEXT PRIMARY KEY,
+        tenant_id     TEXT NOT NULL DEFAULT 'TEN-001',
+        sku           TEXT NOT NULL,
+        warehouse_id  TEXT NOT NULL DEFAULT '',
+        product_name  TEXT NOT NULL DEFAULT '',
+        form_label    TEXT NOT NULL DEFAULT '',
+        factor        NUMERIC NOT NULL DEFAULT 1,
+        qty_purchased NUMERIC NOT NULL,
+        total_cost    INTEGER NOT NULL DEFAULT 0,
+        units_added   INTEGER NOT NULL DEFAULT 0,
+        unit_cost     INTEGER NOT NULL DEFAULT 0,
+        new_avg_cost  INTEGER NOT NULL DEFAULT 0,
+        created_by    TEXT DEFAULT '',
+        created_at    TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS stock_receipts_tenant_idx ON stock_receipts (tenant_id, created_at DESC)`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS orders (

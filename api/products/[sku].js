@@ -152,10 +152,12 @@ module.exports = async (req, res) => {
     if (req.method === 'PUT') {
       const {
         name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, new_warehouse_id,
-        stock_unit, purchase_unit, purchase_factor,
+        stock_unit, purchase_forms,
       } = req.body || {};
       if (groups !== undefined && !Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
+      if (purchase_forms !== undefined && !Array.isArray(purchase_forms)) return res.status(400).json({ error: 'purchase_forms must be an array' });
       const groupsJson = groups !== undefined ? JSON.stringify(groups) : null;
+      const purchaseFormsJson = purchase_forms !== undefined ? JSON.stringify(purchase_forms) : null;
       const [row] = await sql`
         UPDATE products SET
           name            = COALESCE(${name            ?? null}, name),
@@ -170,8 +172,7 @@ module.exports = async (req, res) => {
           groups          = COALESCE(${groupsJson}::jsonb, groups),
           warehouse_id    = COALESCE(${new_warehouse_id ?? null}, warehouse_id),
           stock_unit      = COALESCE(${stock_unit      ?? null}, stock_unit),
-          purchase_unit   = COALESCE(${purchase_unit   ?? null}, purchase_unit),
-          purchase_factor = COALESCE(${purchase_factor ?? null}, purchase_factor),
+          purchase_forms  = COALESCE(${purchaseFormsJson}::jsonb, purchase_forms),
           updated_by = ${actor},
           updated_at = NOW()
         WHERE sku = ${sku} AND warehouse_id = ${warehouse_id} AND tenant_id = ${tenantId}
