@@ -128,7 +128,10 @@ async function handleKitShortageAlertsResource(req, res, sql, session, tenantId,
     if (q.action === 'generate-now' && req.method === 'POST') {
       if (!isAdmin(session)) return res.status(403).json({ error: 'Sólo administradores pueden generar una lista manualmente' });
       const settings = await getOrCreateSettings(sql, tenantId);
-      const run = await A.generateRun(sql, tenantId, settings.lead_days);
+      // Generación manual: revisa TODAS las ventas con entrega futura, sin
+      // límite — lead_days sólo gobierna cuándo dispara el aviso automático
+      // (cron/correo), no qué toma este botón.
+      const run = await A.generateRun(sql, tenantId, null);
       if (!run) return res.json({ ok: true, run: null }); // sin faltantes ahora mismo
 
       const todayStr = new Date().toISOString().slice(0, 10);
