@@ -4334,19 +4334,26 @@ function addKitItem() {
 function renderKitItemsList() {
   const whs = getWarehouses();
   document.getElementById('kit-items-list').innerHTML = S.tempKitItems.map((item,idx) => {
-    let label;
+    let label, openCall = '';
     if (item.type === 'kit') {
       const k = S.kits.find(x => x.sku === item.sku && (x.warehouse_id||'') === '');
       label = `<span style="font-size:10px;font-weight:700;color:var(--amber-dark);background:var(--amber-light,#fef3c7);padding:1px 5px;border-radius:5px;margin-right:4px">KIT</span>${k?.name||item.sku}${_groupChipsHtml(k?.groups)}`;
+      if (k) openCall = `_openKitComponentEdit('kit','${item.sku.replace(/'/g,"\\'")}')`;
     } else {
       const p = S.products.find(x => x.sku === item.sku && (x.warehouse_id||'') === (item.warehouse_id||''))
              || S.products.find(x => x.sku === item.sku);
       const wh = whs.find(w => w.id === (item.warehouse_id || ''));
       const whLabel = wh ? ` <span style="font-size:10px;color:var(--teal-dark,#0d9488)">[${wh.name}]</span>` : '';
       label = `${p?.name||item.sku}${whLabel}${_groupChipsHtml(p?.groups)}`;
+      if (p) openCall = `_openKitComponentEdit('product','${item.sku.replace(/'/g,"\\'")}','${(p.warehouse_id||'').replace(/'/g,"\\'")}')`;
     }
+    // Componentes con ficha propia son linkeables (abren su Editar producto/KIT);
+    // si el componente ya no existe en S.products/S.kits (borrado), queda como texto plano.
+    const nameAttrs = openCall
+      ? `onclick="event.stopPropagation();${openCall}" title="Ver / editar" style="flex:1;font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:var(--border)"`
+      : `style="flex:1;font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"`;
     return `<div class="kit-build-item">
-      <span style="flex:1;font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>
+      <span ${nameAttrs}>${label}</span>
       <div class="qty-ctrl">
         <button onclick="adjKQ(${idx},-1)">−</button>
         <span>${item.qty}</span>
@@ -4356,6 +4363,14 @@ function renderKitItemsList() {
     </div>`;
   }).join('');
   updateKitPriceSummary();
+}
+// Navega desde "Editar KIT" a la ficha de un componente (producto o sub-KIT)
+// — cierra el sheet de KIT actual primero para no apilar dos overlays a la
+// vez (ambos usan position:fixed inset:0 con el mismo z-index).
+function _openKitComponentEdit(type, sku, warehouseId) {
+  closeKitSheet();
+  if (type === 'kit') editKit(sku);
+  else editProd(sku, warehouseId || '');
 }
 function adjKQ(idx,d){ S.tempKitItems[idx].qty=Math.max(1,S.tempKitItems[idx].qty+d); renderKitItemsList(); }
 
