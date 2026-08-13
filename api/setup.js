@@ -288,16 +288,59 @@ module.exports = async (req, res) => {
       SELECT sku, warehouse_id, tenant_id, stock, cost, name FROM products
       WHERE warehouse_id != '' AND stock > 0
     `;
+    let legacyLotsCreated = 0;
     for (const p of legacyStockRows) {
       const legacyId = 'LEGACY-' + p.sku + '-' + (p.warehouse_id || 'x');
-      await sql`
+      const inserted = await sql`
         INSERT INTO stock_receipts
           (id, tenant_id, sku, warehouse_id, product_name, form_label, factor, qty_purchased, total_cost, units_added, unit_cost, new_avg_cost, remaining_qty, created_by, created_at)
         VALUES
           (${legacyId}, ${p.tenant_id}, ${p.sku}, ${p.warehouse_id}, ${p.name}, 'Stock existente (migración a lotes)', 1, ${p.stock}, ${p.stock * (p.cost || 0)}, ${p.stock}, ${p.cost || 0}, ${p.cost || 0}, ${p.stock}, 'sistema', NOW())
         ON CONFLICT (id) DO NOTHING
+        RETURNING id
       `;
+      if (inserted.length) legacyLotsCreated++;
     }
+
+    // Backfill de "brecha" (adicional al legacy de arriba, idempotente
+    // también): cubre stock que sigue sin ningún lote de respaldo suficiente
+    // — productos que en el momento del backfill legacy tenían stock 0 (por
+    // eso no calificaron ahí) pero lo tienen ahora, o cuyo stock se editó a
+    // mano desde la ficha de producto (ese campo escribe products.stock
+    // directo, sin pasar por Ingreso de inventario ni crear lote). Por cada
+    // producto donde el stock actual supera lo que sus lotes ya cubren, crea
+    // UN lote por la diferencia al costo actual del producto (products.cost)
+    // — así ningún stock en Inventario queda con precio costo $0. Si
+    // products.cost es 0 (nunca se cargó), el lote también queda en 0: no
+    // hay de dónde sacar ese dato. id determinístico + ON CONFLICT DO
+    // NOTHING: seguro de reintentar sin duplicar.
+    // Un solo INSERT...SELECT (en vez de loop fila por fila) para que no
+    // arriesgue el timeout de la function en tenants con muchos SKUs.
+    const gapInserted = await sql`
+      INSERT INTO stock_receipts
+        (id, tenant_id, sku, warehouse_id, product_name, form_label, factor, qty_purchased, total_cost, units_added, unit_cost, new_avg_cost, remaining_qty, created_by, created_at)
+      SELECT
+        'BACKFILL-' || p.sku || '-' || COALESCE(NULLIF(p.warehouse_id, ''), 'x'),
+        p.tenant_id, p.sku, p.warehouse_id, p.name,
+        'Ajuste de costo (backfill stock existente)', 1,
+        (p.stock - COALESCE(cov.covered, 0)),
+        (p.stock - COALESCE(cov.covered, 0)) * COALESCE(p.cost, 0),
+        (p.stock - COALESCE(cov.covered, 0)),
+        COALESCE(p.cost, 0),
+        COALESCE(p.cost, 0),
+        (p.stock - COALESCE(cov.covered, 0)),
+        'sistema', NOW()
+      FROM products p
+      LEFT JOIN (
+        SELECT tenant_id, sku, warehouse_id, SUM(remaining_qty) AS covered
+        FROM stock_receipts
+        GROUP BY tenant_id, sku, warehouse_id
+      ) cov ON cov.tenant_id = p.tenant_id AND cov.sku = p.sku AND cov.warehouse_id = p.warehouse_id
+      WHERE p.warehouse_id != '' AND p.stock > COALESCE(cov.covered, 0)
+      ON CONFLICT (id) DO NOTHING
+      RETURNING id
+    `;
+    const gapLotsCreated = gapInserted.length;
 
     await sql`
       CREATE TABLE IF NOT EXISTS orders (
@@ -801,6 +844,8 @@ module.exports = async (req, res) => {
       ok: true,
       tables: created,
       seeded,
+      legacyLotsCreated,
+      gapLotsCreated,
       message: seeded
         ? 'Tables created and seeded with demo data'
         : 'Tables created (or already existed)',
