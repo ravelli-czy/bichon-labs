@@ -20,6 +20,7 @@
 
 const { writeLog } = require('./_log');
 const { sendEmail, stockAlertEmailHtml } = require('./_email');
+const { stockAlertPdf } = require('./_purchase_list_pdf');
 const A = require('./_stock_alerts');
 
 const ADMIN_ROLES = ['admin', 'superadmin', 'master'];
@@ -49,12 +50,25 @@ function mapSettings(row) {
 async function notifyRunByEmail(settings, run) {
   if (!settings.channel_email || !settings.email_to) return;
   const recipients = settings.email_to.split(',').map(s => s.trim()).filter(Boolean);
+  if (!recipients.length) return;
+
+  // El PDF se arma una sola vez y se reusa para todos los destinatarios —
+  // así el correo trae la lista adjunta sin depender de entrar a la
+  // plataforma para verla.
+  let pdfBuffer = null;
+  try {
+    pdfBuffer = await stockAlertPdf(run);
+  } catch (pdfErr) {
+    console.error('[stock-alerts] pdf error:', pdfErr.message);
+  }
+
   for (const to of recipients) {
     try {
       await sendEmail({
         to,
         subject: `Nueva lista de compra — ${run.item_count} producto${run.item_count !== 1 ? 's' : ''} con stock bajo`,
         html: stockAlertEmailHtml({ run }),
+        attachments: pdfBuffer ? [{ filename: `${run.id}.pdf`, content: pdfBuffer }] : undefined,
       });
     } catch (emailErr) {
       console.error('[stock-alerts] email error:', emailErr.message);
