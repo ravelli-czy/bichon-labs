@@ -1048,7 +1048,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       </div>
 
       <div class="form-row">
-        <div class="form-group"><div class="form-label">Precio costo</div><input class="form-input" type="number" id="p-cost" placeholder="$0"></div>
         <div class="form-group"><div class="form-label" id="price-label">Precio venta</div><input class="form-input" type="number" id="p-price" placeholder="$0"></div>
       </div>
       <div class="form-row">
@@ -1065,15 +1064,22 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div id="p-groups-wrap" class="chip-group-wrap"></div>
       </div>
       </div><!-- /p-prod-fields -->
+      <!-- El costo ya no se edita a mano acá — lo determina el lote FIFO más
+           antiguo con stock (ver Ingreso de inventario). p-stock-input-group
+           sólo se muestra al editar stock de un producto que YA tiene (Editar
+           producto / Editar stock) — nunca al crear, ni al agregar un SKU o
+           tienda nueva: eso siempre arranca en 0 y se carga por Ingreso de
+           inventario, que es donde además queda registrado el costo del lote. -->
       <div class="form-row" id="p-stock-row">
-        <div class="form-group"><div class="form-label">Stock inicial</div><input class="form-input" type="number" id="p-stock" value="0"></div>
+        <div class="form-group" id="p-stock-input-group"><div class="form-label">Stock</div><input class="form-input" type="number" id="p-stock" value="0"></div>
         <div class="form-group"><div class="form-label">Alerta bajo de</div><input class="form-input" type="number" id="p-threshold" value="10"></div>
       </div>
-      <!-- Stock inicial por tienda (varias filas) — sólo al crear un producto nuevo en modo inventario -->
+      <!-- Tiendas donde crear una fila de stock (arranca en 0) — sólo al crear un producto nuevo en modo inventario -->
       <div id="p-stock-multi" style="display:none">
-        <div class="form-label">Stock inicial por tienda</div>
+        <div class="form-label">Tiendas</div>
         <div id="p-stock-multi-rows"></div>
         <button type="button" class="btn btn-outline btn-sm" onclick="addProdStockRow()" style="margin-top:2px;margin-bottom:10px"><i class="ti ti-plus"></i> Agregar tienda</button>
+        <div class="form-hint" style="margin:-4px 0 12px">El stock arranca en 0 en cada tienda — se carga después por Ingreso de inventario.</div>
       </div>
       <div class="form-group" id="p-barcode-row" style="margin-top:8px">
         <div class="form-label">Código de barra</div>
@@ -1087,7 +1093,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
           </div>
           <div style="flex:1">
             <div style="font-size:14px;font-weight:800;color:var(--text)">Crear 1 SKU con datos del producto</div>
-            <div style="font-size:12px;font-weight:600;color:var(--text3)">Asigna a un almacén con stock inicial</div>
+            <div style="font-size:12px;font-weight:600;color:var(--text3)">Asigna a un almacén — el stock se carga después por Ingreso de inventario</div>
           </div>
           <div class="sku-toggle-track"><div class="sku-toggle-dot"></div></div>
         </div>
@@ -1096,10 +1102,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
             <div class="form-label">Almacén <span style="color:var(--red)">*</span></div>
             <select class="form-input" id="p-sku-warehouse"></select>
           </div>
-          <div class="form-row">
-            <div class="form-group"><div class="form-label">Stock inicial</div><input class="form-input" type="number" id="p-sku-stock" value="0"></div>
-            <div class="form-group"><div class="form-label">Alerta bajo de</div><input class="form-input" type="number" id="p-sku-threshold" value="10"></div>
-          </div>
+          <div class="form-group"><div class="form-label">Alerta bajo de</div><input class="form-input" type="number" id="p-sku-threshold" value="10"></div>
           <div class="form-group" style="margin-bottom:0">
             <div class="form-label">Código de barra</div>
             <input class="form-input" id="p-sku-barcode" placeholder="Ej: 7891234560012" style="font-family:monospace">
@@ -3353,7 +3356,6 @@ function _renderProdStockRows() {
       : '<option value="">Sin almacenes configurados</option>';
     return `<div class="form-row" style="align-items:flex-end;margin-bottom:8px">
       <div class="form-group"><div class="form-label">Tienda</div><select class="form-input" onchange="updateProdStockRow(${idx},'warehouse_id',this.value)">${whOptions}</select></div>
-      <div class="form-group" style="max-width:90px"><div class="form-label">Stock</div><input class="form-input" type="number" value="${r.stock}" oninput="updateProdStockRow(${idx},'stock',this.value)"></div>
       <div class="form-group" style="max-width:90px"><div class="form-label">Alerta &lt;</div><input class="form-input" type="number" value="${r.threshold}" oninput="updateProdStockRow(${idx},'threshold',this.value)"></div>
       ${S.tempProdStockRows.length>1 ? `<button type="button" class="btn-icon-sm" onclick="removeProdStockRow(${idx})" title="Quitar" style="margin-bottom:10px"><i class="ti ti-trash"></i></button>` : '<span style="width:32px"></span>'}
     </div>`;
@@ -3427,7 +3429,7 @@ function openAddSkuSheet(prodSku, fromInventory = false) {
   S._catalogMode = false;
   S._addSkuMode  = true;
   S._addSkuFromInventory = fromInventory;
-  S._addSkuData  = { sku: master.sku, name: master.name, brand: master.brand, cat: master.cat, tipo: master.tipo, cost: master.cost, price: master.price, groups: master.groups, stock_unit: master.stock_unit };
+  S._addSkuData  = { sku: master.sku, name: master.name, brand: master.brand, cat: master.cat, tipo: master.tipo, price: master.price, groups: master.groups, stock_unit: master.stock_unit };
   document.getElementById('prod-sheet-title').innerHTML = fromInventory
     ? '<i class="ti ti-package-import" style="color:var(--teal-dark,#0d9488)"></i> Agregar inventario'
     : '<i class="ti ti-barcode" style="color:var(--primary)"></i> Agregar SKU';
@@ -3451,8 +3453,11 @@ function openAddSkuSheet(prodSku, fromInventory = false) {
       <span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:var(--teal-light,#ccfbf1);padding:3px 8px;border-radius:10px">${fromInventory ? 'Nueva tienda' : 'Nuevo SKU'}</span>
     </div>`;
   }
-  // Show warehouse + stock + barcode; hide sku-section toggle
+  // Show warehouse + alerta + barcode; hide sku-section toggle. El stock
+  // arranca siempre en 0 acá — se carga después por Ingreso de inventario,
+  // así que ni se muestra el campo de stock.
   document.getElementById('p-stock-row').style.display   = '';
+  document.getElementById('p-stock-input-group').style.display = 'none';
   document.getElementById('p-barcode-row').style.display = '';
   document.getElementById('p-sku-section').style.display = 'none';
   document.getElementById('p-stock').value     = '0';
@@ -3485,7 +3490,7 @@ function openSheetProd(pushURL = true) {
   document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-box" style="color:var(--primary)"></i> Nuevo producto';
   document.getElementById('prod-save-btn').innerHTML = '<i class="ti ti-check"></i> Guardar';
   document.getElementById('prod-dup-btn').style.display = 'none';
-  ['p-name','p-brand','p-cost','p-price'].forEach(id => document.getElementById(id).value='');
+  ['p-name','p-brand','p-price'].forEach(id => document.getElementById(id).value='');
   document.getElementById('p-stock-unit').value = 'unidad';
   document.getElementById('p-barcode-row').style.display  = '';
   document.getElementById('p-sku-section').style.display  = 'none';
@@ -3516,7 +3521,7 @@ function openSheetProdCatalog(pushURL = true) {
   document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-package" style="color:var(--primary)"></i> Nuevo producto';
   document.getElementById('prod-save-btn').innerHTML = '<i class="ti ti-check"></i> Guardar';
   document.getElementById('prod-dup-btn').style.display = 'none';
-  ['p-name','p-brand','p-cost','p-price'].forEach(id => document.getElementById(id).value='');
+  ['p-name','p-brand','p-price'].forEach(id => document.getElementById(id).value='');
   document.getElementById('p-stock-unit').value = 'unidad';
   document.getElementById('prod-meta').style.display = 'none';
   // Catalog mode: hide warehouse + stock rows, show SKU toggle
@@ -3532,7 +3537,6 @@ function openSheetProdCatalog(pushURL = true) {
   if (skuWh) skuWh.innerHTML = whs.length
     ? whs.map(w => `<option value="${w.id}">${w.name}</option>`).join('')
     : '<option value="">Sin almacenes configurados</option>';
-  document.getElementById('p-sku-stock').value = '0';
   document.getElementById('p-sku-threshold').value = '10';
   selectTipo('producto', document.querySelector('.tipo-option:nth-child(2)'));
   _populateCatalogLists();
@@ -3576,7 +3580,6 @@ function editProd(sku, warehouseId, pushURL = true) {
   document.getElementById('prod-dup-btn').style.display = '';
   document.getElementById('p-name').value      = p.name;
   document.getElementById('p-brand').value     = p.brand !== 'Sin marca' ? p.brand : '';
-  document.getElementById('p-cost').value      = p.cost  || '';
   document.getElementById('p-price').value     = p.price || '';
   populateCatSelects(p.cat !== 'General' ? (p.cat || '') : '');
   document.getElementById('p-stock').value     = p.stock;
@@ -3601,6 +3604,7 @@ function editProd(sku, warehouseId, pushURL = true) {
     document.getElementById('p-sku-section').style.display = 'none';
   } else {
     document.getElementById('p-stock-row').style.display   = '';
+    document.getElementById('p-stock-input-group').style.display = '';
     document.getElementById('p-barcode-row').style.display = '';
     document.getElementById('p-sku-section').style.display = 'none';
     _populateWarehouseSelect(p.warehouse_id || '', false); // editable when there's more than 1 warehouse
@@ -3627,7 +3631,7 @@ function editProdStock(sku, warehouseId, pushURL = true) {
   S.editingProdWarehouseId = wid;
   S._catalogMode = false;
   S._stockOnlyMode = true;
-  S._stockOnlyBaseData = { name: p.name, brand: p.brand, cat: p.cat, tipo: p.tipo, cost: p.cost, price: p.price, groups: p.groups, stock_unit: p.stock_unit };
+  S._stockOnlyBaseData = { name: p.name, brand: p.brand, cat: p.cat, tipo: p.tipo, price: p.price, groups: p.groups, stock_unit: p.stock_unit };
   document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-pencil" style="color:var(--primary)"></i> Editar stock';
   document.getElementById('prod-save-btn').innerHTML = '<i class="ti ti-check"></i> Guardar cambios';
   document.getElementById('prod-dup-btn').style.display = 'none';
@@ -3646,6 +3650,7 @@ function editProdStock(sku, warehouseId, pushURL = true) {
     </div>`;
   }
   document.getElementById('p-stock-row').style.display   = '';
+  document.getElementById('p-stock-input-group').style.display = '';
   document.getElementById('p-barcode-row').style.display = '';
   document.getElementById('p-sku-section').style.display = 'none';
   document.getElementById('p-stock').value     = p.stock;
@@ -3715,7 +3720,6 @@ function duplicateProd() {
   // Pre-llenar con datos del original
   document.getElementById('p-name').value  = newName;
   document.getElementById('p-brand').value = (p.brand && p.brand !== 'Sin marca') ? p.brand : '';
-  document.getElementById('p-cost').value  = p.cost  || '';
   document.getElementById('p-price').value = p.price || '';
   document.getElementById('p-threshold').value = p.threshold || 10;
   populateCatSelects(p.cat !== 'General' ? (p.cat || '') : '');
@@ -3769,7 +3773,6 @@ async function _saveNewProductMultiRow() {
     brand: document.getElementById('p-brand').value.trim() || 'Sin marca',
     cat:   getCatFieldValue() || 'General',
     tipo:  selectedTipo,
-    cost:  parseFloat(document.getElementById('p-cost').value) || 0,
     price: parseFloat(document.getElementById('p-price').value) || 0,
     barcode: document.getElementById('p-barcode')?.value.trim() || '',
     groups:  S.tempProdGroups || [],
@@ -3781,7 +3784,7 @@ async function _saveNewProductMultiRow() {
     const r = rows[i];
     const data = {
       ...baseData,
-      stock:        r.stock || 0,
+      stock:        0, // siempre arranca en 0 — se carga por Ingreso de inventario
       threshold:    r.threshold ?? 10,
       warehouse_id: r.warehouse_id || '',
       ...(i > 0 ? { sku: createdSku } : {}),
@@ -3822,20 +3825,21 @@ async function _saveProdImpl() {
   let warehouse_id = '', stockVal = 0, thresholdVal = 10;
   let whSel = null;
   if (isAddSku) {
-    // Adding a new warehouse instance for an existing product
+    // Adding a new warehouse instance for an existing product — arranca
+    // siempre en 0, se carga por Ingreso de inventario.
     const warehouses = getWarehouses();
     whSel = document.getElementById('p-warehouse');
     warehouse_id = warehouses.length > 0 ? (whSel?.value || '') : '';
     if (warehouses.length > 0 && !warehouse_id) { toast('⚠️ Selecciona un almacén'); return; }
-    stockVal     = parseInt(document.getElementById('p-stock').value)     || 0;
+    stockVal     = 0;
     thresholdVal = parseInt(document.getElementById('p-threshold').value) || 10;
   } else if (S._catalogMode) {
     if (!S.editingProdSku && _skuToggleOn) {
-      // New catalog product + SKU creation
+      // New catalog product + SKU creation — arranca siempre en 0.
       const skuWh = document.getElementById('p-sku-warehouse');
       warehouse_id = skuWh?.value || '';
       if (!warehouse_id) { toast('⚠️ Selecciona un almacén para el SKU'); return; }
-      stockVal     = parseInt(document.getElementById('p-sku-stock')?.value)     || 0;
+      stockVal     = 0;
       thresholdVal = parseInt(document.getElementById('p-sku-threshold')?.value) || 10;
     } else {
       // New catalog product (no SKU) OR editing catalog product
@@ -3863,7 +3867,6 @@ async function _saveProdImpl() {
     brand:     baseData ? baseData.brand : (document.getElementById('p-brand').value.trim()||'Sin marca'),
     cat:       baseData ? baseData.cat   : (getCatFieldValue() || 'General'),
     tipo:      baseData ? baseData.tipo  : selectedTipo,
-    cost:      baseData ? baseData.cost  : (parseFloat(document.getElementById('p-cost').value)||0),
     price:     baseData ? baseData.price : (parseFloat(document.getElementById('p-price').value)||0),
     stock:     stockVal,
     threshold: thresholdVal,

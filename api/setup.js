@@ -244,9 +244,12 @@ module.exports = async (req, res) => {
     // Ingreso de inventario (recepciones de compra): registra cada reposición
     // de stock con el formato de compra usado (ej: "pack x3"), la cantidad
     // comprada, cuánto se pagó en total y cuántas unidades de stock_unit
-    // resultaron — para llevar historial y actualizar el costo promedio
-    // ponderado del producto sin necesitar lotes/FIFO. Ver
-    // api/_stock_receipts_routes.js.
+    // resultaron. Además de ser el historial, cada fila ES un lote: remaining_qty
+    // es cuánto de esa recepción sigue sin venderse. Al vender se consume
+    // lote por lote empezando por el más antiguo (FIFO) — ver
+    // api/_stock.js y api/_stock_receipts_routes.js. products.cost ya no se
+    // edita a mano: siempre refleja el unit_cost del lote más antiguo con
+    // remaining_qty > 0 (el próximo que se va a consumir).
     await sql`
       CREATE TABLE IF NOT EXISTS stock_receipts (
         id            TEXT PRIMARY KEY,
@@ -265,7 +268,36 @@ module.exports = async (req, res) => {
         created_at    TIMESTAMPTZ DEFAULT NOW()
       )
     `;
+    // remaining_qty NOT NULL DEFAULT 0 — Postgres aplica el default a las
+    // filas que ya existían (recepciones previas al lote/FIFO): quedan en 0
+    // porque son sólo historial, no lotes vivos. Ver el backfill de "lote
+    // legacy" más abajo, que es lo que sí deja stock consumible por FIFO.
+    await sql`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS remaining_qty INTEGER NOT NULL DEFAULT 0`;
     await sql`CREATE INDEX IF NOT EXISTS stock_receipts_tenant_idx ON stock_receipts (tenant_id, created_at DESC)`;
+    await sql`CREATE INDEX IF NOT EXISTS stock_receipts_fifo_idx ON stock_receipts (tenant_id, sku, warehouse_id, created_at) WHERE remaining_qty > 0`;
+
+    // Backfill único e idempotente: el stock que un producto ya tenía ANTES
+    // de que existiera el sistema de lotes no tiene ningún stock_receipt real
+    // detrás (o los que hay no reflejan cuánto de cada uno sigue sin vender,
+    // ese dato nunca se llevó). Se crea UN solo lote "legacy" por producto
+    // con el stock y costo que tiene HOY — que es justo lo que se pidió:
+    // lo ya vendido/entregado no se retocA, y lo que queda en stock arranca
+    // el FIFO al costo actual del producto. id determinístico (sku+almacén)
+    // para que reintentar esta migración no duplique el lote.
+    const legacyStockRows = await sql`
+      SELECT sku, warehouse_id, tenant_id, stock, cost, name FROM products
+      WHERE warehouse_id != '' AND stock > 0
+    `;
+    for (const p of legacyStockRows) {
+      const legacyId = 'LEGACY-' + p.sku + '-' + (p.warehouse_id || 'x');
+      await sql`
+        INSERT INTO stock_receipts
+          (id, tenant_id, sku, warehouse_id, product_name, form_label, factor, qty_purchased, total_cost, units_added, unit_cost, new_avg_cost, remaining_qty, created_by, created_at)
+        VALUES
+          (${legacyId}, ${p.tenant_id}, ${p.sku}, ${p.warehouse_id}, ${p.name}, 'Stock existente (migración a lotes)', 1, ${p.stock}, ${p.stock * (p.cost || 0)}, ${p.stock}, ${p.cost || 0}, ${p.cost || 0}, ${p.stock}, 'sistema', NOW())
+        ON CONFLICT (id) DO NOTHING
+      `;
+    }
 
     await sql`
       CREATE TABLE IF NOT EXISTS orders (

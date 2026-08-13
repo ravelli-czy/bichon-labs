@@ -188,6 +188,13 @@ module.exports = async (req, res) => {
       for (const order of orders) {
         const items = Array.isArray(order.items) ? order.items : [];
         if (!items.length) continue;
+        // Órdenes que YA tienen snapshot (prácticamente todas, desde que esto
+        // corrió por primera vez) no se tocan — costo actual ya no es un
+        // promedio fijo por producto sino el del lote FIFO más viejo activo
+        // en este momento, así que re-aplicar acá pisaría el costo real de
+        // ventas ya entregadas con "lo que sea que hoy esté primero en la
+        // cola". Sólo rellena ítems que de verdad nunca tuvieron snapshot.
+        if (items.every(it => typeof it.totalCostAtSale === 'number')) continue;
         const newItems = _withCostSnapshot(items, maps);
         await sql`UPDATE orders SET items = ${JSON.stringify(newItems)}::jsonb WHERE id = ${order.id} AND tenant_id = ${tenantId}`;
         ordersUpdated++;

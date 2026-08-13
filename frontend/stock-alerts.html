@@ -249,7 +249,7 @@ table.wh-table tr:last-child td{border-bottom:none}
       <div class="form-group">
         <div class="form-label">Avisar con cuántos días de anticipación a la entrega</div>
         <input type="number" min="0" max="60" class="form-input" id="ka-lead-days" style="max-width:140px">
-        <div class="form-hint">Una venta con un KIT entra en la lista apenas su fecha de entrega quede a esta cantidad de días o menos — no antes.</div>
+        <div class="form-hint">Sólo afecta el aviso automático (correo/web): la lista automática toma una venta apenas su entrega quede a esta cantidad de días o menos. "Generar ahora" siempre revisa todas las ventas con entrega futura, sin este límite.</div>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -311,7 +311,7 @@ table.wh-table tr:last-child td{border-bottom:none}
     <div id="kit-runs-list"></div>
     <div id="kit-runs-empty" class="empty-state" style="display:none">
       <i class="ti ti-clipboard-off"></i>
-      <p>Todavía no se generó ninguna lista.<br>Se genera cuando una venta con KIT tenga insumos que no alcanzan para cubrirla, dentro de la anticipación configurada arriba.</p>
+      <p>Todavía no se generó ninguna lista.<br>Se genera cuando una venta con KIT tenga insumos que no alcanzan para cubrirla. El aviso automático sólo mira ventas dentro de la anticipación configurada arriba — "Generar ahora" revisa todas las ventas con entrega futura.</p>
     </div>
   </div>
 
@@ -792,7 +792,7 @@ async function generateKitNow() {
   try {
     const { run } = await api('/api/orders?resource=kit-shortage-alerts&action=generate-now', { method: 'POST' });
     if (!run) {
-      toast('ℹ️ Ninguna venta con entrega próxima tiene insumos de KIT por comprar ahora mismo');
+      toast('ℹ️ Ninguna venta con entrega futura tiene insumos de KIT por comprar ahora mismo');
     } else {
       toast('✅ Lista generada');
       await loadKitRuns();

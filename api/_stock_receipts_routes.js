@@ -19,11 +19,15 @@
 //
 // Cada línea: units_added = floor(qty_purchased * factor) — el remanente
 // fraccionario se pierde (ej. 3 botellas de 1.5L × 7.5 = 22.5 → se suman 22).
-// El costo del producto se recalcula como promedio ponderado contra el stock
-// y costo que ya tenía, no se reemplaza — así una misma compra puede mezclar
-// costos distintos por forma (ej. Croissant a $500/u en pack vs $1.250/u a
-// granel) y el costo del producto queda consistente con lo que realmente
-// costó tenerlo en bodega.
+//
+// Cada recepción es un lote (remaining_qty = units_added al crearla) — al
+// vender se consume lote por lote, del más antiguo al más nuevo (FIFO, ver
+// api/_stock.js). products.cost YA NO es un promedio: siempre refleja el
+// unit_cost del lote más antiguo con remaining_qty > 0, o sea "lo próximo
+// que se va a consumir". Por eso acá sólo se actualiza products.cost cuando
+// el producto no tenía stock activo todavía (esta recepción pasa a ser el
+// lote más viejo); si ya había stock, el lote nuevo queda detrás en la cola
+// y el costo del producto sigue apuntando al que ya estaba.
 const { writeLog } = require('./_log');
 
 const STOCK_RECEIPT_RESOURCES = ['stock-receipts'];
@@ -93,16 +97,15 @@ async function handleStockReceiptsResource(req, res, sql, session, tenantId, act
         const unitsAdded = Math.floor(line.qty_purchased * factor);
         const newStock = product.stock + unitsAdded;
         const unitCost = unitsAdded > 0 ? Math.round(totalCost / unitsAdded) : 0;
-        // Si el redondeo hacia abajo dejó unitsAdded en 0 (ej: compraste una
-        // fracción muy chica), no hay stock nuevo que mezclar — mantiene el
-        // costo promedio actual en vez de inflarlo con un total_cost que no
-        // corresponde a ninguna unidad agregada.
-        const newAvgCost = unitsAdded > 0
-          ? Math.round((product.stock * product.cost + totalCost) / newStock)
-          : product.cost;
+        // Sin stock activo todavía (no hay lote más viejo esperando) → este
+        // lote nuevo pasa a ser el próximo a consumirse, el costo del
+        // producto pasa a ser el suyo. Si ya había stock, el costo del
+        // producto no se toca — sigue apuntando al lote que ya estaba primero
+        // en la cola.
+        const newCost = product.stock <= 0 && unitsAdded > 0 ? unitCost : product.cost;
 
         const [updated] = await sql`
-          UPDATE products SET stock = ${newStock}, cost = ${newAvgCost}, updated_by = ${actor}, updated_at = NOW()
+          UPDATE products SET stock = ${newStock}, cost = ${newCost}, updated_by = ${actor}, updated_at = NOW()
           WHERE sku = ${line.sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
           RETURNING *
         `;
@@ -110,9 +113,9 @@ async function handleStockReceiptsResource(req, res, sql, session, tenantId, act
         const id = 'REC-' + String(++nextNum).padStart(4, '0');
         const [receipt] = await sql`
           INSERT INTO stock_receipts
-            (id, tenant_id, sku, warehouse_id, product_name, form_label, factor, qty_purchased, total_cost, units_added, unit_cost, new_avg_cost, created_by)
+            (id, tenant_id, sku, warehouse_id, product_name, form_label, factor, qty_purchased, total_cost, units_added, unit_cost, new_avg_cost, remaining_qty, created_by)
           VALUES
-            (${id}, ${tenantId}, ${line.sku}, ${wid}, ${product.name}, ${formLabel}, ${factor}, ${line.qty_purchased}, ${totalCost}, ${unitsAdded}, ${unitCost}, ${newAvgCost}, ${actor})
+            (${id}, ${tenantId}, ${line.sku}, ${wid}, ${product.name}, ${formLabel}, ${factor}, ${line.qty_purchased}, ${totalCost}, ${unitsAdded}, ${unitCost}, ${newCost}, ${unitsAdded}, ${actor})
           RETURNING *
         `;
         receipts.push({ ...receipt, product: updated });
@@ -124,7 +127,7 @@ async function handleStockReceiptsResource(req, res, sql, session, tenantId, act
           entity_type: 'producto',
           entity_id:   line.sku,
           entity_name: `${line.sku} — ${product.name}`,
-          details:     { id, form_label: formLabel, qty_purchased: line.qty_purchased, factor, units_added: unitsAdded, total_cost: totalCost, new_avg_cost: newAvgCost },
+          details:     { id, form_label: formLabel, qty_purchased: line.qty_purchased, factor, units_added: unitsAdded, total_cost: totalCost, product_cost: newCost },
         });
       }
 

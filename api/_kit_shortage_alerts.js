@@ -62,7 +62,10 @@ function accumulateInsumoNeeds(kitsBySku, productRowsBySku, kitSku, qty, wid, ne
 }
 
 // Órdenes "vivas" (no entregadas/canceladas) con fecha de entrega dentro de
-// [hoy, hoy + leadDays].
+// [hoy, hoy + leadDays]. leadDays === null/undefined → sin tope superior,
+// toma cualquier entrega futura (usado por "Generar ahora": lead_days sólo
+// gobierna CUÁNDO se dispara el aviso automático, no qué revisa el botón
+// manual).
 async function fetchOrdersInWindow(sql, tenantId, leadDays) {
   // Los 3 estados finales son literales fijos, no interpolados — igual
   // criterio que VENTAS_DATE_FILTER_DONE_STATUSES en frontend/index.html.
@@ -71,18 +74,20 @@ async function fetchOrdersInWindow(sql, tenantId, leadDays) {
     WHERE tenant_id = ${tenantId} AND status NOT IN ('entregada', 'no_entregada', 'cancelled')
   `;
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const until = new Date(today); until.setDate(until.getDate() + leadDays);
+  const until = leadDays == null ? null : new Date(today);
+  if (until) until.setDate(until.getDate() + leadDays);
   return rows.filter(o => {
     const dateStr = o.delivery?.date;
     if (!dateStr) return false;
     const d = new Date(dateStr + 'T12:00:00');
-    return !isNaN(d) && d >= today && d <= until;
+    return !isNaN(d) && d >= today && (!until || d <= until);
   });
 }
 
 // Genera el snapshot inmutable de una corrida y lo inserta. Devuelve null
 // (sin insertar nada) si no hay nada que comprar — igual criterio que
-// generateRun en _stock_alerts.js.
+// generateRun en _stock_alerts.js. leadDays === null → sin tope (ver
+// fetchOrdersInWindow).
 async function generateRun(sql, tenantId, leadDays) {
   const orders = await fetchOrdersInWindow(sql, tenantId, leadDays);
   if (!orders.length) return null;
