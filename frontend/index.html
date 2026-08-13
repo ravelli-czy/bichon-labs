@@ -1060,6 +1060,10 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
           </datalist>
         </div>
       </div>
+      <!-- Formas de compra ya usadas en CUALQUIER producto del tenant (ej: "Pack x3",
+           "A granel") — compartido entre productos, se completa solo (ver
+           _registerNewPurchaseFormLabels) la primera vez que alguien tipea una nueva. -->
+      <datalist id="datalist-purchase-form-labels"></datalist>
       <div class="form-group">
         <div class="form-label">Formas de compra <span style="font-weight:600;color:var(--text3)">(opcional — para convertir al ingresar inventario)</span></div>
         <div id="p-purchase-forms-wrap"></div>
@@ -3685,7 +3689,7 @@ function renderPurchaseFormRows() {
   const rows = S.tempPurchaseForms || [];
   wrap.innerHTML = rows.map((f, idx) => `
     <div class="form-row" style="align-items:flex-end;margin-bottom:6px">
-      <div class="form-group"><input class="form-input" placeholder="Ej: pack x3, a granel" value="${(f.label||'').replace(/"/g,'&quot;')}" oninput="updatePurchaseFormRow(${idx},'label',this.value)"></div>
+      <div class="form-group"><input class="form-input" list="datalist-purchase-form-labels" placeholder="Ej: pack x3, a granel" value="${(f.label||'').replace(/"/g,'&quot;')}" oninput="updatePurchaseFormRow(${idx},'label',this.value)"></div>
       <div class="form-group" style="max-width:110px"><input class="form-input" type="number" min="0" step="any" placeholder="Ej: 3" value="${f.factor ?? ''}" oninput="updatePurchaseFormRow(${idx},'factor',this.value)"></div>
       <button type="button" class="btn-icon-sm" onclick="removePurchaseFormRow(${idx})" title="Quitar" style="margin-bottom:10px"><i class="ti ti-trash"></i></button>
     </div>`).join('');
@@ -3703,6 +3707,19 @@ function updatePurchaseFormRow(idx, field, value) {
 function removePurchaseFormRow(idx) {
   S.tempPurchaseForms.splice(idx, 1);
   renderPurchaseFormRows();
+}
+// Suma al catálogo compartido (Catálogo → todas las tiendas, vía tenant
+// settings) cualquier etiqueta de forma de compra tipeada que todavía no
+// esté ahí, para que aparezca sugerida en el datalist al configurar otros
+// productos. Mismo mecanismo que brands/paymentMethods/salesChannels
+// (ver getCatalogList/saveCatalogList).
+async function _registerNewPurchaseFormLabels(forms) {
+  const existing = getCatalogList('purchaseFormLabels');
+  const existingLower = existing.map(s => s.toLowerCase());
+  const newLabels = [...new Set((forms||[]).map(f => (f.label||'').trim()).filter(Boolean))]
+    .filter(l => !existingLower.includes(l.toLowerCase()));
+  if (!newLabels.length) return;
+  await saveCatalogList('purchaseFormLabels', [...existing, ...newLabels]);
 }
 
 async function deleteProd(sku, warehouseId) {
@@ -3823,6 +3840,7 @@ async function _saveNewProductMultiRow() {
     stock_unit:      document.getElementById('p-stock-unit').value.trim() || 'unidad',
     purchase_forms:  (S.tempPurchaseForms || []).filter(f => f.label && f.factor > 0),
   };
+  await _registerNewPurchaseFormLabels(baseData.purchase_forms);
 
   let createdSku = null;
   for (let i = 0; i < rows.length; i++) {
@@ -3922,6 +3940,7 @@ async function _saveProdImpl() {
     purchase_forms:  baseData ? (baseData.purchase_forms || []) : (S.tempPurchaseForms || []).filter(f => f.label && f.factor > 0),
     ...(isAddSku ? { sku: S._addSkuData.sku } : {}), // explicit SKU for add-SKU mode
   };
+  if (!baseData) await _registerNewPurchaseFormLabels(data.purchase_forms);
   if (S.editingProdSku) {
     const wid = S.editingProdWarehouseId || '';
     if (!S._catalogMode && warehouse_id && warehouse_id !== wid) {
@@ -4572,6 +4591,9 @@ function _populateCatalogLists() {
   const brands    = getCatalogList('brands');
   const brandList = document.getElementById('datalist-brands');
   if (brandList) brandList.innerHTML = brands.map(b => `<option value="${b.replace(/"/g,'&quot;')}">`).join('');
+  const pfLabels    = getCatalogList('purchaseFormLabels');
+  const pfLabelList = document.getElementById('datalist-purchase-form-labels');
+  if (pfLabelList) pfLabelList.innerHTML = pfLabels.map(l => `<option value="${l.replace(/"/g,'&quot;')}">`).join('');
 }
 
 async function saveCatalogList(key, arr) {
