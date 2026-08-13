@@ -2834,6 +2834,11 @@ function priceRow(p, isKit) {
   const skuEsc = (p.sku || '').replace(/'/g, "\\'");
   const wid = (p.warehouse_id || '').replace(/'/g, "\\'");
   const editFn = isKit ? `editKit('${skuEsc}')` : `editProd('${skuEsc}','${wid}')`;
+  // Insumo: no tiene precio de venta (ese campo va oculto en la ficha de
+  // edición) — el número relevante acá es el costo real (products.cost,
+  // respaldado por los lotes de Ingreso de inventario), no products.price.
+  const isInsumo = !isKit && p.tipo === 'insumo';
+  const amount = isInsumo ? (p.cost || 0) : (p.price || 0);
   return `<div class="product-item">
     <div class="product-icon" ${isKit ? 'style="background:var(--amber-light)"' : ''}><i class="ti ${isKit ? 'ti-stack-2' : 'ti-box'}" ${isKit ? 'style="color:var(--amber-dark)"' : ''}></i></div>
     <div class="product-info">
@@ -2841,8 +2846,8 @@ function priceRow(p, isKit) {
       <div class="product-meta" style="gap:5px;margin-top:3px">${tipoBadge(isKit ? 'kit' : p.tipo)}<span style="font-size:9px;font-weight:700;color:var(--text3);font-family:monospace;background:var(--bg3);padding:1px 5px;border-radius:5px">${p.sku || 'Sin SKU'}</span></div>
     </div>
     <div class="product-right">
-      <div class="stock-num">${fmt(p.price)}</div>
-      <div class="stock-label">${!isKit && p.tipo === 'insumo' ? 'precio costo' : 'precio venta'}</div>
+      <div class="stock-num">${fmt(amount)}</div>
+      <div class="stock-label">${isInsumo ? 'precio costo' : 'precio venta'}</div>
       <div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end">
         <button onclick="event.stopPropagation();${editFn}" title="Editar precio" style="width:28px;height:28px;border-radius:8px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-pencil" style="font-size:14px"></i></button>
       </div>
