@@ -28,9 +28,10 @@ module.exports = async (req, res) => {
 
     // ── PUT — update kit ──────────────────────────────────────────────────
     if (req.method === 'PUT') {
-      const { name, price, items, stock_group_ids, tipo } = req.body || {};
+      const { name, price, items, stock_group_ids, groups, tipo } = req.body || {};
       const itemsJson = items !== undefined ? JSON.stringify(items) : null;
       const stockGroupIdsJson = stock_group_ids !== undefined ? JSON.stringify(stock_group_ids) : null;
+      const groupsJson = groups !== undefined ? JSON.stringify(groups) : null;
       // Editing the master propagates name/price/items/tipo to all warehouse variants
       await sql`
         UPDATE kits SET
@@ -38,6 +39,7 @@ module.exports = async (req, res) => {
           price           = COALESCE(${price    ?? null}, price),
           items           = COALESCE(${itemsJson}::jsonb, items),
           stock_group_ids = COALESCE(${stockGroupIdsJson}::jsonb, stock_group_ids),
+          groups          = COALESCE(${groupsJson}::jsonb, groups),
           tipo            = COALESCE(${tipo     ?? null}, tipo),
           updated_by = ${actor},
           updated_at = NOW()

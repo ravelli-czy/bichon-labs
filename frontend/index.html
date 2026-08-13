@@ -1248,10 +1248,17 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
           <div class="kit-price-row kit-price-profit"><span>Ganancia</span><strong id="kit-summary-profit">$0</strong></div>
         </div>
         <div class="divider"></div>
-        <div class="form-group">
-          <div class="form-label">Grupos que determinan stock/disponibilidad <span style="font-weight:600;color:var(--text3)">(opcional)</span></div>
-          <div style="font-size:12px;color:var(--text3);font-weight:600;margin-bottom:6px">Si eliges uno o más grupos, solo los componentes que pertenezcan a esos grupos cuentan para calcular el stock y la disponibilidad del KIT. Si no eliges ninguno, cuentan todos los componentes (comportamiento actual).</div>
+        <div style="background:var(--amber-light,#fef3c7);border:1px solid rgba(217,119,6,.25);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px">
+          <div style="font-size:10px;font-weight:800;color:var(--amber-dark);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px"><i class="ti ti-calculator"></i> Cálculo del stock de ESTE KIT</div>
+          <div class="form-label" style="margin-top:0">Grupos que determinan stock/disponibilidad <span style="font-weight:600;color:var(--text3)">(opcional)</span></div>
+          <div style="font-size:12px;color:var(--text3);font-weight:600;margin-bottom:6px">Si eliges uno o más grupos, solo los componentes (o sub-KITs) que pertenezcan a esos grupos cuentan para calcular el stock y la disponibilidad de <strong>este</strong> KIT. Si no eliges ninguno, cuentan todos los componentes (comportamiento actual).</div>
           <div id="kit-groups-wrap" class="chip-group-wrap"></div>
+        </div>
+        <div style="background:var(--primary-light);border:1px solid rgba(79,70,229,.2);border-radius:var(--radius);padding:12px 14px">
+          <div style="font-size:10px;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px"><i class="ti ti-tag"></i> Identidad de este KIT como componente de OTRO KIT</div>
+          <div class="form-label" style="margin-top:0">Grupo de Productos <span style="font-weight:600;color:var(--text3)">(opcional, puedes elegir varios)</span></div>
+          <div style="font-size:12px;color:var(--text3);font-weight:600;margin-bottom:6px">A qué grupo(s) <strong>pertenece</strong> este KIT cuando se usa como componente dentro de OTRO KIT — si ese KIT padre filtra por grupo, esto decide si este sub-KIT cuenta o no para el stock del padre. No afecta el cálculo del stock de este KIT en sí (eso lo define la sección de arriba).</div>
+          <div id="kit-own-groups-wrap" class="chip-group-wrap"></div>
         </div>
       </div>
       <div id="kit-sku-mode-fields" style="display:none">
@@ -2340,10 +2347,10 @@ function productSkuHasGroup(sku, groupIds) {
 
 // Chips de Grupo de Productos (ej. "Base", "Prescindibles") para mostrar de
 // qué grupo(s) es un componente — sirve tanto para los grupos a los que
-// pertenece un producto (p.groups) como para el/los grupo(s) que determinan
-// el stock de un sub-KIT (kit.stock_group_ids): mismo shape (array de ids),
-// mismo chip. Ayuda a ver de un vistazo por qué un componente (o sub-KIT)
-// está frenando la disponibilidad de todo el KIT.
+// pertenece un producto (p.groups) como para los grupos a los que pertenece
+// un sub-KIT (kit.groups): mismo shape (array de ids), mismo chip. Ayuda a
+// ver de un vistazo por qué un componente (o sub-KIT) está frenando la
+// disponibilidad de todo el KIT.
 function _groupChipsHtml(groupIds) {
   if (!Array.isArray(groupIds) || !groupIds.length) return '';
   return groupIds.map(gid => {
@@ -2354,15 +2361,27 @@ function _groupChipsHtml(groupIds) {
   }).join('');
 }
 
+// ¿Este sub-KIT (por SKU) pertenece a alguno de estos grupos? Análogo a
+// productSkuHasGroup(), pero para kits — usa kit.groups (a qué grupo
+// PERTENECE el kit como componente), no kit.stock_group_ids (que rige el
+// cálculo de SU PROPIO stock, un campo distinto). Un sub-KIT sin groups
+// configurado sigue contando siempre (no se le puede exigir un dato que
+// nunca se le pidió) — a diferencia de un producto sin groups, que si el
+// padre filtra, queda afuera.
+function kitSkuHasGroup(sku, groupIds) {
+  const sub = S.kits.find(k => k.sku === sku && (k.warehouse_id||'') === '');
+  if (!sub || !Array.isArray(sub.groups) || !sub.groups.length) return true;
+  return sub.groups.some(g => groupIds.includes(g));
+}
 // Componentes que efectivamente determinan el stock/disponibilidad del KIT.
 // Si el KIT tiene stock_group_ids configurado, solo cuentan los componentes
-// (no-KIT) cuyo producto pertenezca a alguno de esos grupos. Los sub-KITs
-// siempre cuentan (su propio stock ya respeta su propia configuración de grupos).
-// Sin stock_group_ids configurado: comportamiento anterior, cuentan todos.
+// cuyo producto (o, si es un sub-KIT, su propio kit.groups) pertenezca a
+// alguno de esos grupos. Sin stock_group_ids configurado: comportamiento
+// anterior, cuentan todos.
 function kitStockItems(kit) {
   const groupIds = kit.stock_group_ids;
   if (!Array.isArray(groupIds) || !groupIds.length) return kit.items || [];
-  return (kit.items || []).filter(i => i.type === 'kit' || productSkuHasGroup(i.sku, groupIds));
+  return (kit.items || []).filter(i => i.type === 'kit' ? kitSkuHasGroup(i.sku, groupIds) : productSkuHasGroup(i.sku, groupIds));
 }
 function kitStock(kit) {
   const items = kitStockItems(kit);
@@ -3265,7 +3284,7 @@ function _kitCardHtml(kit, localId, whs) {
       const subAl = sub ? (subStk===0 ? 'critical' : kitAlertLevel(sub)) : 'critical';
       const stockInfo = `<span style="font-size:10px;font-weight:900;color:${subStk===0?'var(--red)':'var(--text3)'};margin-right:4px">${subStk} disp.</span>`;
       return `<div class="kit-comp-row${subAl?' comp-'+subAl:''}">
-        <span class="kit-comp-name" style="color:var(--amber-dark)">${subAl?`<i class="ti ti-alert-triangle" style="font-size:11px"></i>`:''}<i class="ti ti-stack-2" style="font-size:10px"></i> ${sub?.name||i.sku}${_groupChipsHtml(sub?.stock_group_ids)}</span>
+        <span class="kit-comp-name" style="color:var(--amber-dark)">${subAl?`<i class="ti ti-alert-triangle" style="font-size:11px"></i>`:''}<i class="ti ti-stack-2" style="font-size:10px"></i> ${sub?.name||i.sku}${_groupChipsHtml(sub?.groups)}</span>
         <span class="kit-comp-right">${stockInfo}×${i.qty}</span>
       </div>`;
     }
@@ -3764,6 +3783,11 @@ function toggleKitGroup(id, el) {
   if (i === -1) S.tempKitGroups.push(id); else S.tempKitGroups.splice(i, 1);
   el.classList.toggle('selected');
 }
+function toggleKitOwnGroup(id, el) {
+  const i = S.tempKitOwnGroups.indexOf(id);
+  if (i === -1) S.tempKitOwnGroups.push(id); else S.tempKitOwnGroups.splice(i, 1);
+  el.classList.toggle('selected');
+}
 
 let _skuToggleOn = false;
 function _setCatalogSkuToggle(on) {
@@ -4185,6 +4209,8 @@ function openSheetKit(pushURL = true) {
   renderKitItemsList();
   S.tempKitGroups = [];
   renderGroupChips('kit-groups-wrap', S.tempKitGroups, 'toggleKitGroup');
+  S.tempKitOwnGroups = [];
+  renderGroupChips('kit-own-groups-wrap', S.tempKitOwnGroups, 'toggleKitOwnGroup');
   openSheet('sheet-kit');
   if (pushURL) history.pushState({ kitNew: true }, '', '/' + _editPagePrefix() + '/kit/new');
 }
@@ -4210,6 +4236,8 @@ function editKit(sku, pushURL = true) {
   renderKitItemsList();
   S.tempKitGroups = Array.isArray(kit.stock_group_ids) ? [...kit.stock_group_ids] : [];
   renderGroupChips('kit-groups-wrap', S.tempKitGroups, 'toggleKitGroup');
+  S.tempKitOwnGroups = Array.isArray(kit.groups) ? [...kit.groups] : [];
+  renderGroupChips('kit-own-groups-wrap', S.tempKitOwnGroups, 'toggleKitOwnGroup');
   const metaEl = document.getElementById('kit-meta');
   const metaHtml = buildEntityMeta(kit);
   metaEl.innerHTML  = metaHtml;
@@ -4245,6 +4273,8 @@ function duplicateKit() {
   renderKitItemsList();
   S.tempKitGroups = Array.isArray(kit.stock_group_ids) ? [...kit.stock_group_ids] : [];
   renderGroupChips('kit-groups-wrap', S.tempKitGroups, 'toggleKitGroup');
+  S.tempKitOwnGroups = Array.isArray(kit.groups) ? [...kit.groups] : [];
+  renderGroupChips('kit-own-groups-wrap', S.tempKitOwnGroups, 'toggleKitOwnGroup');
   document.querySelector('#sheet-kit .sheet-title').innerHTML = '<i class="ti ti-copy" style="color:var(--amber-dark)"></i> Duplicar KIT';
 }
 // Trunca nombres largos en las opciones de <select> — un <select> nativo
@@ -4307,7 +4337,7 @@ function renderKitItemsList() {
     let label;
     if (item.type === 'kit') {
       const k = S.kits.find(x => x.sku === item.sku && (x.warehouse_id||'') === '');
-      label = `<span style="font-size:10px;font-weight:700;color:var(--amber-dark);background:var(--amber-light,#fef3c7);padding:1px 5px;border-radius:5px;margin-right:4px">KIT</span>${k?.name||item.sku}${_groupChipsHtml(k?.stock_group_ids)}`;
+      label = `<span style="font-size:10px;font-weight:700;color:var(--amber-dark);background:var(--amber-light,#fef3c7);padding:1px 5px;border-radius:5px;margin-right:4px">KIT</span>${k?.name||item.sku}${_groupChipsHtml(k?.groups)}`;
     } else {
       const p = S.products.find(x => x.sku === item.sku && (x.warehouse_id||'') === (item.warehouse_id||''))
              || S.products.find(x => x.sku === item.sku);
@@ -4406,19 +4436,20 @@ async function _saveKitImpl() {
   const price = parseFloat(document.getElementById('kit-price').value)||0;
   const items = S.tempKitItems.slice();
   const stock_group_ids = (S.tempKitGroups || []).slice();
+  const groups = (S.tempKitOwnGroups || []).slice();
   const tipo = document.getElementById('kit-tipo').value === 'insumo' ? 'insumo' : 'producto';
 
   if (S.editingKitSku) {
     if (S._apiReady) {
       try {
-        const updated = await apiFetch(`/api/kits/${S.editingKitSku}`, { method:'PUT', body: JSON.stringify({ name, price, items, stock_group_ids, tipo }) });
-        // Sync name/price/items/stock_group_ids/tipo on all warehouse variants locally
-        S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name: updated.name, price: updated.price, items: updated.items, stock_group_ids: updated.stock_group_ids, tipo: updated.tipo } : k);
+        const updated = await apiFetch(`/api/kits/${S.editingKitSku}`, { method:'PUT', body: JSON.stringify({ name, price, items, stock_group_ids, groups, tipo }) });
+        // Sync name/price/items/stock_group_ids/groups/tipo on all warehouse variants locally
+        S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name: updated.name, price: updated.price, items: updated.items, stock_group_ids: updated.stock_group_ids, groups: updated.groups, tipo: updated.tipo } : k);
       } catch(e) {
-        S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name, price, items, stock_group_ids, tipo } : k);
+        S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name, price, items, stock_group_ids, groups, tipo } : k);
       }
     } else {
-      S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name, price, items, stock_group_ids, tipo } : k);
+      S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name, price, items, stock_group_ids, groups, tipo } : k);
     }
     S.editingKitSku = null;
     closeKitSheet();
@@ -4428,15 +4459,15 @@ async function _saveKitImpl() {
     const masterCount = S.kits.filter(k => (k.warehouse_id||'') === '').length;
     if (S._apiReady) {
       try {
-        const newKit = await apiFetch('/api/kits', { method:'POST', body: JSON.stringify({ name, price, items, sku: customSku, stock_group_ids, tipo }) });
+        const newKit = await apiFetch('/api/kits', { method:'POST', body: JSON.stringify({ name, price, items, sku: customSku, stock_group_ids, groups, tipo }) });
         S.kits.push(newKit);
       } catch(e) {
         const sku = customSku || 'KIT-'+String(masterCount+1).padStart(3,'0');
-        S.kits.push({ sku, name, price, items, warehouse_id: '', stock_group_ids, tipo });
+        S.kits.push({ sku, name, price, items, warehouse_id: '', stock_group_ids, groups, tipo });
       }
     } else {
       const sku = customSku || 'KIT-'+String(masterCount+1).padStart(3,'0');
-      S.kits.push({ sku, name, price, items, warehouse_id: '', stock_group_ids, tipo });
+      S.kits.push({ sku, name, price, items, warehouse_id: '', stock_group_ids, groups, tipo });
     }
     closeKitSheet();
     toast('✅ KIT creado — stock calculado automáticamente');
@@ -4864,7 +4895,10 @@ async function deleteProductGroup(id) {
     await apiFetch(`/api/products/${id}?groups=1`, { method: 'DELETE' });
     S.productGroups = S.productGroups.filter(x => x.id !== id);
     S.products.forEach(p => { if (Array.isArray(p.groups)) p.groups = p.groups.filter(gid => gid !== id); });
-    S.kits.forEach(k => { if (Array.isArray(k.stock_group_ids)) k.stock_group_ids = k.stock_group_ids.filter(gid => gid !== id); });
+    S.kits.forEach(k => {
+      if (Array.isArray(k.stock_group_ids)) k.stock_group_ids = k.stock_group_ids.filter(gid => gid !== id);
+      if (Array.isArray(k.groups)) k.groups = k.groups.filter(gid => gid !== id);
+    });
     toast('🗑 Grupo eliminado');
     renderCatalogo();
   } catch (e) {
