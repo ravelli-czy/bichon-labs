@@ -1987,6 +1987,8 @@ const S = {
   priTab: 'productos', // 'productos' | 'kits' — tabs de la página Precios
   priTypeFilter: 'venta',
   priQ: '',
+  catProdTypeFilter: 'todos', // 'todos' | 'productos' | 'kits' — filtro de Catálogo → Productos
+  catProdQ: '',
   ventasQ: '',
   ventasFilter: null,
   ventasDateFilter: null, // 'hoy' | 'manana' | 'resto' | null — desde la huincha de pedidos del Home
@@ -5394,6 +5396,11 @@ function renderCatalogProductsView(el) {
   const addBtn = `<button onclick="openSheetProdCatalog()" style="display:flex;align-items:center;gap:6px;width:100%;padding:11px 14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius);font-weight:800;cursor:pointer;font-size:13px;margin-bottom:12px;box-sizing:border-box">
     <i class="ti ti-plus"></i> Nuevo Producto
   </button>`;
+  const typeFilter = `<div class="chip-group-wrap" id="cat-prod-type-filter" style="margin-bottom:10px">
+    <div class="chip-group${S.catProdTypeFilter==='todos'?' selected':''}" id="catprodtype-todos" onclick="switchCatProdTypeFilter('todos')">Todos</div>
+    <div class="chip-group${S.catProdTypeFilter==='productos'?' selected':''}" id="catprodtype-productos" onclick="switchCatProdTypeFilter('productos')"><i class="ti ti-box"></i>Producto</div>
+    <div class="chip-group${S.catProdTypeFilter==='kits'?' selected':''}" id="catprodtype-kits" onclick="switchCatProdTypeFilter('kits')"><i class="ti ti-stack-2"></i>KIT</div>
+  </div>`;
   const searchBar = `<div class="search-bar" style="margin-bottom:12px">
     <i class="ti ti-search" style="color:var(--text3);font-size:20px"></i>
     <input type="text" id="cat-prod-search" placeholder="Buscar productos..." value="${(S.catProdQ||'').replace(/"/g,'&quot;')}" oninput="S.catProdQ=this.value;_renderCatalogProductsList()">
@@ -5406,7 +5413,14 @@ function renderCatalogProductsView(el) {
     return;
   }
 
-  el.innerHTML = addBtn + searchBar + `<div id="cat-prod-list"></div>`;
+  el.innerHTML = addBtn + typeFilter + searchBar + `<div id="cat-prod-list"></div>`;
+  _renderCatalogProductsList();
+}
+function switchCatProdTypeFilter(type) {
+  S.catProdTypeFilter = type;
+  document.getElementById('catprodtype-todos').classList.toggle('selected', type === 'todos');
+  document.getElementById('catprodtype-productos').classList.toggle('selected', type === 'productos');
+  document.getElementById('catprodtype-kits').classList.toggle('selected', type === 'kits');
   _renderCatalogProductsList();
 }
 
@@ -5423,6 +5437,10 @@ function _renderCatalogProductsList() {
   masterKits.forEach(k => { if (!seen.has('KIT:'+k.sku)) seen.set('KIT:'+k.sku, { ...k, _isKit: true }); });
   let unique = [...seen.values()].sort((a,b) => a.name.localeCompare(b.name));
 
+  const typeFilter = S.catProdTypeFilter || 'todos';
+  if (typeFilter === 'productos') unique = unique.filter(p => !p._isKit);
+  else if (typeFilter === 'kits')  unique = unique.filter(p => p._isKit);
+
   const q = (S.catProdQ||'').trim().toLowerCase();
   if (q) {
     unique = unique.filter(p =>
@@ -5434,7 +5452,9 @@ function _renderCatalogProductsList() {
   }
 
   if (!unique.length) {
-    listEl.innerHTML = `<div class="empty-state"><i class="ti ti-search"></i><p>Sin resultados para "${(S.catProdQ||'').replace(/</g,'&lt;')}"</p></div>`;
+    listEl.innerHTML = q
+      ? `<div class="empty-state"><i class="ti ti-search"></i><p>Sin resultados para "${(S.catProdQ||'').replace(/</g,'&lt;')}"</p></div>`
+      : `<div class="empty-state"><i class="ti ti-search"></i><p>Sin ${typeFilter === 'kits' ? 'KITs' : 'productos'} en el catálogo.</p></div>`;
     return;
   }
 
