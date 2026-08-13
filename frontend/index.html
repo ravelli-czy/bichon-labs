@@ -1144,13 +1144,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="form-row">
         <div class="form-group"><div class="form-label" id="price-label">Precio venta</div><input class="form-input" type="number" id="p-price" placeholder="$0"></div>
       </div>
-      <!-- Precio costo — ya no se edita a mano acá (ver Ingreso de
-           inventario), pero se sigue guardando en la base de datos y se
-           muestra de solo lectura para que quede visible. -->
-      <div class="form-group" id="p-cost-display-group" style="display:none">
-        <div class="form-label">Precio costo <span style="font-weight:600;color:var(--text3)">(solo lectura — se actualiza desde Ingreso de inventario)</span></div>
-        <div id="p-cost-display" style="padding:11px 14px;background:var(--bg3);border-radius:var(--radius);font-weight:800;font-size:15px;color:var(--text)">$0</div>
-      </div>
       <div class="form-row">
         <div class="form-group">
           <div class="form-label">Unidad de stock</div>
@@ -3689,7 +3682,6 @@ function openSheetProd(pushURL = true) {
   document.getElementById('prod-save-btn').innerHTML = '<i class="ti ti-check"></i> Guardar';
   document.getElementById('prod-dup-btn').style.display = 'none';
   ['p-name','p-brand','p-price'].forEach(id => document.getElementById(id).value='');
-  document.getElementById('p-cost-display-group').style.display = 'none';
   document.getElementById('p-stock-unit').value = 'unidad';
   document.getElementById('p-barcode-row').style.display  = '';
   document.getElementById('p-sku-section').style.display  = 'none';
@@ -3721,7 +3713,6 @@ function openSheetProdCatalog(pushURL = true) {
   document.getElementById('prod-save-btn').innerHTML = '<i class="ti ti-check"></i> Guardar';
   document.getElementById('prod-dup-btn').style.display = 'none';
   ['p-name','p-brand','p-price'].forEach(id => document.getElementById(id).value='');
-  document.getElementById('p-cost-display-group').style.display = 'none';
   document.getElementById('p-stock-unit').value = 'unidad';
   document.getElementById('prod-meta').style.display = 'none';
   // Catalog mode: hide warehouse + stock rows, show SKU toggle
@@ -3781,8 +3772,6 @@ function editProd(sku, warehouseId, pushURL = true) {
   document.getElementById('p-name').value      = p.name;
   document.getElementById('p-brand').value     = p.brand !== 'Sin marca' ? p.brand : '';
   document.getElementById('p-price').value     = p.price || '';
-  document.getElementById('p-cost-display').textContent = fmt(p.cost || 0);
-  document.getElementById('p-cost-display-group').style.display = '';
   populateCatSelects(p.cat !== 'General' ? (p.cat || '') : '');
   document.getElementById('p-stock').value     = p.stock;
   document.getElementById('p-threshold').value = p.threshold;
