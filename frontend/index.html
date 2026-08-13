@@ -59,7 +59,11 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .nav-tab i{font-size:22px;transition:all .2s}
 .nav-tab span{font-size:10px;font-weight:700}
 .nav-tab.active{color:var(--primary)}
-.nav-tab.pinned{background:var(--primary-light);border-radius:10px}
+/* "Ventas" queda fijo en el menú con un tono propio (ámbar) para que no se
+   confunda con el resaltado de "ítem seleccionado" (primary-light) — si
+   además es la página activa, sí toma ese mismo tono de selección. */
+.nav-tab.pinned{background:var(--amber-light);color:var(--amber-dark);border-radius:10px}
+.nav-tab.pinned.active{background:var(--primary-light);color:var(--primary)}
 
 /* Sidebar 2do nivel: grupos expandibles (Catálogo, Finanzas, Configuraciones
    y el sub-grupo Alertas dentro de Catálogo). Los hijos son .nav-tab
@@ -757,11 +761,23 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div id="cat-content" style="margin-top:10px"></div>
   </div>
 
-  <!-- PRECIOS (placeholder) -->
+  <!-- PRECIOS -->
   <div class="page" id="page-precios">
     <div class="section-title">Precios</div>
-    <div class="section-sub">Gestión de precios y listas</div>
-    <div class="empty-state"><i class="ti ti-currency-dollar"></i><p>Próximamente.</p></div>
+    <div class="section-sub">Precio de venta de productos y KITs</div>
+    <div class="tabs">
+      <div class="tab active" id="pritab-productos" onclick="switchPriTab('productos',this)">Productos</div>
+      <div class="tab" id="pritab-kits" onclick="switchPriTab('kits',this)">KITs</div>
+    </div>
+    <div class="chip-group-wrap" id="pri-type-filter">
+      <div class="chip-group selected" id="pritype-venta" onclick="switchPriTypeFilter('venta')"><i class="ti ti-shopping-cart"></i>Venta</div>
+      <div class="chip-group" id="pritype-insumos" onclick="switchPriTypeFilter('insumos')"><i class="ti ti-tool"></i>Insumos</div>
+    </div>
+    <div class="search-bar" id="pri-search-bar" style="margin-top:10px">
+      <i class="ti ti-search" style="color:var(--text3);font-size:20px"></i>
+      <input type="text" placeholder="Buscar..." oninput="S.priQ=this.value;renderPrecios()">
+    </div>
+    <div id="pri-content"></div>
   </div>
 
   <!-- ALERTAS DE PRECIO (placeholder) -->
@@ -1946,6 +1962,9 @@ const S = {
   invTab: _initPrefs.invDefaultTab || 'alertas',
   invTypeFilter: 'venta', // 'venta' | 'insumos' — filtro de Inventario (item 1 del doc de requerimientos)
   invQ: '',
+  priTab: 'productos', // 'productos' | 'kits' — tabs de la página Precios
+  priTypeFilter: 'venta',
+  priQ: '',
   ventasQ: '',
   ventasFilter: null,
   ventasDateFilter: null, // 'hoy' | 'manana' | 'resto' | null — desde la huincha de pedidos del Home
@@ -2742,6 +2761,7 @@ function showPage(id, el, pushURL = true) {
   }
   if (id==='ventas')    renderVentas();
   if (id==='catalogo')  renderCatalogo();
+  if (id==='precios')   renderPrecios();
   if (id==='meson')     { renderMesonCatalog(); renderMesonTiles(); }
   if (id==='prefs')     renderPrefsPage();
   // Lazy-load iframe pages
@@ -2782,6 +2802,87 @@ function switchInvTypeFilter(type) {
   document.getElementById('itype-insumos').classList.toggle('selected', type === 'insumos');
   if (S.invTab === 'kits') renderKits();
   else renderInventory();
+}
+
+// ── PRECIOS ───────────────────────────────────
+// Vista de solo lectura del precio de venta de productos y KITs, con el
+// mismo look de fila que Inventario (product-item) pero mostrando precio
+// en vez de stock. El lápiz abre el mismo sheet de edición que Catálogo.
+function switchPriTab(tab, el) {
+  S.priTab = tab;
+  document.querySelectorAll('#page-precios .tab').forEach(t => t.classList.remove('active'));
+  const target = el || document.getElementById('pritab-'+tab);
+  if (target) target.classList.add('active');
+  renderPrecios();
+}
+
+function switchPriTypeFilter(type) {
+  S.priTypeFilter = type;
+  document.getElementById('pritype-venta').classList.toggle('selected', type === 'venta');
+  document.getElementById('pritype-insumos').classList.toggle('selected', type === 'insumos');
+  renderPrecios();
+}
+
+function priceRow(p, isKit) {
+  const skuEsc = (p.sku || '').replace(/'/g, "\\'");
+  const wid = (p.warehouse_id || '').replace(/'/g, "\\'");
+  const editFn = isKit ? `editKit('${skuEsc}')` : `editProd('${skuEsc}','${wid}')`;
+  return `<div class="product-item">
+    <div class="product-icon" ${isKit ? 'style="background:var(--amber-light)"' : ''}><i class="ti ${isKit ? 'ti-stack-2' : 'ti-box'}" ${isKit ? 'style="color:var(--amber-dark)"' : ''}></i></div>
+    <div class="product-info">
+      <div class="product-name">${p.name}</div>
+      <div class="product-meta" style="gap:5px;margin-top:3px">${tipoBadge(isKit ? 'kit' : p.tipo)}<span style="font-size:9px;font-weight:700;color:var(--text3);font-family:monospace;background:var(--bg3);padding:1px 5px;border-radius:5px">${p.sku || 'Sin SKU'}</span></div>
+    </div>
+    <div class="product-right">
+      <div class="stock-num">${fmt(p.price)}</div>
+      <div class="stock-label">${!isKit && p.tipo === 'insumo' ? 'precio costo' : 'precio venta'}</div>
+      <div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end">
+        <button onclick="event.stopPropagation();${editFn}" title="Editar precio" style="width:28px;height:28px;border-radius:8px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-pencil" style="font-size:14px"></i></button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderPrecios() {
+  const el = document.getElementById('pri-content');
+  if (!el) return;
+
+  if (S.priTab === 'kits') {
+    let kits = S.kits.filter(k => (k.warehouse_id || '') === '');
+    kits = kits.filter(k => S.priTypeFilter === 'insumos' ? k.tipo === 'insumo' : k.tipo !== 'insumo');
+    if (S.priQ) {
+      const q = S.priQ.toLowerCase();
+      kits = kits.filter(k => k.name.toLowerCase().includes(q) || (k.sku && k.sku.toLowerCase().includes(q)));
+    }
+    kits = kits.slice().sort((a, b) => a.name.localeCompare(b.name));
+    el.innerHTML = kits.length
+      ? `<div class="card" style="padding:8px 16px">${kits.map(k => priceRow(k, true)).join('')}</div>`
+      : `<div class="empty-state"><i class="ti ti-stack-2"></i><p>${S.priQ ? 'Sin resultados' : 'Sin KITs de ' + (S.priTypeFilter === 'insumos' ? 'insumo' : 'venta') + '.'}</p></div>`;
+    return;
+  }
+
+  // Un renglón por SKU: preferimos el registro de catálogo (warehouse_id
+  // vacío, sin stock físico) y si no existe usamos cualquier instancia —
+  // mismo criterio que Catálogo → Productos (_renderCatalogProductsList).
+  const seen = new Map();
+  S.products.filter(p => (p.warehouse_id || '') === '').forEach(p => { if (!seen.has(p.sku)) seen.set(p.sku, p); });
+  S.products.filter(p => (p.warehouse_id || '') !== '').forEach(p => { if (!seen.has(p.sku)) seen.set(p.sku, p); });
+  let items = [...seen.values()];
+  items = items.filter(p => S.priTypeFilter === 'insumos'
+    ? (p.tipo === 'insumo' || p.tipo === 'ambos')
+    : (p.tipo !== 'insumo'));
+  if (S.priQ) {
+    const q = S.priQ.toLowerCase();
+    items = items.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      (p.brand || '').toLowerCase().includes(q) ||
+      (p.sku && p.sku.toLowerCase().includes(q)) ||
+      (p.cat && p.cat.toLowerCase().includes(q)));
+  }
+  items.sort((a, b) => a.name.localeCompare(b.name));
+  el.innerHTML = items.length
+    ? `<div class="card" style="padding:8px 16px">${items.map(p => priceRow(p, false)).join('')}</div>`
+    : `<div class="empty-state"><i class="ti ti-currency-dollar"></i><p>${S.priQ ? 'Sin resultados' : 'Sin productos en el catálogo.'}</p></div>`;
 }
 
 // ── HOME ──────────────────────────────────────
