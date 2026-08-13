@@ -218,6 +218,13 @@ body.embedded #modules-section,body.embedded .footer{display:none}
     <i class="ti ti-chevron-right"></i>
   </a>
 
+  <a href="#" id="kit-shortage-banner" class="stock-alert-banner" style="display:none">
+    <span class="dot"></span>
+    <i class="ti ti-stack-2"></i>
+    <span id="kit-shortage-banner-text">Nueva lista de insumos por venta de KITs pendiente</span>
+    <i class="ti ti-chevron-right"></i>
+  </a>
+
   <!-- HERO -->
   <div class="hero" id="hero-card">
     <div class="hero-period-toggle" id="hero-range-toggle">
@@ -423,6 +430,18 @@ function renderStockAlertBanner(pending) {
   document.getElementById('stock-alert-banner-text').textContent =
     `Nueva lista de compra pendiente — ${pending.item_count} producto${pending.item_count !== 1 ? 's' : ''}`;
   el.onclick = (e) => { e.preventDefault(); _navigateTop('/stock-alerts?id=' + encodeURIComponent(pending.id)); };
+}
+
+// Mismo criterio que renderStockAlertBanner, para la corrida 'pendiente' de
+// Alertas de insumos de KIT ("Comprar x Venta" en /stock-alerts). `pending`
+// es la corrida más reciente (o null) de GET ?resource=kit-shortage-alerts&scope=pending.
+function renderKitShortageBanner(pending) {
+  const el = document.getElementById('kit-shortage-banner');
+  if (!pending) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  document.getElementById('kit-shortage-banner-text').textContent =
+    `Insumos por comprar (venta de KITs) — ${pending.item_count} insumo${pending.item_count !== 1 ? 's' : ''}`;
+  el.onclick = (e) => { e.preventDefault(); _navigateTop('/stock-alerts?tab=kits&id=' + encodeURIComponent(pending.id)); };
 }
 
 // ── HUINCHA DE PEDIDOS POR HACER — semáforo por fecha de entrega ──────
@@ -678,21 +697,25 @@ function renderModules() {
   if (token)    authHeaders['Authorization'] = 'Bearer ' + token;
   if (tenantId) authHeaders['X-Tenant-Id']   = tenantId;
   let stockAlertPending = null;
+  let kitShortagePending = null;
   try {
-    const [products, kits, orders, pending] = await Promise.all([
+    const [products, kits, orders, pending, kitPending] = await Promise.all([
       fetch('/api/products', { headers: authHeaders }).then(r => r.ok ? r.json() : []),
       fetch('/api/kits', { headers: authHeaders }).then(r => r.ok ? r.json() : []),
       fetch('/api/orders', { headers: authHeaders }).then(r => r.ok ? r.json() : []),
       fetch('/api/orders?resource=stock-alerts&scope=pending', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/orders?resource=kit-shortage-alerts&scope=pending', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
     ]);
     PRODUCTS  = Array.isArray(products) ? products : [];
     KITS_LIST = Array.isArray(kits)     ? kits     : [];
     VENTAS    = Array.isArray(orders)   ? orders   : [];
-    stockAlertPending = pending;
+    stockAlertPending  = pending;
+    kitShortagePending = kitPending;
   } catch(e) {
     console.warn('[Dashboard] API unavailable:', e.message);
   }
   renderStockAlertBanner(stockAlertPending);
+  renderKitShortageBanner(kitShortagePending);
 
   // Compute derived values
   allTimeVentas = _sumVentasCosto(VENTAS).total; // used by the "Ventas" module card stat, unaffected by the hero range toggle
