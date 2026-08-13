@@ -650,7 +650,7 @@ module.exports = async (req, res) => {
     await sql`CREATE INDEX IF NOT EXISTS api_keys_tenant_idx  ON api_keys (tenant_id)`;
     await sql`CREATE INDEX IF NOT EXISTS api_keys_user_idx    ON api_keys (user_id)`;
 
-    const created = ['tenants', 'products', 'kits', 'product_groups', 'label_templates', 'orders', 'coupons', 'stock_alert_settings', 'stock_alert_runs', 'purchases', 'suppliers', 'shipments', 'users', 'sessions', 'audit_logs', 'api_keys', 'locales', 'warehouses', 'delivery_methods', 'delivery_slots', 'expense_categories', 'expenses'];
+    const created = ['tenants', 'products', 'kits', 'product_groups', 'label_templates', 'purchase_formats', 'stock_receipts', 'orders', 'coupons', 'stock_alert_settings', 'stock_alert_runs', 'purchases', 'suppliers', 'shipments', 'users', 'sessions', 'audit_logs', 'api_keys', 'locales', 'warehouses', 'delivery_methods', 'delivery_slots', 'expense_categories', 'expenses'];
 
     // Always ensure superadmin user exists
     const [{ ucount }] = await sql`SELECT COUNT(*) AS ucount FROM users WHERE username = 'admin'`;
