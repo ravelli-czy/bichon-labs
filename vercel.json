@@ -10,7 +10,7 @@
   },
   "crons": [
     { "path": "/api/orders?resource=stock-alerts&action=cron-run", "schedule": "0 13 * * *" },
-    { "path": "/api/orders?resource=kit-shortage-alerts&action=cron-run", "schedule": "0 12 * * *" }
+    { "path": "/api/orders?resource=kit-shortage-alerts&action=cron-run", "schedule": "0 19 * * *" }
   ],
   "rewrites": [
     { "source": "/api/v1/:slug/OMS/orders",           "destination": "/api/orders" },
