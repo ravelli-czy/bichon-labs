@@ -230,6 +230,14 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .chip-group.selected{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
 .chip-group i{font-size:14px}
 
+/* ELIMINAR ORDEN — opción de restitución de stock */
+.restock-opt{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:2px solid var(--border);border-radius:var(--radius);background:var(--bg3);cursor:pointer;transition:all .15s}
+.restock-opt.selected{border-color:var(--primary);background:var(--primary-light)}
+.restock-opt-icon{width:32px;height:32px;border-radius:9px;background:var(--bg2);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;color:var(--text2)}
+.restock-opt.selected .restock-opt-icon{background:var(--primary);color:#fff}
+.restock-opt-title{font-size:13px;font-weight:800;margin-bottom:2px}
+.restock-opt-desc{font-size:11px;font-weight:600;color:var(--text3);line-height:1.4}
+
 /* PREP CHECKLIST (Iniciar Preparación) */
 .prep-check-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius);margin-bottom:10px;cursor:pointer;transition:all .15s}
 .prep-check-row.done{border-color:var(--green);background:var(--green-light)}
@@ -1442,13 +1450,30 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div class="sheet-content">
       <div style="background:#fee2e2;border:1.5px solid var(--red);border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;font-size:13px;font-weight:600;color:#7f1d1d;display:flex;gap:10px;align-items:flex-start">
         <i class="ti ti-alert-triangle" style="font-size:18px;flex-shrink:0;margin-top:1px"></i>
-        <span>Esta acción es <strong>irreversible</strong>. Se eliminará la orden y su envío asociado (si existe). El stock <strong>no</strong> será repuesto.</span>
+        <span>Esta acción es <strong>irreversible</strong>. Se eliminará la orden y su envío asociado (si existe). El monto de esta venta se descuenta de los indicadores en ambos casos.</span>
       </div>
       <div id="eliminar-orden-resumen"></div>
+      <div class="form-label mt-3 mb-2">¿Qué hacer con el stock de los productos de la orden? <span style="font-weight:600;color:var(--text3)">(si es un KIT, sus componentes)</span></div>
+      <div id="eliminar-orden-stock-opts" style="display:flex;flex-direction:column;gap:8px">
+        <div class="restock-opt" data-restock="1" onclick="selectEliminarOrdenStockOpt(this,true)">
+          <div class="restock-opt-icon"><i class="ti ti-rotate-clockwise-2"></i></div>
+          <div>
+            <div class="restock-opt-title">Restituir el stock</div>
+            <div class="restock-opt-desc">Devuelve el stock y su precio costo al inventario. El monto de la orden se restituye de los indicadores de venta.</div>
+          </div>
+        </div>
+        <div class="restock-opt" data-restock="0" onclick="selectEliminarOrdenStockOpt(this,false)">
+          <div class="restock-opt-icon"><i class="ti ti-ban"></i></div>
+          <div>
+            <div class="restock-opt-title">No restituir</div>
+            <div class="restock-opt-desc">El stock ya rebajado (y su precio costo) queda como está. Se trata como pérdida: el monto también se descuenta de los indicadores de venta.</div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="sheet-footer">
       <button class="btn btn-outline" onclick="closeSheet('sheet-eliminar-orden')" style="flex:1;width:auto">Cancelar</button>
-      <button class="btn btn-red" id="btn-confirmar-eliminar" onclick="confirmarEliminarOrden()" style="flex:2"><i class="ti ti-trash"></i> Eliminar orden</button>
+      <button class="btn btn-red" id="btn-confirmar-eliminar" onclick="confirmarEliminarOrden()" disabled style="flex:2"><i class="ti ti-trash"></i> Eliminar orden</button>
     </div>
   </div>
 </div>
@@ -7412,8 +7437,11 @@ function openEliminarOrden(id) {
   const v = S.ventas.find(x => x.id === id);
   if (!v) return;
   S._eliminarOrdenId = id;
+  S._eliminarOrdenRestoreStock = null;
+  document.querySelectorAll('#eliminar-orden-stock-opts .restock-opt').forEach(o => o.classList.remove('selected'));
   const btn = document.getElementById('btn-confirmar-eliminar');
-  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-trash"></i> Eliminar orden'; }
+  // Force an explicit stock choice before the destructive action is enabled.
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-trash"></i> Eliminar orden'; }
   S._eliminando = false;
   document.getElementById('eliminar-orden-resumen').innerHTML = `
     <div style="background:var(--bg3);border-radius:var(--radius);padding:12px 14px;display:flex;flex-direction:column;gap:8px">
@@ -7437,23 +7465,36 @@ function openEliminarOrden(id) {
   openSheet('sheet-eliminar-orden');
 }
 
+function selectEliminarOrdenStockOpt(el, restore) {
+  document.querySelectorAll('#eliminar-orden-stock-opts .restock-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  S._eliminarOrdenRestoreStock = restore;
+  const btn = document.getElementById('btn-confirmar-eliminar');
+  if (btn) btn.disabled = false;
+}
+
 async function confirmarEliminarOrden() {
   if (S._eliminando) return;
   const id = S._eliminarOrdenId;
   if (!id) return;
+  if (S._eliminarOrdenRestoreStock === null || S._eliminarOrdenRestoreStock === undefined) {
+    toast('⚠️ Elige qué hacer con el stock antes de eliminar');
+    return;
+  }
+  const restoreStock = S._eliminarOrdenRestoreStock;
   S._eliminando = true;
   const btn = document.getElementById('btn-confirmar-eliminar');
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Eliminando...'; }
   if (S._apiReady) {
     try {
-      await apiFetch(`/api/orders/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/orders/${id}?restoreStock=${restoreStock ? '1' : '0'}`, { method: 'DELETE' });
       S.ventas = S.ventas.filter(o => o.id !== id);
       S._eliminarOrdenId = null;
       S._eliminando = false;
       closeSheet('sheet-eliminar-orden');
       closeOrdenDetalle();
       renderVentas();
-      toast('🗑️ Orden ' + id + ' eliminada');
+      toast(restoreStock ? '🗑️ Orden ' + id + ' eliminada — stock restituido' : '🗑️ Orden ' + id + ' eliminada — stock sin restituir');
     } catch(e) {
       S._eliminando = false;
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-trash"></i> Eliminar orden'; }

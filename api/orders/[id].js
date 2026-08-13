@@ -290,21 +290,36 @@ module.exports = async (req, res) => {
 
     // ── DELETE ────────────────────────────────────────────────────────────
     if (req.method === 'DELETE') {
+      // ?restoreStock=1 — caller (see sheet-eliminar-orden in el frontend)
+      // must choose explicitly what to do with the stock consumed by this
+      // order (and its KIT components): give it back, or leave it deducted
+      // and treat this sale as a loss. Either way the order — and its
+      // amount — disappears from every sales indicator, since those are
+      // all computed live from the `orders` table.
+      const restoreStock = req.query.restoreStock === '1' || req.query.restoreStock === 'true';
+
       // coupon_id is a newer column (migration via POST /api/setup) — fall
       // back to a select without it if that hasn't run yet, so a pending
       // migration never blocks deleting an order.
       let existing;
       try {
-        [existing] = await sql`SELECT cliente, coupon_id FROM orders WHERE id = ${id} AND tenant_id = ${tenantId}`;
+        [existing] = await sql`SELECT cliente, coupon_id, items, location_id FROM orders WHERE id = ${id} AND tenant_id = ${tenantId}`;
       } catch (selErr) {
         if (selErr.code !== '42703') throw selErr;
-        [existing] = await sql`SELECT cliente FROM orders WHERE id = ${id} AND tenant_id = ${tenantId}`;
+        [existing] = await sql`SELECT cliente, items, location_id FROM orders WHERE id = ${id} AND tenant_id = ${tenantId}`;
       }
       if (!existing) return res.status(404).json({ error: 'Order not found' });
 
       // Release the coupon use (if any) so a deleted order doesn't
       // permanently burn a use of its cupón.
       if (existing.coupon_id) await releaseCoupon(sql, tenantId, existing.coupon_id);
+
+      // Give back the stock (and, via the FIFO lots, its precio costo) that
+      // was deducted when this order was created — mirrors the restore path
+      // already used when items are removed from a Pre-Compra.
+      if (restoreStock && existing.items?.length) {
+        await restoreStockForItems(sql, existing.items, tenantId, '', existing.location_id);
+      }
 
       // Delete linked shipment first (if any)
       await sql`DELETE FROM shipments WHERE order_id = ${id} AND tenant_id = ${tenantId}`.catch(() => {});
@@ -318,10 +333,10 @@ module.exports = async (req, res) => {
         entity_type: 'orden',
         entity_id:   id,
         entity_name: `${id}${existing.cliente ? ' — ' + existing.cliente : ''}`,
-        details:     { id },
+        details:     { id, restoreStock },
       });
 
-      return res.json({ ok: true, deleted: id });
+      return res.json({ ok: true, deleted: id, restoreStock });
     }
 
     return res.status(405).json({ error: 'Method not allowed' });
