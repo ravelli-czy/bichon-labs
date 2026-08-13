@@ -3,11 +3,14 @@
 // otra Serverless Function; el plan Hobby de Vercel tiene tope de 12).
 // /api/products?resource=stock-receipts — Ingreso de inventario, mismo motivo,
 // vive en api/_stock_receipts_routes.js.
+// /api/products?resource=purchase-formats — Mantenedor de Formatos de compra,
+// mismo motivo, vive en api/_purchase_formats_routes.js.
 const { getDb } = require('./_db');
 const cors = require('./_cors');
 const { writeLog } = require('./_log');
 const { getSession, resolveTenantId } = require('./_tenant');
 const { handleStockReceiptsResource, STOCK_RECEIPT_RESOURCES } = require('./_stock_receipts_routes');
+const { handlePurchaseFormatsResource, PURCHASE_FORMAT_RESOURCES } = require('./_purchase_formats_routes');
 
 module.exports = async (req, res) => {
   if (cors(req, res)) return;
@@ -24,6 +27,10 @@ module.exports = async (req, res) => {
   // ── Ingreso de inventario: historial + registrar compra ─────────────────
   if (STOCK_RECEIPT_RESOURCES.includes(req.query?.resource)) {
     return handleStockReceiptsResource(req, res, sql, session, tenantId, actor);
+  }
+  // ── Mantenedor de Formatos de compra ─────────────────────────────────────
+  if (PURCHASE_FORMAT_RESOURCES.includes(req.query?.resource)) {
+    return handlePurchaseFormatsResource(req, res, sql, session, tenantId, actor);
   }
 
   try {
@@ -120,12 +127,11 @@ module.exports = async (req, res) => {
         tipo = 'producto', cost = 0, price = 0,
         stock = 0, threshold = 10, warehouse_id = '', barcode = '',
         groups = [], sku: explicitSku,
-        stock_unit = 'unidad', purchase_forms = [],
+        stock_unit = 'unidad',
       } = req.body || {};
 
       if (!name) return res.status(400).json({ error: 'name is required' });
       if (!Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
-      if (!Array.isArray(purchase_forms)) return res.status(400).json({ error: 'purchase_forms must be an array' });
 
       let sku;
       if (explicitSku) {
@@ -144,8 +150,8 @@ module.exports = async (req, res) => {
       }
 
       const [row] = await sql`
-        INSERT INTO products (sku, name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, created_by, tenant_id, warehouse_id, stock_unit, purchase_forms)
-        VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${cost}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${actor}, ${tenantId}, ${warehouse_id}, ${stock_unit}, ${JSON.stringify(purchase_forms)})
+        INSERT INTO products (sku, name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, created_by, tenant_id, warehouse_id, stock_unit)
+        VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${cost}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${actor}, ${tenantId}, ${warehouse_id}, ${stock_unit})
         RETURNING *
       `;
 

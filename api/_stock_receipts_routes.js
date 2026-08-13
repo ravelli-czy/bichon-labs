@@ -9,7 +9,13 @@
 // GET  /api/products?resource=stock-receipts             → historial de recepciones
 // POST /api/products?resource=stock-receipts              → registra una compra (una o
 //   varias líneas de una vez, ej: "3 botellas de jugo + 2 packs de croissant"):
-//   body { lines: [{ sku, warehouse_id, form_label, factor, qty_purchased, total_cost }] }
+//   body { lines: [{ sku, warehouse_id, format_id, qty_purchased, total_cost }] }
+//   format_id referencia al Mantenedor de Formatos de compra (purchase_formats,
+//   ver api/_purchase_formats_routes.js) — vacío/null = "Directo" (factor 1,
+//   compras en la misma unidad de stock del producto). El label/factor se
+//   resuelven acá server-side (nunca se confía en lo que mande el cliente) y
+//   quedan snapshoteados en stock_receipts, así el historial no cambia si el
+//   formato se edita o borra después.
 //
 // Cada línea: units_added = floor(qty_purchased * factor) — el remanente
 // fraccionario se pierde (ej. 3 botellas de 1.5L × 7.5 = 22.5 → se suman 22).
@@ -61,19 +67,22 @@ async function handleStockReceiptsResource(req, res, sql, session, tenantId, act
         if (!isPlainNumber(line.qty_purchased) || line.qty_purchased <= 0) {
           return res.status(400).json({ error: `Cantidad inválida para ${line.sku}` });
         }
-        const factor = line.factor ?? 1;
-        if (!isPlainNumber(factor) || factor <= 0) {
-          return res.status(400).json({ error: `Factor de conversión inválido para ${line.sku}` });
-        }
       }
+
+      const formats = await sql`SELECT id, label, factor FROM purchase_formats WHERE tenant_id = ${tenantId}`;
+      const formatsById = Object.fromEntries(formats.map(f => [f.id, f]));
 
       let nextNum = await nextReceiptId(sql, tenantId);
       const receipts = [];
       for (const line of lines) {
         const wid = line.warehouse_id || '';
-        const factor = line.factor ?? 1;
+        const format = line.format_id ? formatsById[line.format_id] : null;
+        if (line.format_id && !format) {
+          return res.status(400).json({ error: `Formato de compra no encontrado para ${line.sku}` });
+        }
+        const factor = format ? Number(format.factor) : 1;
+        const formLabel = format ? format.label : '';
         const totalCost = isPlainNumber(line.total_cost) ? Math.round(line.total_cost) : 0;
-        const formLabel = (line.form_label || '').trim();
 
         const [product] = await sql`
           SELECT sku, name, stock, cost FROM products
