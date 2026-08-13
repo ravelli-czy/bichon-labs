@@ -32,12 +32,29 @@ function round2(n) {
 }
 
 // ── Costo de productos / KITs ────────────────────────────────────────────
-// Misma fuente de verdad que orders.js usaba antes (_loadCostMaps): costo
-// actual de products/kits del tenant, usado sólo para tomar el snapshot en
-// el momento de la venta (nunca para recalcular ventas históricas).
+// "Costo actual" de referencia: el del lote FIFO más viejo con stock activo
+// (lo próximo que se va a vender), o si no queda ninguno activo, el del
+// último lote registrado (mejor referencia disponible). Se computa en vivo
+// contra stock_receipts — products ya no tiene una columna cost cacheada.
+// Usado para estimar costo cuando NO hay una consumición real de la que
+// tomarlo (ver buildSaleSnapshot para el caso con consumición real): el
+// backfill de costos históricos, y las líneas de una Pre Compra que no
+// cambiaron de cantidad al editar sus items.
 async function loadCostMaps(sql, tenantId) {
-  const products = await sql`SELECT sku, warehouse_id, cost FROM products WHERE tenant_id = ${tenantId}`;
-  const kits     = await sql`SELECT sku, items FROM kits WHERE tenant_id = ${tenantId} AND warehouse_id = ''`;
+  const products = await sql`
+    SELECT p.sku, p.warehouse_id,
+      COALESCE(
+        (SELECT sr.unit_cost FROM stock_receipts sr
+         WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id AND sr.remaining_qty > 0
+         ORDER BY sr.created_at ASC LIMIT 1),
+        (SELECT sr.unit_cost FROM stock_receipts sr
+         WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id
+         ORDER BY sr.created_at DESC LIMIT 1),
+        0
+      ) AS cost
+    FROM products p WHERE p.tenant_id = ${tenantId}
+  `;
+  const kits = await sql`SELECT sku, items FROM kits WHERE tenant_id = ${tenantId} AND warehouse_id = ''`;
   const productsBySkuWh = new Map(); // "sku|warehouse_id" -> cost
   const productsBySku   = new Map(); // sku -> cost (primer match, cualquier almacén)
   for (const p of products) {
@@ -130,6 +147,43 @@ function withFinancialSnapshot(items, maps) {
     if (item.type === 'kit') {
       snapshot.kitId = item.sku;
       snapshot.componentBreakdown = kitCostBreakdown(maps, item.sku, 1).components;
+    } else {
+      snapshot.skuId = item.sku;
+    }
+    return snapshot;
+  });
+}
+
+// ── Snapshot financiero a partir de consumición REAL (deductStockForItems) ──
+// A diferencia de withFinancialSnapshot (que estima el costo con el "costo
+// actual" leído de antemano, sin saber qué se va a consumir realmente), acá
+// el costo viene de los lotes FIFO que efectivamente se tocaron al crear la
+// orden — más preciso cuando una venta cruza dos lotes de distinto costo.
+// `consumption` es el arreglo que devuelve deductStockForItems, paralelo a
+// `items` (mismo orden, mismo largo).
+function buildSaleSnapshot(items, consumption) {
+  return (items || []).map((item, i) => {
+    const c = consumption[i] || { unitCost: 0, totalCost: 0 };
+    const unitCostAtSale  = c.unitCost || 0;
+    const unitSalePrice   = item.price || 0;
+    const quantity        = item.qty || 0;
+    const discountAmount  = item.discount || 0;
+    const totalSaleAmount = round2(unitSalePrice * quantity - discountAmount);
+    const totalCostAtSale = round2(c.totalCost || 0);
+    const snapshot = {
+      ...item,
+      cost: unitCostAtSale, // compatibilidad: código existente lee item.cost
+      productId: item.sku,
+      quantity,
+      unitSalePrice,
+      unitCostAtSale,
+      totalSaleAmount,
+      totalCostAtSale,
+      discountAmount,
+    };
+    if (item.type === 'kit') {
+      snapshot.kitId = item.sku;
+      snapshot.componentBreakdown = c.components || [];
     } else {
       snapshot.skuId = item.sku;
     }
@@ -276,7 +330,7 @@ module.exports = {
   DEFAULT_CURRENCY, DEFAULT_TIMEZONE, REVENUE_STATUSES, DEFAULT_EXPENSE_CATEGORIES,
   pct, round2,
   loadCostMaps, productCost, decomposeKit, kitCostBreakdown, kitUnitCost, itemUnitCost,
-  withFinancialSnapshot, orderCostOfGoods, orderHasReliableCost, orderGrossSales,
+  withFinancialSnapshot, buildSaleSnapshot, orderCostOfGoods, orderHasReliableCost, orderGrossSales,
   orderShippingRevenue, orderNetSales, orderFinancialSummary,
   nextCategoryId, nextExpenseId, seedDefaultCategories,
   zonedParts, zonedDateKey,

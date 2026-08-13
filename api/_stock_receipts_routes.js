@@ -22,12 +22,12 @@
 //
 // Cada recepción es un lote (remaining_qty = units_added al crearla) — al
 // vender se consume lote por lote, del más antiguo al más nuevo (FIFO, ver
-// api/_stock.js). products.cost YA NO es un promedio: siempre refleja el
-// unit_cost del lote más antiguo con remaining_qty > 0, o sea "lo próximo
-// que se va a consumir". Por eso acá sólo se actualiza products.cost cuando
-// el producto no tenía stock activo todavía (esta recepción pasa a ser el
-// lote más viejo); si ya había stock, el lote nuevo queda detrás en la cola
-// y el costo del producto sigue apuntando al que ya estaba.
+// api/_stock.js). products ya no tiene una columna cost cacheada — el costo
+// "actual" del producto (para mostrar, o al armar un snapshot de venta sin
+// una consumición real de la que tomarlo) se computa en vivo contra
+// stock_receipts: el unit_cost del lote más antiguo con remaining_qty > 0,
+// o el del último lote registrado si no queda ninguno activo (ver
+// api/_finance.js:loadCostMaps, misma lógica).
 const { writeLog } = require('./_log');
 
 const STOCK_RECEIPT_RESOURCES = ['stock-receipts'];
@@ -89,7 +89,7 @@ async function handleStockReceiptsResource(req, res, sql, session, tenantId, act
         const totalCost = isPlainNumber(line.total_cost) ? Math.round(line.total_cost) : 0;
 
         const [product] = await sql`
-          SELECT sku, name, stock, cost FROM products
+          SELECT sku, name, stock FROM products
           WHERE sku = ${line.sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
         `;
         if (!product) return res.status(404).json({ error: `Producto no encontrado: ${line.sku}` });
@@ -97,15 +97,25 @@ async function handleStockReceiptsResource(req, res, sql, session, tenantId, act
         const unitsAdded = Math.floor(line.qty_purchased * factor);
         const newStock = product.stock + unitsAdded;
         const unitCost = unitsAdded > 0 ? Math.round(totalCost / unitsAdded) : 0;
-        // Sin stock activo todavía (no hay lote más viejo esperando) → este
-        // lote nuevo pasa a ser el próximo a consumirse, el costo del
-        // producto pasa a ser el suyo. Si ya había stock, el costo del
-        // producto no se toca — sigue apuntando al lote que ya estaba primero
-        // en la cola.
-        const newCost = product.stock <= 0 && unitsAdded > 0 ? unitCost : product.cost;
+        // "Costo del producto" tras esta recepción, sólo para el historial
+        // (columna new_avg_cost/"Costo producto") — no se guarda en
+        // products, se computa igual que products.cost se computaba antes:
+        // sin stock activo todavía (no hay lote más viejo esperando), este
+        // lote nuevo pasa a ser el próximo a consumirse, así que es su
+        // costo; si ya había stock, sigue siendo el del lote que ya estaba
+        // primero en la cola.
+        let newCost = unitCost;
+        if (product.stock > 0) {
+          const [oldestLot] = await sql`
+            SELECT unit_cost FROM stock_receipts
+            WHERE tenant_id = ${tenantId} AND sku = ${line.sku} AND warehouse_id = ${wid} AND remaining_qty > 0
+            ORDER BY created_at ASC LIMIT 1
+          `;
+          newCost = oldestLot ? oldestLot.unit_cost : unitCost;
+        }
 
         const [updated] = await sql`
-          UPDATE products SET stock = ${newStock}, cost = ${newCost}, updated_by = ${actor}, updated_at = NOW()
+          UPDATE products SET stock = ${newStock}, updated_by = ${actor}, updated_at = NOW()
           WHERE sku = ${line.sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
           RETURNING *
         `;
