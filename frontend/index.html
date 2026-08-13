@@ -422,7 +422,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
    RESPONSIVE — Desktop ≥ 768 px
 ═══════════════════════════════════════════════ */
 :root{--sidebar-w:220px;--sidebar-cw:58px;--topbar-h:65px;--bottomnav-h:64px}
-.sidebar-brand{display:none}
 #sidebar-toggle{display:none}
 .powered-by{display:none;align-items:center;gap:6px;padding:10px 14px;font-size:10px;font-weight:700;color:var(--text3);margin-top:auto;border-top:1px solid var(--border)}
 .powered-by i{font-size:14px;color:var(--primary)}
@@ -441,15 +440,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   #sidebar-toggle{display:flex}
   #mobile-more-btn{display:none}
 
-  /* Sidebar brand */
-  .sidebar-brand{
-    display:flex;align-items:center;gap:10px;
-    padding:0 10px 16px;border-bottom:1px solid var(--border);
-    margin-bottom:8px;flex-shrink:0;
-  }
-  .sidebar-brand .logo-title{font-size:15px;color:var(--primary);font-weight:900}
-  .sidebar-brand .logo-sub{font-size:10px;color:var(--text3);font-weight:600;line-height:1}
-
   /* ── COLLAPSED (default) ──────────────────── */
   .bottom-nav{
     position:fixed;left:0;top:var(--topbar-h);right:auto;bottom:0;
@@ -465,7 +455,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   .nav-tab span{display:none;font-size:13px;font-weight:700;white-space:nowrap}
   .nav-tab i{font-size:20px}
   .nav-tab.active{background:var(--primary-light)}
-  .sidebar-brand{display:none}
   .content{margin-left:var(--sidebar-cw);padding:24px 32px 40px;max-width:none;transition:margin-left .22s ease}
   .fab{right:32px;bottom:32px}
   #toast{bottom:32px}
@@ -479,7 +468,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   body.sidebar-expanded .bottom-nav{width:var(--sidebar-w);max-width:var(--sidebar-w);padding:16px 10px 24px;overflow-y:auto}
   body.sidebar-expanded .nav-tab{justify-content:flex-start;padding:10px 14px;gap:12px}
   body.sidebar-expanded .nav-tab span{display:inline}
-  body.sidebar-expanded .sidebar-brand{display:flex}
   body.sidebar-expanded .powered-by{display:flex}
   body.sidebar-expanded .content{margin-left:var(--sidebar-w)}
   body.sidebar-expanded .overlay-page{left:var(--sidebar-w)}
@@ -909,10 +897,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 <button class="fab" onclick="openSheet('sheet-fab')"><i class="ti ti-plus"></i></button>
 
 <nav class="bottom-nav">
-  <div class="sidebar-brand">
-    <div class="logo-icon"><i class="ti ti-packages"></i></div>
-    <div><div class="logo-title">StockFlow</div><div class="logo-sub">OMS · WMS</div></div>
-  </div>
   <button class="nav-tab active" onclick="showPage('home',this)"><i class="ti ti-home"></i><span>Inicio</span></button>
   <button class="nav-tab" onclick="showPage('inventory',this)"><i class="ti ti-box"></i><span>Inventario</span></button>
   <button class="nav-tab" onclick="showPage('catalogo',this)"><i class="ti ti-tag"></i><span>Catálogo</span></button>
@@ -1675,16 +1659,6 @@ function applyTenantBranding(){
     } else if (logoText) {
       iconEl.innerHTML = `<span style="color:#fff;font-weight:900;font-size:13px">${logoText.slice(0,2)}</span>`;
     }
-  }
-  // Also update sidebar brand
-  const sbTitle = document.querySelector('.sidebar-brand .logo-title');
-  const sbSub   = document.querySelector('.sidebar-brand .logo-sub');
-  const sbIcon  = document.querySelector('.sidebar-brand .logo-icon');
-  if (sbTitle) sbTitle.textContent = name;
-  if (sbSub)   sbSub.textContent   = 'OMS · WMS';
-  if (sbIcon) {
-    sbIcon.style.background = color;
-    if (logoText && !logoUrl) sbIcon.innerHTML = `<span style="color:#fff;font-weight:900;font-size:11px">${logoText.slice(0,2)}</span>`;
   }
 }
 applyTenantBranding();
