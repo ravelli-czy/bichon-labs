@@ -159,6 +159,13 @@ module.exports = async (req, res) => {
     // Grupos de Productos que determinan el stock/disponibilidad del KIT.
     // Vacío ([]) = comportamiento actual: todos los componentes cuentan.
     await sql`ALTER TABLE kits ADD COLUMN IF NOT EXISTS stock_group_ids JSONB NOT NULL DEFAULT '[]'`;
+    // Grupos de Productos a los que PERTENECE este KIT — separado de
+    // stock_group_ids (que rige el cálculo de SU PROPIO stock). Este campo
+    // se usa cuando el KIT aparece como componente DENTRO de otro KIT: si el
+    // KIT padre filtra por grupo (su propio stock_group_ids), un sub-KIT solo
+    // cuenta si comparte alguno de esos grupos acá. Vacío ([]) = sigue
+    // contando siempre, igual que antes de que existiera este campo.
+    await sql`ALTER TABLE kits ADD COLUMN IF NOT EXISTS groups JSONB NOT NULL DEFAULT '[]'`;
     // Migrate kits PK → (sku, warehouse_id, tenant_id) — warehouse variants share master SKU
     try {
       await sql`ALTER TABLE kits DROP CONSTRAINT IF EXISTS kits_pkey CASCADE`;
