@@ -1061,12 +1061,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         </div>
       </div>
       <div class="form-group">
-        <div class="form-label">Formas de compra <span style="font-weight:600;color:var(--text3)">(opcional — para convertir al ingresar inventario)</span></div>
-        <div id="p-purchase-forms-wrap"></div>
-        <button type="button" class="btn btn-outline btn-sm" onclick="addPurchaseFormRow()"><i class="ti ti-plus"></i> Agregar forma de compra</button>
-        <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:6px">Ej: "Pack x3" → 3 unidades, o "Botella 1.5L" → 7.5 (si la unidad de stock es una porción de 200ml). Se usan en <a href="/stock-receipts" style="color:var(--primary)">Ingreso de inventario</a> para convertir la compra a stock automáticamente.</div>
-      </div>
-      <div class="form-group">
         <div class="form-label">Grupo de Productos <span style="font-weight:600;color:var(--text3)">(opcional, puedes elegir varios)</span></div>
         <div id="p-groups-wrap" class="chip-group-wrap"></div>
       </div>
@@ -1845,7 +1839,6 @@ const S = {
   productGroups: [],
   labelTemplates: [],
   tempProdGroups: [],
-  tempPurchaseForms: [],
   tempKitGroups: [],
   tempKitItems: [],
   mesonItems: [],
@@ -3434,7 +3427,7 @@ function openAddSkuSheet(prodSku, fromInventory = false) {
   S._catalogMode = false;
   S._addSkuMode  = true;
   S._addSkuFromInventory = fromInventory;
-  S._addSkuData  = { sku: master.sku, name: master.name, brand: master.brand, cat: master.cat, tipo: master.tipo, cost: master.cost, price: master.price, groups: master.groups, stock_unit: master.stock_unit, purchase_forms: master.purchase_forms };
+  S._addSkuData  = { sku: master.sku, name: master.name, brand: master.brand, cat: master.cat, tipo: master.tipo, cost: master.cost, price: master.price, groups: master.groups, stock_unit: master.stock_unit };
   document.getElementById('prod-sheet-title').innerHTML = fromInventory
     ? '<i class="ti ti-package-import" style="color:var(--teal-dark,#0d9488)"></i> Agregar inventario'
     : '<i class="ti ti-barcode" style="color:var(--primary)"></i> Agregar SKU';
@@ -3511,8 +3504,6 @@ function openSheetProd(pushURL = true) {
   populateCatSelects('');
   S.tempProdGroups = [];
   renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
-  S.tempPurchaseForms = [];
-  renderPurchaseFormRows();
   openSheet('sheet-prod');
   if (pushURL) history.pushState({ prodNew: true }, '', '/' + _editPagePrefix() + '/sku/new');
 }
@@ -3548,8 +3539,6 @@ function openSheetProdCatalog(pushURL = true) {
   populateCatSelects('');
   S.tempProdGroups = [];
   renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
-  S.tempPurchaseForms = [];
-  renderPurchaseFormRows();
   openSheet('sheet-prod');
   if (pushURL) history.pushState({ prodNew: true }, '', '/catalog/sku/new');
 }
@@ -3593,7 +3582,6 @@ function editProd(sku, warehouseId, pushURL = true) {
   document.getElementById('p-stock').value     = p.stock;
   document.getElementById('p-threshold').value = p.threshold;
   document.getElementById('p-stock-unit').value      = p.stock_unit || 'unidad';
-  S.tempPurchaseForms = Array.isArray(p.purchase_forms) ? p.purchase_forms.map(f => ({ ...f })) : [];
   const tipoIndex = {insumo:0, producto:1, ambos:2};
   const idx = tipoIndex[p.tipo] ?? 1;
   selectTipo(p.tipo, document.querySelectorAll('.tipo-option')[idx]);
@@ -3604,7 +3592,6 @@ function editProd(sku, warehouseId, pushURL = true) {
   document.getElementById('p-barcode').value   = p.barcode || '';
   S.tempProdGroups = Array.isArray(p.groups) ? [...p.groups] : [];
   renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
-  renderPurchaseFormRows();
   // Show/hide fields based on mode
   const wg = document.getElementById('p-warehouse-group');
   if (S._catalogMode) {
@@ -3640,7 +3627,7 @@ function editProdStock(sku, warehouseId, pushURL = true) {
   S.editingProdWarehouseId = wid;
   S._catalogMode = false;
   S._stockOnlyMode = true;
-  S._stockOnlyBaseData = { name: p.name, brand: p.brand, cat: p.cat, tipo: p.tipo, cost: p.cost, price: p.price, groups: p.groups, stock_unit: p.stock_unit, purchase_forms: p.purchase_forms };
+  S._stockOnlyBaseData = { name: p.name, brand: p.brand, cat: p.cat, tipo: p.tipo, cost: p.cost, price: p.price, groups: p.groups, stock_unit: p.stock_unit };
   document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-pencil" style="color:var(--primary)"></i> Editar stock';
   document.getElementById('prod-save-btn').innerHTML = '<i class="ti ti-check"></i> Guardar cambios';
   document.getElementById('prod-dup-btn').style.display = 'none';
@@ -3671,80 +3658,6 @@ function editProdStock(sku, warehouseId, pushURL = true) {
     const url = '/inventory/sku/' + encodeURIComponent(sku) + '/edit' + (wid ? ('?warehouse=' + encodeURIComponent(wid)) : '');
     history.pushState({ prodSku: sku, warehouseId: wid, stockOnly: true }, '', url);
   }
-}
-
-// ── FORMAS DE COMPRA (config del producto) ──────────────────────────────
-// Lista de formas en que se compra este producto (ej: "Pack x3" → 3,
-// "A granel" → 1) — el costo NO vive acá (varía en cada compra), sólo el
-// factor de conversión a stock_unit. Se usan en /stock-receipts (Ingreso de
-// inventario) para convertir la compra a stock automáticamente; ver
-// api/_stock_receipts_routes.js.
-// El dropdown nativo de <datalist> no se muestra de forma confiable en
-// Chrome Android (sobre todo dentro del WebView en que corre esta app), así
-// que el "combobox" es propio: input de texto libre + una lista de
-// sugerencias filtrada que se arma/oculta a mano (ver
-// _filterPurchaseFormSuggestions/_pickPurchaseFormSuggestion abajo).
-function renderPurchaseFormRows() {
-  const wrap = document.getElementById('p-purchase-forms-wrap');
-  if (!wrap) return;
-  const rows = S.tempPurchaseForms || [];
-  wrap.innerHTML = rows.map((f, idx) => `
-    <div class="form-row" style="align-items:flex-end;margin-bottom:6px">
-      <div class="form-group" style="position:relative">
-        <input class="form-input" placeholder="Ej: pack x3, a granel" value="${(f.label||'').replace(/"/g,'&quot;')}"
-          oninput="updatePurchaseFormRow(${idx},'label',this.value);_filterPurchaseFormSuggestions(${idx},this.value)"
-          onfocus="_filterPurchaseFormSuggestions(${idx},this.value)"
-          onblur="setTimeout(()=>_hidePurchaseFormSuggestions(${idx}),150)">
-        <div class="pf-suggest" id="pf-suggest-${idx}" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;margin-top:4px;background:var(--bg2);border:1.5px solid var(--border);border-radius:10px;max-height:180px;overflow-y:auto;box-shadow:0 4px 14px rgba(0,0,0,.15)"></div>
-      </div>
-      <div class="form-group" style="max-width:110px"><input class="form-input" type="number" min="0" step="any" placeholder="Ej: 3" value="${f.factor ?? ''}" oninput="updatePurchaseFormRow(${idx},'factor',this.value)"></div>
-      <button type="button" class="btn-icon-sm" onclick="removePurchaseFormRow(${idx})" title="Quitar" style="margin-bottom:10px"><i class="ti ti-trash"></i></button>
-    </div>`).join('');
-}
-function _filterPurchaseFormSuggestions(idx, value) {
-  const box = document.getElementById(`pf-suggest-${idx}`);
-  if (!box) return;
-  const q = (value || '').trim().toLowerCase();
-  const matches = getCatalogList('purchaseFormLabels').filter(l => l.toLowerCase().includes(q)).slice(0, 8);
-  if (!matches.length) { box.style.display = 'none'; return; }
-  box.innerHTML = matches.map(l => `
-    <div onmousedown="_pickPurchaseFormSuggestion(${idx},'${l.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')" style="padding:10px 12px;font-size:13.5px;font-weight:700;cursor:pointer;border-bottom:1px solid var(--border)">${l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`).join('');
-  box.style.display = '';
-}
-function _hidePurchaseFormSuggestions(idx) {
-  const box = document.getElementById(`pf-suggest-${idx}`);
-  if (box) box.style.display = 'none';
-}
-function _pickPurchaseFormSuggestion(idx, label) {
-  updatePurchaseFormRow(idx, 'label', label);
-  renderPurchaseFormRows();
-}
-function addPurchaseFormRow() {
-  S.tempPurchaseForms = S.tempPurchaseForms || [];
-  S.tempPurchaseForms.push({ label: '', factor: 1 });
-  renderPurchaseFormRows();
-}
-function updatePurchaseFormRow(idx, field, value) {
-  const row = S.tempPurchaseForms?.[idx];
-  if (!row) return;
-  row[field] = field === 'factor' ? (parseFloat(value) || 0) : value;
-}
-function removePurchaseFormRow(idx) {
-  S.tempPurchaseForms.splice(idx, 1);
-  renderPurchaseFormRows();
-}
-// Suma al catálogo compartido (Catálogo → todas las tiendas, vía tenant
-// settings) cualquier etiqueta de forma de compra tipeada que todavía no
-// esté ahí, para que aparezca sugerida en el datalist al configurar otros
-// productos. Mismo mecanismo que brands/paymentMethods/salesChannels
-// (ver getCatalogList/saveCatalogList).
-async function _registerNewPurchaseFormLabels(forms) {
-  const existing = getCatalogList('purchaseFormLabels');
-  const existingLower = existing.map(s => s.toLowerCase());
-  const newLabels = [...new Set((forms||[]).map(f => (f.label||'').trim()).filter(Boolean))]
-    .filter(l => !existingLower.includes(l.toLowerCase()));
-  if (!newLabels.length) return;
-  await saveCatalogList('purchaseFormLabels', [...existing, ...newLabels]);
 }
 
 async function deleteProd(sku, warehouseId) {
@@ -3810,8 +3723,6 @@ function duplicateProd() {
   selectTipo(p.tipo || 'producto', document.querySelectorAll('.tipo-option')[tipoIndex[p.tipo] ?? 1]);
   S.tempProdGroups = Array.isArray(p.groups) ? [...p.groups] : [];
   renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
-  S.tempPurchaseForms = Array.isArray(p.purchase_forms) ? p.purchase_forms.map(f => ({ ...f })) : [];
-  renderPurchaseFormRows();
   // Título indicativo
   document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-copy" style="color:var(--primary)"></i> Duplicar producto';
 }
@@ -3863,9 +3774,7 @@ async function _saveNewProductMultiRow() {
     barcode: document.getElementById('p-barcode')?.value.trim() || '',
     groups:  S.tempProdGroups || [],
     stock_unit:      document.getElementById('p-stock-unit').value.trim() || 'unidad',
-    purchase_forms:  (S.tempPurchaseForms || []).filter(f => f.label && f.factor > 0),
   };
-  await _registerNewPurchaseFormLabels(baseData.purchase_forms);
 
   let createdSku = null;
   for (let i = 0; i < rows.length; i++) {
@@ -3962,10 +3871,8 @@ async function _saveProdImpl() {
     warehouse_id,
     groups:    baseData ? (baseData.groups || []) : (S.tempProdGroups || []),
     stock_unit:      baseData ? (baseData.stock_unit || 'unidad') : (document.getElementById('p-stock-unit').value.trim() || 'unidad'),
-    purchase_forms:  baseData ? (baseData.purchase_forms || []) : (S.tempPurchaseForms || []).filter(f => f.label && f.factor > 0),
     ...(isAddSku ? { sku: S._addSkuData.sku } : {}), // explicit SKU for add-SKU mode
   };
-  if (!baseData) await _registerNewPurchaseFormLabels(data.purchase_forms);
   if (S.editingProdSku) {
     const wid = S.editingProdWarehouseId || '';
     if (!S._catalogMode && warehouse_id && warehouse_id !== wid) {

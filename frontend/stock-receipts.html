@@ -101,12 +101,38 @@ table.wh-table tr:last-child td{border-bottom:none}
 <div class="content">
 
   <div class="tabs">
-    <button class="tab-btn active" id="tab-btn-ingresar" onclick="switchTab('ingresar')"><i class="ti ti-package-import"></i> Ingresar</button>
+    <button class="tab-btn active" id="tab-btn-formatos" onclick="switchTab('formatos')"><i class="ti ti-ruler-2"></i> Formatos</button>
+    <button class="tab-btn" id="tab-btn-ingresar" onclick="switchTab('ingresar')"><i class="ti ti-package-import"></i> Ingresar</button>
     <button class="tab-btn" id="tab-btn-historial" onclick="switchTab('historial')"><i class="ti ti-history"></i> Historial</button>
   </div>
 
+  <!-- FORMATOS -->
+  <div id="panel-formatos">
+    <div class="card">
+      <div class="card-title"><i class="ti ti-ruler-2"></i> Formatos de compra</div>
+      <p style="font-size:13px;color:var(--text2);margin:-6px 0 14px">Cómo se compra un producto (ej. "Pack x3", "Botella 1.5L") y cuántas unidades de stock rinde cada uno. Es una lista única, no por producto — al hacer un ingreso elegís cuál aplica según lo que estés comprando.</p>
+      <div class="form-row" style="align-items:flex-end">
+        <div class="form-group"><div class="form-label">Nombre del formato</div><input class="form-input" id="pf-new-label" placeholder="Ej: Pack x3, Botella 1.5L, A granel"></div>
+        <div class="form-group" style="max-width:140px"><div class="form-label">Equivale a</div><input class="form-input" type="number" min="0" step="any" id="pf-new-factor" placeholder="Ej: 3"></div>
+        <button class="btn btn-primary" onclick="createPurchaseFormat()" style="margin-bottom:12px"><i class="ti ti-plus"></i> Agregar</button>
+      </div>
+      <div class="form-error" id="pf-new-error" style="display:none;margin:-6px 0 12px"></div>
+      <div id="formats-loading"><div class="skeleton"></div></div>
+      <div style="overflow-x:auto">
+        <table class="wh-table" id="formats-table" style="display:none">
+          <thead><tr><th>Formato</th><th>Equivale a</th><th></th></tr></thead>
+          <tbody id="formats-tbody"></tbody>
+        </table>
+      </div>
+      <div id="formats-empty" class="empty-state" style="display:none">
+        <i class="ti ti-ruler-2"></i>
+        <p>Todavía no hay formatos de compra.<br>Agrega el primero arriba — se va a poder elegir para cualquier producto en la tab Ingresar.</p>
+      </div>
+    </div>
+  </div>
+
   <!-- INGRESAR -->
-  <div id="panel-ingresar">
+  <div id="panel-ingresar" style="display:none">
     <div class="card">
       <div class="card-title"><i class="ti ti-shopping-cart"></i> Compra a registrar</div>
       <div id="receipt-lines"></div>
@@ -184,8 +210,10 @@ applyDarkMode();
 
 // ── Tabs ─────────────────────────────────────────────────────────────────
 function switchTab(tab) {
+  document.getElementById('panel-formatos').style.display  = tab === 'formatos'  ? '' : 'none';
   document.getElementById('panel-ingresar').style.display  = tab === 'ingresar'  ? '' : 'none';
   document.getElementById('panel-historial').style.display = tab === 'historial' ? '' : 'none';
+  document.getElementById('tab-btn-formatos').classList.toggle('active', tab === 'formatos');
   document.getElementById('tab-btn-ingresar').classList.toggle('active', tab === 'ingresar');
   document.getElementById('tab-btn-historial').classList.toggle('active', tab === 'historial');
   if (tab === 'historial') loadReceipts();
@@ -193,6 +221,7 @@ function switchTab(tab) {
 
 // ── Auth guard ───────────────────────────────────────────────────────────
 let PRODUCTS = [];
+let PURCHASE_FORMATS = [];
 let WAREHOUSE_NAMES = {}; // warehouse_id -> "Tienda — Almacén"
 (async () => {
   if (!token) { location.href = '/login'; return; }
@@ -218,14 +247,89 @@ let WAREHOUSE_NAMES = {}; // warehouse_id -> "Tienda — Almacén"
     PRODUCTS = (await api('/api/products')).filter(p => (p.warehouse_id || '') !== '');
   } catch (e) { toast('⚠️ ' + e.message); }
 
+  await loadPurchaseFormats();
   addReceiptLine();
 })();
+
+// ── FORMATOS DE COMPRA (mantenedor) ──────────────────────────────────────
+async function loadPurchaseFormats() {
+  document.getElementById('formats-loading').style.display = '';
+  document.getElementById('formats-table').style.display = 'none';
+  document.getElementById('formats-empty').style.display = 'none';
+  try { PURCHASE_FORMATS = await api('/api/products?resource=purchase-formats'); }
+  catch (e) { toast('⚠️ ' + e.message); PURCHASE_FORMATS = []; }
+  document.getElementById('formats-loading').style.display = 'none';
+  renderPurchaseFormats();
+}
+function renderPurchaseFormats() {
+  const table = document.getElementById('formats-table');
+  const empty = document.getElementById('formats-empty');
+  if (!PURCHASE_FORMATS.length) { table.style.display = 'none'; empty.style.display = ''; return; }
+  empty.style.display = 'none';
+  table.style.display = '';
+  document.getElementById('formats-tbody').innerHTML = PURCHASE_FORMATS.map(f => `
+    <tr>
+      <td style="font-weight:700">${escHtml(f.label)}</td>
+      <td>${f.factor}</td>
+      <td style="white-space:nowrap">
+        <button class="btn-icon-sm" onclick="editPurchaseFormat('${f.id}')" title="Editar"><i class="ti ti-pencil"></i></button>
+        <button class="btn-icon-sm" onclick="deletePurchaseFormat('${f.id}')" title="Eliminar"><i class="ti ti-trash"></i></button>
+      </td>
+    </tr>`).join('');
+  renderReceiptLines(); // refresca los <select> de "Forma de compra" en Ingresar
+}
+async function createPurchaseFormat() {
+  const errEl = document.getElementById('pf-new-error');
+  errEl.style.display = 'none';
+  const labelEl = document.getElementById('pf-new-label');
+  const factorEl = document.getElementById('pf-new-factor');
+  const label = labelEl.value.trim();
+  const factor = parseFloat(factorEl.value);
+  if (!label) { errEl.textContent = 'Ingresa un nombre'; errEl.style.display = ''; return; }
+  if (!(factor > 0)) { errEl.textContent = 'Ingresa a cuántas unidades de stock equivale (mayor a 0)'; errEl.style.display = ''; return; }
+  try {
+    const row = await api('/api/products?resource=purchase-formats', { method: 'POST', body: JSON.stringify({ label, factor }) });
+    PURCHASE_FORMATS.push(row);
+    PURCHASE_FORMATS.sort((a,b) => a.label.localeCompare(b.label));
+    labelEl.value = ''; factorEl.value = '';
+    renderPurchaseFormats();
+    toast(`✅ "${label}" agregado`);
+  } catch (e) { errEl.textContent = e.message; errEl.style.display = ''; }
+}
+async function editPurchaseFormat(id) {
+  const f = PURCHASE_FORMATS.find(x => x.id === id);
+  if (!f) return;
+  const label = prompt('Nombre del formato:', f.label);
+  if (label === null || !label.trim()) return;
+  const factorStr = prompt(`¿A cuántas unidades de stock equivale 1 "${label.trim()}"?`, f.factor);
+  if (factorStr === null) return;
+  const factor = parseFloat(factorStr);
+  if (!(factor > 0)) { toast('⚠️ Ingresa un número mayor a 0'); return; }
+  try {
+    const row = await api(`/api/products?resource=purchase-formats&id=${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ label: label.trim(), factor }) });
+    Object.assign(f, row);
+    PURCHASE_FORMATS.sort((a,b) => a.label.localeCompare(b.label));
+    renderPurchaseFormats();
+    toast('✅ Formato actualizado');
+  } catch (e) { toast('❌ ' + e.message); }
+}
+async function deletePurchaseFormat(id) {
+  const f = PURCHASE_FORMATS.find(x => x.id === id);
+  if (!f) return;
+  if (!confirm(`¿Eliminar el formato "${f.label}"?\nLas recepciones ya registradas con este formato no cambian.`)) return;
+  try {
+    await api(`/api/products?resource=purchase-formats&id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    PURCHASE_FORMATS = PURCHASE_FORMATS.filter(x => x.id !== id);
+    renderPurchaseFormats();
+    toast('🗑 Formato eliminado');
+  } catch (e) { toast('❌ ' + e.message); }
+}
 
 // ── INGRESAR: carrito de líneas ─────────────────────────────────────────
 let _lines = [];
 let _lineSeq = 0;
 function addReceiptLine() {
-  _lines.push({ id: ++_lineSeq, sku: '', warehouse_id: '', form_index: '', qty_purchased: '', total_cost: '' });
+  _lines.push({ id: ++_lineSeq, sku: '', warehouse_id: '', format_id: '', qty_purchased: '', total_cost: '' });
   renderReceiptLines();
 }
 function removeReceiptLine(id) {
@@ -236,19 +340,16 @@ function _productKey(p) { return p.sku + '::' + (p.warehouse_id || ''); }
 function _lineProduct(line) {
   return PRODUCTS.find(p => p.sku === line.sku && (p.warehouse_id || '') === line.warehouse_id);
 }
-function _lineForms(line) {
-  const p = _lineProduct(line);
-  return (p && Array.isArray(p.purchase_forms)) ? p.purchase_forms : [];
+// Los formatos de compra son un mantenedor único por tenant (tab Formatos),
+// no por producto — cualquier formato puede elegirse para cualquier
+// producto, la unidad de stock a la que convierte sigue siendo la de ESE
+// producto (products.stock_unit).
+function _lineFormat(line) {
+  return line.format_id ? PURCHASE_FORMATS.find(f => f.id === line.format_id) : null;
 }
 function _lineFactor(line) {
-  const forms = _lineForms(line);
-  if (line.form_index !== '' && forms[line.form_index]) return forms[line.form_index].factor || 1;
-  return 1; // "Directo" — compras en la misma unidad del stock
-}
-function _lineFormLabel(line) {
-  const forms = _lineForms(line);
-  if (line.form_index !== '' && forms[line.form_index]) return forms[line.form_index].label || '';
-  return '';
+  const f = _lineFormat(line);
+  return f ? Number(f.factor) : 1; // "Directo" — compras en la misma unidad del stock
 }
 // El preview (+X unidades, $Y c/u) se actualiza aparte (updateLinePreview),
 // sin re-renderizar toda la línea — si qty/costo tecleado disparara un
@@ -281,16 +382,12 @@ function renderReceiptLines() {
 
   wrap.innerHTML = _lines.map((line, idx) => {
     const p = _lineProduct(line);
-    const forms = _lineForms(line);
+    const stockUnit = p ? escHtml(p.stock_unit || 'unidad') : 'unidad';
 
-    const formSelect = p
-      ? (forms.length
-          ? `<select class="form-input" onchange="updateReceiptLine(${line.id},'form_index',this.value)">
-               <option value="">Directo (${escHtml(p.stock_unit || 'unidad')}, factor 1)</option>
-               ${forms.map((f,fi) => `<option value="${fi}"${String(fi)===String(line.form_index)?' selected':''}>${escHtml(f.label)} (1 = ${f.factor} ${escHtml(p.stock_unit || 'unidad')})</option>`).join('')}
-             </select>`
-          : `<div class="form-input" style="background:var(--bg2);color:var(--text3)">Directo (${escHtml(p.stock_unit || 'unidad')}) — sin formas de compra configuradas</div>`)
-      : `<div class="form-input" style="background:var(--bg2);color:var(--text3)">Elige un producto primero</div>`;
+    const formSelect = `<select class="form-input" onchange="updateReceiptLine(${line.id},'format_id',this.value)">
+        <option value="">Directo (${stockUnit}, factor 1)</option>
+        ${PURCHASE_FORMATS.map(f => `<option value="${f.id}"${f.id===line.format_id?' selected':''}>${escHtml(f.label)} (1 = ${f.factor} ${stockUnit})</option>`).join('')}
+      </select>`;
 
     return `<div class="receipt-line">
       <div class="receipt-line-head">
@@ -326,10 +423,10 @@ function updateReceiptLine(id, field, value) {
     const [sku, warehouse_id] = value.split('::');
     line.sku = sku || '';
     line.warehouse_id = warehouse_id || '';
-    line.form_index = '';
+    line.format_id = '';
     renderReceiptLines();
-  } else if (field === 'form_index') {
-    line.form_index = value;
+  } else if (field === 'format_id') {
+    line.format_id = value;
     updateLinePreview(id);
   } else {
     line[field] = value;
@@ -350,8 +447,7 @@ async function confirmReceipt() {
     payloadLines.push({
       sku: line.sku,
       warehouse_id: line.warehouse_id || '',
-      form_label: _lineFormLabel(line),
-      factor: _lineFactor(line),
+      format_id: line.format_id || null,
       qty_purchased: qty,
       total_cost: parseFloat(line.total_cost) || 0,
     });

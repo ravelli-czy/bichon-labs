@@ -198,8 +198,51 @@ module.exports = async (req, res) => {
     `;
     await sql`CREATE INDEX IF NOT EXISTS label_templates_tenant_idx ON label_templates (tenant_id)`;
 
+    // Mantenedor de Formatos de compra (ej: "Pack x3" -> 3, "Botella 1.5L" ->
+    // 7.5): ya NO se configura por producto — es una lista única por tenant,
+    // compartida entre todos los productos, administrada en /stock-receipts
+    // (tab Formatos) y elegida por dropdown al hacer un Ingreso de
+    // inventario. Ver api/_purchase_formats_routes.js.
+    await sql`
+      CREATE TABLE IF NOT EXISTS purchase_formats (
+        id          TEXT PRIMARY KEY,
+        tenant_id   TEXT NOT NULL DEFAULT 'TEN-001',
+        label       TEXT NOT NULL,
+        factor      NUMERIC NOT NULL DEFAULT 1,
+        created_by  TEXT DEFAULT '',
+        updated_by  TEXT DEFAULT '',
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (tenant_id, label)
+      )
+    `;
+
+    // Backfill único (idempotente por el UNIQUE + ON CONFLICT arriba): migra
+    // los purchase_forms que habían quedado guardados por producto (diseño
+    // anterior, ya no se escribe desde la app) hacia el mantenedor
+    // compartido, para no perder lo que ya se había configurado.
+    const legacyForms = await sql`
+      SELECT DISTINCT tenant_id, jsonb_array_elements(purchase_forms) AS f
+      FROM products WHERE jsonb_array_length(purchase_forms) > 0
+    `;
+    for (const row of legacyForms) {
+      const label = row.f?.label;
+      const factor = row.f?.factor;
+      if (!label || !(factor > 0)) continue;
+      const [{ max_num }] = await sql`
+        SELECT COALESCE(MAX(CAST(SUBSTRING(id FROM 4) AS INTEGER)), 0) AS max_num
+        FROM purchase_formats WHERE id ~ '^PF-[0-9]+$' AND tenant_id = ${row.tenant_id}
+      `;
+      const id = 'PF-' + String(parseInt(max_num) + 1).padStart(4, '0');
+      await sql`
+        INSERT INTO purchase_formats (id, tenant_id, label, factor, created_by)
+        VALUES (${id}, ${row.tenant_id}, ${label}, ${factor}, 'sistema')
+        ON CONFLICT (tenant_id, label) DO NOTHING
+      `;
+    }
+
     // Ingreso de inventario (recepciones de compra): registra cada reposición
-    // de stock con la forma de compra usada (ej: "pack x3"), la cantidad
+    // de stock con el formato de compra usado (ej: "pack x3"), la cantidad
     // comprada, cuánto se pagó en total y cuántas unidades de stock_unit
     // resultaron — para llevar historial y actualizar el costo promedio
     // ponderado del producto sin necesitar lotes/FIFO. Ver
