@@ -2338,6 +2338,22 @@ function productSkuHasGroup(sku, groupIds) {
   return S.products.some(p => p.sku === sku && Array.isArray(p.groups) && p.groups.some(g => groupIds.includes(g)));
 }
 
+// Chips de Grupo de Productos (ej. "Base", "Prescindibles") para mostrar de
+// qué grupo(s) es un componente — sirve tanto para los grupos a los que
+// pertenece un producto (p.groups) como para el/los grupo(s) que determinan
+// el stock de un sub-KIT (kit.stock_group_ids): mismo shape (array de ids),
+// mismo chip. Ayuda a ver de un vistazo por qué un componente (o sub-KIT)
+// está frenando la disponibilidad de todo el KIT.
+function _groupChipsHtml(groupIds) {
+  if (!Array.isArray(groupIds) || !groupIds.length) return '';
+  return groupIds.map(gid => {
+    const gname = (S.productGroups || []).find(g => g.id === gid)?.name;
+    return gname
+      ? `<span style="font-size:9px;font-weight:700;color:var(--primary);background:var(--primary-light);padding:1px 6px;border-radius:8px;margin-left:4px;white-space:nowrap"><i class="ti ti-tag" style="font-size:8px"></i> ${gname}</span>`
+      : '';
+  }).join('');
+}
+
 // Componentes que efectivamente determinan el stock/disponibilidad del KIT.
 // Si el KIT tiene stock_group_ids configurado, solo cuentan los componentes
 // (no-KIT) cuyo producto pertenezca a alguno de esos grupos. Los sub-KITs
@@ -3249,7 +3265,7 @@ function _kitCardHtml(kit, localId, whs) {
       const subAl = sub ? (subStk===0 ? 'critical' : kitAlertLevel(sub)) : 'critical';
       const stockInfo = `<span style="font-size:10px;font-weight:900;color:${subStk===0?'var(--red)':'var(--text3)'};margin-right:4px">${subStk} disp.</span>`;
       return `<div class="kit-comp-row${subAl?' comp-'+subAl:''}">
-        <span class="kit-comp-name" style="color:var(--amber-dark)">${subAl?`<i class="ti ti-alert-triangle" style="font-size:11px"></i>`:''}<i class="ti ti-stack-2" style="font-size:10px"></i> ${sub?.name||i.sku}</span>
+        <span class="kit-comp-name" style="color:var(--amber-dark)">${subAl?`<i class="ti ti-alert-triangle" style="font-size:11px"></i>`:''}<i class="ti ti-stack-2" style="font-size:10px"></i> ${sub?.name||i.sku}${_groupChipsHtml(sub?.stock_group_ids)}</span>
         <span class="kit-comp-right">${stockInfo}×${i.qty}</span>
       </div>`;
     }
@@ -3267,7 +3283,7 @@ function _kitCardHtml(kit, localId, whs) {
       ? `<span style="font-size:10px;font-weight:900;color:${al==='critical'?'var(--red)':'var(--amber-dark)'};margin-right:4px">${stockNum} ud.</span>`
       : '';
     return `<div class="kit-comp-row${al?' comp-'+al:''}">
-      <span class="kit-comp-name">${al?`<i class="ti ti-alert-triangle" style="font-size:11px"></i>`:''}${p?.name||i.sku}</span>
+      <span class="kit-comp-name">${al?`<i class="ti ti-alert-triangle" style="font-size:11px"></i>`:''}${p?.name||i.sku}${_groupChipsHtml(p?.groups)}</span>
       <span class="kit-comp-right">${stockInfo}×${i.qty}</span>
     </div>`;
   }).join('');
@@ -4291,13 +4307,13 @@ function renderKitItemsList() {
     let label;
     if (item.type === 'kit') {
       const k = S.kits.find(x => x.sku === item.sku && (x.warehouse_id||'') === '');
-      label = `<span style="font-size:10px;font-weight:700;color:var(--amber-dark);background:var(--amber-light,#fef3c7);padding:1px 5px;border-radius:5px;margin-right:4px">KIT</span>${k?.name||item.sku}`;
+      label = `<span style="font-size:10px;font-weight:700;color:var(--amber-dark);background:var(--amber-light,#fef3c7);padding:1px 5px;border-radius:5px;margin-right:4px">KIT</span>${k?.name||item.sku}${_groupChipsHtml(k?.stock_group_ids)}`;
     } else {
       const p = S.products.find(x => x.sku === item.sku && (x.warehouse_id||'') === (item.warehouse_id||''))
              || S.products.find(x => x.sku === item.sku);
       const wh = whs.find(w => w.id === (item.warehouse_id || ''));
       const whLabel = wh ? ` <span style="font-size:10px;color:var(--teal-dark,#0d9488)">[${wh.name}]</span>` : '';
-      label = `${p?.name||item.sku}${whLabel}`;
+      label = `${p?.name||item.sku}${whLabel}${_groupChipsHtml(p?.groups)}`;
     }
     return `<div class="kit-build-item">
       <span style="flex:1;font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>
