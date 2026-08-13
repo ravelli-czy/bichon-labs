@@ -101,38 +101,13 @@ table.wh-table tr:last-child td{border-bottom:none}
 <div class="content">
 
   <div class="tabs">
-    <button class="tab-btn active" id="tab-btn-formatos" onclick="switchTab('formatos')"><i class="ti ti-ruler-2"></i> Formatos</button>
-    <button class="tab-btn" id="tab-btn-ingresar" onclick="switchTab('ingresar')"><i class="ti ti-package-import"></i> Ingresar</button>
+    <button class="tab-btn active" id="tab-btn-ingresar" onclick="switchTab('ingresar')"><i class="ti ti-package-import"></i> Registrar Inventario</button>
     <button class="tab-btn" id="tab-btn-historial" onclick="switchTab('historial')"><i class="ti ti-history"></i> Historial</button>
+    <button class="tab-btn" id="tab-btn-formatos" onclick="switchTab('formatos')"><i class="ti ti-ruler-2"></i> Formatos</button>
   </div>
 
-  <!-- FORMATOS -->
-  <div id="panel-formatos">
-    <div class="card">
-      <div class="card-title"><i class="ti ti-ruler-2"></i> Formatos de compra</div>
-      <p style="font-size:13px;color:var(--text2);margin:-6px 0 14px">Cómo se compra un producto (ej. "Pack x3", "Botella 1.5L") y cuántas unidades de stock rinde cada uno. Es una lista única, no por producto — al hacer un ingreso elegís cuál aplica según lo que estés comprando.</p>
-      <div class="form-row" style="align-items:flex-end">
-        <div class="form-group"><div class="form-label">Nombre del formato</div><input class="form-input" id="pf-new-label" placeholder="Ej: Pack x3, Botella 1.5L, A granel"></div>
-        <div class="form-group" style="max-width:140px"><div class="form-label">Equivale a</div><input class="form-input" type="number" min="0" step="any" id="pf-new-factor" placeholder="Ej: 3"></div>
-        <button class="btn btn-primary" onclick="createPurchaseFormat()" style="margin-bottom:12px"><i class="ti ti-plus"></i> Agregar</button>
-      </div>
-      <div class="form-error" id="pf-new-error" style="display:none;margin:-6px 0 12px"></div>
-      <div id="formats-loading"><div class="skeleton"></div></div>
-      <div style="overflow-x:auto">
-        <table class="wh-table" id="formats-table" style="display:none">
-          <thead><tr><th>Formato</th><th>Equivale a</th><th></th></tr></thead>
-          <tbody id="formats-tbody"></tbody>
-        </table>
-      </div>
-      <div id="formats-empty" class="empty-state" style="display:none">
-        <i class="ti ti-ruler-2"></i>
-        <p>Todavía no hay formatos de compra.<br>Agrega el primero arriba — se va a poder elegir para cualquier producto en la tab Ingresar.</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- INGRESAR -->
-  <div id="panel-ingresar" style="display:none">
+  <!-- INGRESAR (Registrar Inventario) -->
+  <div id="panel-ingresar">
     <div class="card">
       <div class="card-title"><i class="ti ti-shopping-cart"></i> Compra a registrar</div>
       <div id="receipt-lines"></div>
@@ -156,6 +131,31 @@ table.wh-table tr:last-child td{border-bottom:none}
       <div id="receipts-empty" class="empty-state" style="display:none">
         <i class="ti ti-clipboard-off"></i>
         <p>Todavía no se registró ninguna recepción de inventario.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- FORMATOS -->
+  <div id="panel-formatos" style="display:none">
+    <div class="card">
+      <div class="card-title"><i class="ti ti-ruler-2"></i> Formatos de compra</div>
+      <p style="font-size:13px;color:var(--text2);margin:-6px 0 14px">Cómo se compra un producto (ej. "Pack x3", "Botella 1.5L") y cuántas unidades de stock rinde cada uno. Es una lista única, no por producto — al hacer un ingreso elegís cuál aplica según lo que estés comprando.</p>
+      <div class="form-row" style="align-items:flex-end">
+        <div class="form-group"><div class="form-label">Nombre del formato</div><input class="form-input" id="pf-new-label" placeholder="Ej: Pack x3, Botella 1.5L, A granel"></div>
+        <div class="form-group" style="max-width:140px"><div class="form-label">Equivale a</div><input class="form-input" type="number" min="0" step="any" id="pf-new-factor" placeholder="Ej: 3"></div>
+        <button class="btn btn-primary" onclick="createPurchaseFormat()" style="margin-bottom:12px"><i class="ti ti-plus"></i> Agregar</button>
+      </div>
+      <div class="form-error" id="pf-new-error" style="display:none;margin:-6px 0 12px"></div>
+      <div id="formats-loading"><div class="skeleton"></div></div>
+      <div style="overflow-x:auto">
+        <table class="wh-table" id="formats-table" style="display:none">
+          <thead><tr><th>Formato</th><th>Equivale a</th><th></th></tr></thead>
+          <tbody id="formats-tbody"></tbody>
+        </table>
+      </div>
+      <div id="formats-empty" class="empty-state" style="display:none">
+        <i class="ti ti-ruler-2"></i>
+        <p>Todavía no hay formatos de compra.<br>Agrega el primero arriba — se va a poder elegir para cualquier producto en la tab Registrar Inventario.</p>
       </div>
     </div>
   </div>
