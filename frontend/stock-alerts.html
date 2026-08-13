@@ -40,6 +40,10 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .card-title{font-size:15px;font-weight:900;display:flex;align-items:center;gap:8px;margin-bottom:14px}
 .card-title i{color:var(--primary)}
 
+.tabs{display:flex;gap:6px;background:var(--bg3);border-radius:12px;padding:4px;margin-bottom:16px}
+.tab-btn{flex:1;font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;border:none;border-radius:9px;padding:9px 12px;cursor:pointer;background:transparent;color:var(--text2);display:flex;align-items:center;justify-content:center;gap:6px}
+.tab-btn.active{background:var(--bg2);color:var(--primary);box-shadow:var(--sh)}
+
 .btn{font-family:'Nunito',sans-serif;font-weight:800;font-size:13px;border:none;border-radius:10px;padding:10px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
 .btn-primary{background:var(--primary);color:#fff}
 .btn-primary:hover{background:var(--primary-dark)}
@@ -143,6 +147,14 @@ table.wh-table tr:last-child td{border-bottom:none}
 
 <div class="content">
 
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-btn-stock" onclick="switchAlertTab('stock')"><i class="ti ti-bell-ringing"></i> Stock bajo</button>
+    <button class="tab-btn" id="tab-btn-kits" onclick="switchAlertTab('kits')"><i class="ti ti-puzzle"></i> Comprar x Venta</button>
+  </div>
+
+  <!-- TAB: STOCK BAJO -->
+  <div id="panel-stock">
+
   <!-- CONFIGURACIÓN -->
   <div class="card">
     <div class="card-title collapsible" onclick="toggleConfigCollapse()">
@@ -218,9 +230,96 @@ table.wh-table tr:last-child td{border-bottom:none}
     </div>
   </div>
 
+  </div><!-- /panel-stock -->
+
+  <!-- TAB: COMPRAR X VENTA -->
+  <div id="panel-kits" style="display:none">
+
+  <!-- CONFIGURACIÓN -->
+  <div class="card">
+    <div class="card-title collapsible" onclick="toggleKitConfigCollapse()">
+      <i class="ti ti-settings"></i> Configuración
+      <i class="ti ti-chevron-down chevron" id="ka-config-chevron"></i>
+    </div>
+    <div id="ka-next-run" class="next-run-box" style="display:none">
+      <i class="ti ti-calendar-time"></i>
+      <span>Próxima revisión: <strong id="ka-next-run-text">—</strong></span>
+    </div>
+    <div id="ka-config-body">
+      <div class="form-group">
+        <div class="form-label">Avisar con cuántos días de anticipación a la entrega</div>
+        <input type="number" min="0" max="60" class="form-input" id="ka-lead-days" style="max-width:140px">
+        <div class="form-hint">Una venta con un KIT entra en la lista apenas su fecha de entrega quede a esta cantidad de días o menos — no antes.</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <div class="form-label">Frecuencia de revisión</div>
+          <select class="form-select" id="ka-frequency" onchange="onKitFrequencyChange()">
+            <option value="diaria">Diaria</option>
+            <option value="semanal">Semanal</option>
+            <option value="quincenal">Quincenal</option>
+            <option value="mensual">Mensual</option>
+          </select>
+        </div>
+        <div class="form-group" id="ka-weekday-group">
+          <div class="form-label">Día de la semana</div>
+          <select class="form-select" id="ka-weekday">
+            <option value="0">Domingo</option>
+            <option value="1">Lunes</option>
+            <option value="2">Martes</option>
+            <option value="3">Miércoles</option>
+            <option value="4">Jueves</option>
+            <option value="5">Viernes</option>
+            <option value="6">Sábado</option>
+          </select>
+        </div>
+        <div class="form-group" id="ka-monthday-group" style="display:none">
+          <div class="form-label">Día del mes</div>
+          <select class="form-select" id="ka-monthday"></select>
+        </div>
+      </div>
+      <div class="form-hint" id="ka-quincenal-hint" style="display:none;margin:-4px 0 12px">Se revisa los días 1 y 15 de cada mes.</div>
+      <div class="form-hint" id="ka-diaria-hint" style="display:none;margin:-4px 0 12px">Se revisa todos los días.</div>
+
+      <div class="form-label" style="margin-bottom:8px">Canales de aviso</div>
+      <div class="toggle-row">
+        <span class="toggle-row-label"><i class="ti ti-bell"></i> Home — aviso en el encabezado con link a la lista</span>
+        <label class="switch"><input type="checkbox" id="ka-channel-home"><span class="switch-slider"></span></label>
+      </div>
+      <div class="toggle-row" style="margin-bottom:4px">
+        <span class="toggle-row-label"><i class="ti ti-mail"></i> Correo</span>
+        <label class="switch"><input type="checkbox" id="ka-channel-email" onchange="onKitEmailChannelChange()"><span class="switch-slider"></span></label>
+      </div>
+      <div class="form-group" id="ka-email-group" style="display:none">
+        <div class="form-label">Correo(s) de aviso</div>
+        <input type="text" class="form-input" id="ka-email-to" placeholder="ej: compras@tutienda.cl, dueño@tutienda.cl">
+        <div class="form-hint">Separá varios correos con coma.</div>
+      </div>
+
+      <div class="form-error" id="ka-form-error" style="display:none"></div>
+      <button class="btn btn-primary" id="btn-save-kit-settings" onclick="saveKitSettings()" style="margin-top:6px"><i class="ti ti-check"></i> Guardar configuración</button>
+    </div>
+  </div>
+
+  <!-- HISTORIAL -->
+  <div class="card">
+    <div class="card-title">
+      <i class="ti ti-history"></i> Historial de listas generadas
+      <button class="btn btn-outline btn-sm" id="btn-generate-kit-now" onclick="generateKitNow()" style="margin-left:auto;padding:6px 12px;font-size:12px"><i class="ti ti-refresh"></i> Generar ahora</button>
+    </div>
+    <div id="kit-runs-loading"><div class="skeleton"></div><div class="skeleton" style="opacity:.6"></div></div>
+    <div id="kit-runs-list"></div>
+    <div id="kit-runs-empty" class="empty-state" style="display:none">
+      <i class="ti ti-clipboard-off"></i>
+      <p>Todavía no se generó ninguna lista.<br>Se genera cuando una venta con KIT tenga insumos que no alcanzan para cubrirla, dentro de la anticipación configurada arriba.</p>
+    </div>
+  </div>
+
+  </div><!-- /panel-kits -->
+
 </div>
 
-<!-- MODAL: DETALLE DE LISTA -->
+<!-- MODAL: DETALLE DE LISTA (Stock bajo) -->
 <div class="modal-overlay hidden" id="modal-run-detail" onclick="if(event.target===this)closeRunDetail()">
   <div class="modal">
     <div class="modal-title">
@@ -238,6 +337,29 @@ table.wh-table tr:last-child td{border-bottom:none}
       <button class="btn btn-outline" onclick="printRun(_currentRunId)"><i class="ti ti-printer"></i> Imprimir / Descargar</button>
       <button class="btn btn-primary" id="rd-mark-btn" onclick="markReviewed(_currentRunId)"><i class="ti ti-check"></i> Marcar como revisada</button>
       <button class="btn btn-outline" style="margin-left:auto" onclick="closeRunDetail()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DETALLE DE LISTA (Comprar x Venta) -->
+<div class="modal-overlay hidden" id="modal-kit-run-detail" onclick="if(event.target===this)closeKitRunDetail()">
+  <div class="modal">
+    <div class="modal-title">
+      <i class="ti ti-puzzle" style="color:var(--primary)"></i>
+      <span id="krd-id">KSA-0000</span>
+      <span id="krd-status"></span>
+    </div>
+    <div class="detail-kpis">
+      <div class="detail-kpi"><div class="detail-kpi-lbl">Generada</div><div class="detail-kpi-val" id="krd-date" style="font-size:14px">—</div></div>
+      <div class="detail-kpi"><div class="detail-kpi-lbl">Insumos</div><div class="detail-kpi-val" id="krd-count">—</div></div>
+      <div class="detail-kpi"><div class="detail-kpi-lbl">Ventas afectadas</div><div class="detail-kpi-val" id="krd-orders">—</div></div>
+      <div class="detail-kpi"><div class="detail-kpi-lbl">Valor estimado</div><div class="detail-kpi-val" id="krd-value" style="color:var(--green-dark)">—</div></div>
+    </div>
+    <div id="krd-groups"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="printKitRun(_currentKitRunId)"><i class="ti ti-printer"></i> Imprimir / Descargar</button>
+      <button class="btn btn-primary" id="krd-mark-btn" onclick="markKitReviewed(_currentKitRunId)"><i class="ti ti-check"></i> Marcar como revisada</button>
+      <button class="btn btn-outline" style="margin-left:auto" onclick="closeKitRunDetail()">Cerrar</button>
     </div>
   </div>
 </div>
@@ -306,20 +428,41 @@ applyDarkMode();
   } catch { location.href = '/login'; return; }
 
   document.getElementById('sa-monthday').innerHTML = Array.from({length:31}, (_,i) => `<option value="${i+1}">${i+1}</option>`).join('');
+  document.getElementById('ka-monthday').innerHTML = Array.from({length:31}, (_,i) => `<option value="${i+1}">${i+1}</option>`).join('');
   if (!isAdmin()) {
     document.getElementById('btn-save-settings').disabled = true;
     document.getElementById('btn-save-settings').title = 'Sólo administradores pueden editar esta configuración';
     document.getElementById('btn-generate-now').disabled = true;
     document.getElementById('btn-generate-now').title = 'Sólo administradores pueden generar una lista manualmente';
+    document.getElementById('btn-save-kit-settings').disabled = true;
+    document.getElementById('btn-save-kit-settings').title = 'Sólo administradores pueden editar esta configuración';
+    document.getElementById('btn-generate-kit-now').disabled = true;
+    document.getElementById('btn-generate-kit-now').title = 'Sólo administradores pueden generar una lista manualmente';
   }
 
   await loadSettings();
   await loadRuns();
+  await loadKitSettings();
+  await loadKitRuns();
 
-  // Deep link desde el email/aviso de header: /stock-alerts?id=ALR-0001
-  const deepId = new URLSearchParams(location.search).get('id');
-  if (deepId) openRunDetail(deepId);
+  // Deep link desde el email/aviso de header: /stock-alerts?id=ALR-0001, o
+  // /stock-alerts?tab=kits&id=KSA-0001 para la tab Comprar x Venta.
+  const params = new URLSearchParams(location.search);
+  if (params.get('tab') === 'kits') switchAlertTab('kits');
+  const deepId = params.get('id');
+  if (deepId) {
+    if (params.get('tab') === 'kits') openKitRunDetail(deepId);
+    else openRunDetail(deepId);
+  }
 })();
+
+// ── TABS ─────────────────────────────────────────────────────────────────
+function switchAlertTab(tab) {
+  document.getElementById('panel-stock').style.display = tab === 'stock' ? '' : 'none';
+  document.getElementById('panel-kits').style.display  = tab === 'kits'  ? '' : 'none';
+  document.getElementById('tab-btn-stock').classList.toggle('active', tab === 'stock');
+  document.getElementById('tab-btn-kits').classList.toggle('active', tab === 'kits');
+}
 
 // ── CONFIGURACIÓN ────────────────────────────────────────────────────────
 let _settings = null;
@@ -553,6 +696,252 @@ td{padding:4px;border-bottom:1px solid #ddd}
 <div class="sub">Generada: ${fmtDateTime(run.generated_at)}</div>
 <div class="kpis">
   <div class="kpi"><div class="kpi-lbl">Productos</div><div class="kpi-val">${run.item_count}</div></div>
+  <div class="kpi"><div class="kpi-lbl">Valor estimado</div><div class="kpi-val">${money(run.estimated_value)}</div></div>
+</div>
+${groupsHtml}
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=900,height=720');
+  if (win) { win.document.write(html); win.document.close(); }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// TAB: COMPRAR X VENTA — insumos de KIT que no alcanzan para ventas con
+// entrega próxima. Un insumo (componente que NO determina la disponibilidad
+// del KIT — ver kit.stock_group_ids) puede quedar en 0 y la venta se
+// concreta igual; esta lista recalcula hacia adelante cuánto hay que
+// comprar para cubrir lo ya vendido. Después de comprar, el stock se carga
+// por Ingreso de inventario (/stock-receipts) como cualquier otra compra.
+// ════════════════════════════════════════════════════════════════════════
+
+// ── CONFIGURACIÓN ────────────────────────────────────────────────────────
+let _kitSettings = null;
+async function loadKitSettings() {
+  try { _kitSettings = await api('/api/orders?resource=kit-shortage-alerts&scope=settings'); }
+  catch (e) { toast('⚠️ ' + e.message); return; }
+  document.getElementById('ka-lead-days').value = _kitSettings.lead_days ?? 3;
+  document.getElementById('ka-frequency').value = _kitSettings.frequency || 'diaria';
+  document.getElementById('ka-weekday').value = String(_kitSettings.weekday ?? 1);
+  document.getElementById('ka-monthday').value = String(_kitSettings.month_day ?? 1);
+  document.getElementById('ka-channel-home').checked = !!_kitSettings.channel_home;
+  document.getElementById('ka-channel-email').checked = !!_kitSettings.channel_email;
+  document.getElementById('ka-email-to').value = _kitSettings.email_to || '';
+  onKitFrequencyChange();
+  onKitEmailChannelChange();
+  renderKitNextRun();
+  setKitConfigCollapsed(!!_kitSettings.updated_by);
+}
+let _kitConfigCollapsed = false;
+function setKitConfigCollapsed(collapsed) {
+  _kitConfigCollapsed = collapsed;
+  document.getElementById('ka-config-body').style.display = collapsed ? 'none' : '';
+  document.getElementById('ka-config-chevron').classList.toggle('collapsed', collapsed);
+}
+function toggleKitConfigCollapse() { setKitConfigCollapsed(!_kitConfigCollapsed); }
+function onKitFrequencyChange() {
+  const freq = document.getElementById('ka-frequency').value;
+  document.getElementById('ka-weekday-group').style.display = freq === 'semanal' ? '' : 'none';
+  document.getElementById('ka-monthday-group').style.display = freq === 'mensual' ? '' : 'none';
+  document.getElementById('ka-quincenal-hint').style.display = freq === 'quincenal' ? '' : 'none';
+  document.getElementById('ka-diaria-hint').style.display = freq === 'diaria' ? '' : 'none';
+}
+function onKitEmailChannelChange() {
+  document.getElementById('ka-email-group').style.display = document.getElementById('ka-channel-email').checked ? '' : 'none';
+}
+function renderKitNextRun() {
+  const box = document.getElementById('ka-next-run');
+  if (!_kitSettings?.next_run) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  document.getElementById('ka-next-run-text').textContent = fmtDate(_kitSettings.next_run);
+}
+async function saveKitSettings() {
+  const errEl = document.getElementById('ka-form-error');
+  errEl.style.display = 'none';
+  const frequency = document.getElementById('ka-frequency').value;
+  const lead_days = parseInt(document.getElementById('ka-lead-days').value, 10);
+  if (!Number.isInteger(lead_days) || lead_days < 0 || lead_days > 60) {
+    errEl.textContent = 'Ingresa un número de días entre 0 y 60'; errEl.style.display = ''; return;
+  }
+  const channel_home = document.getElementById('ka-channel-home').checked;
+  const channel_email = document.getElementById('ka-channel-email').checked;
+  const email_to = document.getElementById('ka-email-to').value.trim();
+  if (channel_email && !email_to) { errEl.textContent = 'Ingresa al menos un correo para el canal Correo'; errEl.style.display = ''; return; }
+
+  const payload = { frequency, lead_days, channel_home, channel_email, email_to };
+  if (frequency === 'semanal') payload.weekday = parseInt(document.getElementById('ka-weekday').value, 10);
+  if (frequency === 'mensual') payload.month_day = parseInt(document.getElementById('ka-monthday').value, 10);
+
+  const btn = document.getElementById('btn-save-kit-settings');
+  btn.disabled = true;
+  try {
+    _kitSettings = await api('/api/orders?resource=kit-shortage-alerts&scope=settings', { method: 'PUT', body: JSON.stringify(payload) });
+    renderKitNextRun();
+    setKitConfigCollapsed(true);
+    toast('✅ Configuración guardada');
+  } catch (e) { errEl.textContent = e.message; errEl.style.display = ''; }
+  btn.disabled = isAdmin() ? false : true;
+}
+
+// ── GENERAR AHORA (manual) ──────────────────────────────────────────────
+async function generateKitNow() {
+  const btn = document.getElementById('btn-generate-kit-now');
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Generando...';
+  try {
+    const { run } = await api('/api/orders?resource=kit-shortage-alerts&action=generate-now', { method: 'POST' });
+    if (!run) {
+      toast('ℹ️ Ninguna venta con entrega próxima tiene insumos de KIT por comprar ahora mismo');
+    } else {
+      toast('✅ Lista generada');
+      await loadKitRuns();
+      openKitRunDetail(run.id);
+    }
+  } catch (e) { toast('⚠️ ' + e.message); }
+  btn.disabled = isAdmin() ? false : true;
+  btn.innerHTML = original;
+}
+
+// ── HISTORIAL ────────────────────────────────────────────────────────────
+let _kitRuns = [];
+async function loadKitRuns() {
+  document.getElementById('kit-runs-loading').style.display = '';
+  try { _kitRuns = await api('/api/orders?resource=kit-shortage-alerts'); }
+  catch (e) { toast('⚠️ ' + e.message); _kitRuns = []; }
+  document.getElementById('kit-runs-loading').style.display = 'none';
+  renderKitRuns();
+}
+function renderKitRuns() {
+  const list = document.getElementById('kit-runs-list');
+  const empty = document.getElementById('kit-runs-empty');
+  if (!_kitRuns.length) { list.innerHTML = ''; empty.style.display = ''; return; }
+  empty.style.display = 'none';
+  list.innerHTML = _kitRuns.map(r => `
+    <div class="run-row" onclick="openKitRunDetail('${r.id}')">
+      <div class="run-date-wrap">
+        <div class="run-date">${fmtDate(r.generated_at)}</div>
+        <div class="run-period">${r.id}</div>
+      </div>
+      <div class="run-kpis-wrap" style="display:contents">
+        <div class="run-kpi"><div class="run-kpi-val">${r.item_count}</div><div class="run-kpi-lbl">Insumos</div></div>
+        <div class="run-kpi"><div class="run-kpi-val">${r.order_count}</div><div class="run-kpi-lbl">Ventas</div></div>
+        <div class="run-kpi"><div class="run-kpi-val">${money(r.estimated_value)}</div><div class="run-kpi-lbl">Estimado</div></div>
+      </div>
+      <span class="pill ${r.status}">${STATUS_LABEL[r.status] || r.status}</span>
+      <i class="ti ti-chevron-right" style="color:var(--text3)"></i>
+    </div>`).join('');
+}
+
+// ── DETALLE ──────────────────────────────────────────────────────────────
+let _currentKitRunId = null;
+let _currentKitRun = null;
+async function openKitRunDetail(id) {
+  _currentKitRunId = id;
+  document.getElementById('krd-id').textContent = id;
+  document.getElementById('krd-groups').innerHTML = '<div class="skeleton" style="height:120px"></div>';
+  document.getElementById('modal-kit-run-detail').classList.remove('hidden');
+  try { _currentKitRun = await api(`/api/orders?resource=kit-shortage-alerts&id=${encodeURIComponent(id)}`); }
+  catch (e) { toast('⚠️ ' + e.message); closeKitRunDetail(); return; }
+  renderKitRunDetail(_currentKitRun);
+}
+function _kitOrdersLine(orders) {
+  return (orders || []).map(o => `${escHtml(o.id)}${o.delivery_date ? ` (${fmtDate(o.delivery_date + 'T12:00:00')})` : ''} ×${o.qty}`).join(', ');
+}
+function renderKitRunDetail(run) {
+  document.getElementById('krd-id').textContent = run.id;
+  document.getElementById('krd-status').innerHTML = `<span class="pill ${run.status}">${STATUS_LABEL[run.status] || run.status}</span>`;
+  document.getElementById('krd-date').textContent = fmtDateTime(run.generated_at);
+  document.getElementById('krd-count').textContent = run.item_count;
+  document.getElementById('krd-orders').textContent = run.order_count;
+  document.getElementById('krd-value').textContent = money(run.estimated_value);
+  const markBtn = document.getElementById('krd-mark-btn');
+  markBtn.style.display = run.status === 'revisada' ? 'none' : '';
+
+  const groups = groupItemsByLocal(run.items || []);
+  document.getElementById('krd-groups').innerHTML = groups.map(g => `
+    <div class="wh-group">
+      <div class="wh-group-title"><i class="ti ti-building-store"></i> ${escHtml(g.local_name)}</div>
+      <div style="overflow-x:auto">
+        <table class="wh-table">
+          <thead><tr><th>Nombre</th><th>ID</th><th>Necesario</th><th>Stock actual</th><th>Falta comprar</th><th>Costo</th><th>Ventas</th></tr></thead>
+          <tbody>
+            ${g.items.map(it => `
+              <tr>
+                <td style="font-weight:700">${escHtml(it.name)}</td>
+                <td style="color:var(--text3)">${escHtml(it.sku)}</td>
+                <td>${it.needed}</td>
+                <td class="${it.stock === 0 ? 'stock-crit' : ''}">${it.stock}</td>
+                <td class="stock-crit">${it.missing}</td>
+                <td>${money(it.cost)}</td>
+                <td style="font-size:11px;color:var(--text3);max-width:220px;white-space:normal">${_kitOrdersLine(it.orders)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`).join('');
+}
+function closeKitRunDetail() {
+  document.getElementById('modal-kit-run-detail').classList.add('hidden');
+  const params = new URLSearchParams(location.search);
+  if (params.get('id')) history.replaceState({}, '', '/stock-alerts?tab=kits');
+}
+
+async function markKitReviewed(id) {
+  if (!id) return;
+  try {
+    const updated = await api(`/api/orders?resource=kit-shortage-alerts&id=${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ status: 'revisada' }) });
+    _currentKitRun = updated;
+    renderKitRunDetail(updated);
+    const idx = _kitRuns.findIndex(r => r.id === id);
+    if (idx >= 0) _kitRuns[idx] = { ..._kitRuns[idx], status: updated.status, reviewed_by: updated.reviewed_by, reviewed_at: updated.reviewed_at };
+    renderKitRuns();
+    toast('✅ Lista marcada como revisada');
+  } catch (e) { toast('⚠️ ' + e.message); }
+}
+
+// ── IMPRIMIR / DESCARGAR ─────────────────────────────────────────────────
+function printKitRun(id) {
+  const run = _currentKitRun && _currentKitRun.id === id ? _currentKitRun : null;
+  if (!run) { toast('⚠️ Abrí el detalle de una lista para imprimirla'); return; }
+  const groups = groupItemsByLocal(run.items || []);
+  const groupsHtml = groups.map(g => `
+    <div class="grp">
+      <div class="grp-title">${escHtml(g.local_name)}</div>
+      <table>
+        <thead><tr><th>Nombre</th><th>ID</th><th>Necesario</th><th>Stock actual</th><th>Falta comprar</th><th>Costo</th><th>Ventas</th></tr></thead>
+        <tbody>
+          ${g.items.map(it => `<tr>
+            <td>${escHtml(it.name)}</td><td>${escHtml(it.sku)}</td>
+            <td>${it.needed}</td><td>${it.stock}</td><td>${it.missing}</td><td>${money(it.cost)}</td>
+            <td>${_kitOrdersLine(it.orders)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comprar x Venta ${run.id}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#000;background:#fff;padding:10mm}
+@page{size:letter;margin:10mm}
+h1{font-size:17px;margin-bottom:2px}
+.sub{font-size:11px;color:#333;margin-bottom:14px}
+.kpis{display:flex;gap:16px;margin-bottom:16px}
+.kpi{border:1px solid #000;border-radius:4px;padding:6px 10px}
+.kpi-lbl{font-size:9px;text-transform:uppercase;color:#333}
+.kpi-val{font-size:15px;font-weight:700}
+.grp{margin-bottom:14px;break-inside:avoid}
+.grp-title{font-size:12.5px;font-weight:700;margin-bottom:4px;padding-bottom:2px;border-bottom:1.5px solid #000}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{text-align:left;font-size:9.5px;text-transform:uppercase;color:#333;padding:3px 4px;border-bottom:1px solid #999}
+td{padding:4px;border-bottom:1px solid #ddd}
+</style></head><body>
+<h1>Comprar x Venta — ${run.id}</h1>
+<div class="sub">Generada: ${fmtDateTime(run.generated_at)}</div>
+<div class="kpis">
+  <div class="kpi"><div class="kpi-lbl">Insumos</div><div class="kpi-val">${run.item_count}</div></div>
+  <div class="kpi"><div class="kpi-lbl">Ventas afectadas</div><div class="kpi-val">${run.order_count}</div></div>
   <div class="kpi"><div class="kpi-lbl">Valor estimado</div><div class="kpi-val">${money(run.estimated_value)}</div></div>
 </div>
 ${groupsHtml}

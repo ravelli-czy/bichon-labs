@@ -10,6 +10,7 @@ const { handleFinanceResource, FINANCE_RESOURCES } = require('./_finance_routes'
 const { handleCouponsResource, COUPON_RESOURCES } = require('./_coupons_routes');
 const { claimCoupon, computeDiscountAmount } = require('./_coupons');
 const { handleStockAlertsResource, STOCK_ALERT_RESOURCES, handleStockAlertsCron } = require('./_stock_alerts_routes');
+const { handleKitShortageAlertsResource, KIT_SHORTAGE_ALERT_RESOURCES, handleKitShortageAlertsCron } = require('./_kit_shortage_alerts_routes');
 const { deductStockForItems } = require('./_stock');
 
 // Resolves which specific warehouse row to decrement a KIT component's
@@ -128,6 +129,11 @@ module.exports = async (req, res) => {
   if (req.query?.resource === 'stock-alerts' && req.query?.action === 'cron-run') {
     return handleStockAlertsCron(req, res, sql);
   }
+  // ── Cron de Alertas de insumos de KIT — mismo motivo/patrón. Ver
+  // handleKitShortageAlertsCron en api/_kit_shortage_alerts_routes.js.
+  if (req.query?.resource === 'kit-shortage-alerts' && req.query?.action === 'cron-run') {
+    return handleKitShortageAlertsCron(req, res, sql);
+  }
 
   const session  = await getSession(req);
   const tenantId = resolveTenantId(req, session);
@@ -153,6 +159,11 @@ module.exports = async (req, res) => {
   // Mismo motivo que Finanzas/Cupones — vive en api/_stock_alerts_routes.js.
   if (STOCK_ALERT_RESOURCES.includes(req.query?.resource)) {
     return handleStockAlertsResource(req, res, sql, session, tenantId, actor);
+  }
+  // ── Alertas de insumos de KIT: configuración + historial + detalle ──────
+  // Mismo motivo — vive en api/_kit_shortage_alerts_routes.js.
+  if (KIT_SHORTAGE_ALERT_RESOURCES.includes(req.query?.resource)) {
+    return handleKitShortageAlertsResource(req, res, sql, session, tenantId, actor);
   }
 
   try {

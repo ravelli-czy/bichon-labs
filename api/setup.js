@@ -405,6 +405,46 @@ module.exports = async (req, res) => {
     `;
     await sql`CREATE INDEX IF NOT EXISTS stock_alert_runs_tenant_idx ON stock_alert_runs (tenant_id, generated_at DESC)`;
 
+    // ── Alertas de insumos de KIT: mismo esquema que Alertas de stock (ver
+    // arriba), pero además de frequency/weekday/month_day tiene lead_days —
+    // cuántos días antes de la fecha de entrega de una venta empieza a
+    // considerarse "próxima" para esta alerta (ventana separada de la
+    // frecuencia de envío). Ver api/_kit_shortage_alerts.js.
+    await sql`
+      CREATE TABLE IF NOT EXISTS kit_shortage_alert_settings (
+        tenant_id     TEXT PRIMARY KEY,
+        frequency     TEXT NOT NULL DEFAULT 'diaria',
+        weekday       INTEGER,
+        month_day     INTEGER,
+        lead_days     INTEGER NOT NULL DEFAULT 3,
+        channel_home  BOOLEAN NOT NULL DEFAULT TRUE,
+        channel_email BOOLEAN NOT NULL DEFAULT FALSE,
+        email_to      TEXT DEFAULT '',
+        last_run_date TEXT DEFAULT '',
+        updated_by    TEXT DEFAULT '',
+        updated_at    TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    // items: snapshot inmutable — por cada insumo faltante: sku, nombre,
+    // almacén/tienda, cuánto piden las ventas en ventana (needed), stock
+    // actual, cuánto falta comprar (missing), costo, y qué órdenes lo piden
+    // (id + cantidad) — nunca se recalcula, ver generateRun.
+    await sql`
+      CREATE TABLE IF NOT EXISTS kit_shortage_alert_runs (
+        id              TEXT PRIMARY KEY,
+        tenant_id       TEXT NOT NULL DEFAULT 'TEN-001',
+        generated_at    TIMESTAMPTZ DEFAULT NOW(),
+        item_count      INTEGER NOT NULL DEFAULT 0,
+        order_count     INTEGER NOT NULL DEFAULT 0,
+        estimated_value NUMERIC NOT NULL DEFAULT 0,
+        status          TEXT NOT NULL DEFAULT 'pendiente',
+        reviewed_by     TEXT DEFAULT '',
+        reviewed_at     TIMESTAMPTZ,
+        items           JSONB NOT NULL DEFAULT '[]'::jsonb
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS kit_shortage_alert_runs_tenant_idx ON kit_shortage_alert_runs (tenant_id, generated_at DESC)`;
+
     // ── Finanzas: categorías de gasto ──────────────────────────────────────
     await sql`
       CREATE TABLE IF NOT EXISTS expense_categories (
@@ -650,7 +690,7 @@ module.exports = async (req, res) => {
     await sql`CREATE INDEX IF NOT EXISTS api_keys_tenant_idx  ON api_keys (tenant_id)`;
     await sql`CREATE INDEX IF NOT EXISTS api_keys_user_idx    ON api_keys (user_id)`;
 
-    const created = ['tenants', 'products', 'kits', 'product_groups', 'label_templates', 'purchase_formats', 'stock_receipts', 'orders', 'coupons', 'stock_alert_settings', 'stock_alert_runs', 'purchases', 'suppliers', 'shipments', 'users', 'sessions', 'audit_logs', 'api_keys', 'locales', 'warehouses', 'delivery_methods', 'delivery_slots', 'expense_categories', 'expenses'];
+    const created = ['tenants', 'products', 'kits', 'product_groups', 'label_templates', 'purchase_formats', 'stock_receipts', 'orders', 'coupons', 'stock_alert_settings', 'stock_alert_runs', 'kit_shortage_alert_settings', 'kit_shortage_alert_runs', 'purchases', 'suppliers', 'shipments', 'users', 'sessions', 'audit_logs', 'api_keys', 'locales', 'warehouses', 'delivery_methods', 'delivery_slots', 'expense_categories', 'expenses'];
 
     // Always ensure superadmin user exists
     const [{ ucount }] = await sql`SELECT COUNT(*) AS ucount FROM users WHERE username = 'admin'`;
