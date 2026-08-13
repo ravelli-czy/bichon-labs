@@ -59,6 +59,16 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .nav-tab i{font-size:22px;transition:all .2s}
 .nav-tab span{font-size:10px;font-weight:700}
 .nav-tab.active{color:var(--primary)}
+.nav-tab.pinned{background:var(--primary-light);border-radius:10px}
+
+/* Sidebar 2do nivel: grupos expandibles (Catálogo, Finanzas, Configuraciones
+   y el sub-grupo Alertas dentro de Catálogo). Los hijos son .nav-tab
+   normales anidados dentro de .nav-subgroup — heredan todo su estilo. */
+.nav-group{display:flex;flex-direction:column;flex:0 0 auto}
+.nav-group-chevron{margin-left:auto;flex-shrink:0;transition:transform .18s ease;display:none}
+.nav-tab i.nav-group-chevron{font-size:14px}
+.nav-subgroup{display:none;flex-direction:column;gap:2px}
+
 /* Ícono de Finanzas: corazón con signo peso al centro (no existe como glifo
    único en Tabler Icons — se compone superponiendo un badge "$" sobre el
    ícono de corazón). Se reutiliza también en el sheet "más" móvil. */
@@ -142,6 +152,8 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 /* PREFS SHEET */
 .pref-group{margin-bottom:20px}
 .pref-group-title{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:10px}
+.more-sheet-section-title{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-top:8px}
+.more-sheet-section-title:first-child{margin-top:0}
 .pref-label{font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px}
 .pref-options{display:flex;gap:8px;margin-bottom:5px}
 .pref-opt{flex:1;padding:10px 6px;border:2px solid var(--border);border-radius:var(--radius);background:var(--bg3);color:var(--text2);font-family:'Nunito',sans-serif;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;transition:all .15s;line-height:1.2}
@@ -472,6 +484,13 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   body.sidebar-expanded .content{margin-left:var(--sidebar-w)}
   body.sidebar-expanded .overlay-page{left:var(--sidebar-w)}
 
+  /* Sidebar 2do nivel: solo se despliega con el sidebar expandido */
+  body.sidebar-expanded .nav-group-chevron{display:inline-flex}
+  body.sidebar-expanded .nav-group.expanded>.nav-group-header .nav-group-chevron{transform:rotate(90deg)}
+  body.sidebar-expanded .nav-group.expanded>.nav-subgroup{display:flex}
+  body.sidebar-expanded .nav-subgroup .nav-tab{padding-left:34px}
+  body.sidebar-expanded .nav-subgroup .nav-subgroup .nav-tab{padding-left:56px}
+
   /* Stats: 4 cols */
   .stats-row{grid-template-columns:repeat(4,1fr)}
   .home-widgets-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -581,7 +600,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 </div>
 
 <div class="topbar">
-  <div class="topbar-logo">
+  <div class="topbar-logo" onclick="showPage('home')" title="Ir al inicio" style="cursor:pointer">
     <div class="logo-icon"><i class="ti ti-packages"></i></div>
     <div><div class="logo-title">StockFlow</div><div class="logo-sub">OMS · WMS</div></div>
   </div>
@@ -728,6 +747,20 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       </div>
     </div>
     <div id="cat-content" style="margin-top:10px"></div>
+  </div>
+
+  <!-- PRECIOS (placeholder) -->
+  <div class="page" id="page-precios">
+    <div class="section-title">Precios</div>
+    <div class="section-sub">Gestión de precios y listas</div>
+    <div class="empty-state"><i class="ti ti-currency-dollar"></i><p>Próximamente.</p></div>
+  </div>
+
+  <!-- ALERTAS DE PRECIO (placeholder) -->
+  <div class="page" id="page-alertasPrecio">
+    <div class="section-title">Alertas de Precio</div>
+    <div class="section-sub">Avisos por cambios o inconsistencias de precio</div>
+    <div class="empty-state"><i class="ti ti-cash-banknote"></i><p>Próximamente.</p></div>
   </div>
 
   <!-- MESÓN CREATIVO -->
@@ -897,49 +930,92 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 <button class="fab" onclick="openSheet('sheet-fab')"><i class="ti ti-plus"></i></button>
 
 <nav class="bottom-nav">
-  <button class="nav-tab active" onclick="showPage('home',this)"><i class="ti ti-home"></i><span>Inicio</span></button>
-  <button class="nav-tab" onclick="showPage('inventory',this)"><i class="ti ti-box"></i><span>Inventario</span></button>
-  <button class="nav-tab" onclick="showPage('catalogo',this)"><i class="ti ti-tag"></i><span>Catálogo</span></button>
-  <button class="nav-tab" onclick="showPage('ventas',this)"><i class="ti ti-shopping-bag"></i><span>Ventas</span></button>
+  <button class="nav-tab pinned" onclick="showPage('ventas',this)"><i class="ti ti-shopping-bag"></i><span>Ventas</span></button>
+
+  <div class="nav-group sidebar-only-item" id="navgroup-catalogo">
+    <button class="nav-tab nav-group-header" onclick="toggleNavGroup('navgroup-catalogo')" title="Catálogo">
+      <i class="ti ti-category"></i><span>Catálogo</span><i class="ti ti-chevron-right nav-group-chevron"></i>
+    </button>
+    <div class="nav-subgroup">
+      <a href="/stock-receipts" class="nav-tab" title="Ingreso de Inventario">
+        <i class="ti ti-truck-delivery"></i><span>Ingreso de Inventario</span>
+      </a>
+      <button class="nav-tab" onclick="showPage('inventory',this)">
+        <i class="ti ti-box"></i><span>Inventario</span>
+      </button>
+      <button class="nav-tab" onclick="showPage('catalogo',this)">
+        <i class="ti ti-tag"></i><span>Catálogo</span>
+      </button>
+      <button class="nav-tab" onclick="showPage('precios',this)">
+        <i class="ti ti-currency-dollar"></i><span>Precios</span>
+      </button>
+      <div class="nav-group" id="navgroup-alertas">
+        <button class="nav-tab nav-group-header" onclick="toggleNavGroup('navgroup-alertas')" title="Alertas">
+          <i class="ti ti-bell-ringing"></i><span>Alertas</span><i class="ti ti-chevron-right nav-group-chevron"></i>
+        </button>
+        <div class="nav-subgroup">
+          <a href="/stock-alerts" class="nav-tab" title="Alertas de Inventario">
+            <i class="ti ti-alert-triangle"></i><span>Alertas de Inventario</span>
+          </a>
+          <button class="nav-tab" onclick="showPage('alertasPrecio',this)">
+            <i class="ti ti-cash-banknote"></i><span>Alertas de Precio</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <button class="nav-tab" onclick="showPage('delivery',this)"><i class="ti ti-truck-delivery"></i><span>Delivery</span></button>
-  <!-- Mobile-only: opens the "more" sheet with the items below. On desktop
-       these show inline in the sidebar instead and this stays hidden. -->
+
+  <div class="nav-group sidebar-only-item" id="navgroup-finanzas">
+    <button class="nav-tab nav-group-header" onclick="toggleNavGroup('navgroup-finanzas')" title="Finanzas">
+      <i class="ti ti-wallet"></i><span>Finanzas</span><i class="ti ti-chevron-right nav-group-chevron"></i>
+    </button>
+    <div class="nav-subgroup">
+      <button class="nav-tab" onclick="openCatalogTab('pagos')">
+        <i class="ti ti-credit-card"></i><span>Medios de Pago</span>
+      </button>
+      <a href="/finanzas" class="nav-tab">
+        <i class="ti ti-heart nav-fin-icon"></i><span>Finanzas</span>
+      </a>
+      <a href="/cupones" class="nav-tab">
+        <i class="ti ti-discount-2"></i><span>Cupones</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="nav-group sidebar-only-item" id="navgroup-config">
+    <button class="nav-tab nav-group-header" onclick="toggleNavGroup('navgroup-config')" title="Configuraciones">
+      <i class="ti ti-settings"></i><span>Configuraciones</span><i class="ti ti-chevron-right nav-group-chevron"></i>
+    </button>
+    <div class="nav-subgroup">
+      <button class="nav-tab" id="prefs-btn" onclick="openPrefs()" title="Preferencias" style="display:none">
+        <i class="ti ti-adjustments"></i><span>Settings</span>
+      </button>
+      <button class="nav-tab" onclick="showPage('locales',this)">
+        <i class="ti ti-building-store"></i><span>Locales</span>
+      </button>
+      <button class="nav-tab" onclick="openCatalogTab('canales')">
+        <i class="ti ti-broadcast"></i><span>Canales de Venta</span>
+      </button>
+      <button class="nav-tab" onclick="openCatalogTab('materiales')">
+        <i class="ti ti-printer"></i><span>Materiales</span>
+      </button>
+      <a href="/users" class="nav-tab" id="admin-users-btn" title="Gestión de usuarios" style="display:none;text-decoration:none">
+        <i class="ti ti-users"></i><span>Perfiles y Usuarios</span>
+      </a>
+      <a href="/logs" class="nav-tab" id="admin-logs-btn" title="Registro de actividad" style="display:none;text-decoration:none">
+        <i class="ti ti-history"></i><span>Logs</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Mobile-only: opens the "more" sheet with the items above (hidden on
+       mobile) plus the brand footer. On desktop this stays hidden. -->
   <button class="nav-tab" id="mobile-more-btn" onclick="openSheet('sheet-mobile-more')">
     <i class="ti ti-menu-2"></i><span>Más</span>
   </button>
-  <button class="nav-tab sidebar-only-item" onclick="showPage('locales',this)" title="Locales">
-    <i class="ti ti-building-store"></i><span>Locales</span>
-  </button>
-  <button class="nav-tab sidebar-only-item" onclick="openCatalogTab('materiales')" title="Materiales">
-    <i class="ti ti-printer"></i><span>Materiales</span>
-  </button>
-  <button class="nav-tab sidebar-only-item" onclick="openCatalogTab('pagos')" title="Medios de pago">
-    <i class="ti ti-credit-card"></i><span>Pagos</span>
-  </button>
-  <button class="nav-tab sidebar-only-item" onclick="openCatalogTab('canales')" title="Canales de venta">
-    <i class="ti ti-broadcast"></i><span>Canales</span>
-  </button>
-  <a href="/finanzas" class="nav-tab sidebar-only-item" title="Finanzas">
-    <i class="ti ti-heart nav-fin-icon"></i><span>Finanzas</span>
-  </a>
-  <a href="/cupones" class="nav-tab sidebar-only-item" title="Cupones">
-    <i class="ti ti-discount-2"></i><span>Cupones</span>
-  </a>
-  <a href="/stock-alerts" class="nav-tab sidebar-only-item" title="Alertas de stock">
-    <i class="ti ti-bell-ringing"></i><span>Alertas de stock</span>
-  </a>
-  <a href="/stock-receipts" class="nav-tab sidebar-only-item" title="Ingreso de inventario">
-    <i class="ti ti-truck-delivery"></i><span>Ingreso de inventario</span>
-  </a>
-  <a href="/users" class="nav-tab sidebar-only-item" id="admin-users-btn" title="Gestión de usuarios" style="display:none;text-decoration:none">
-    <i class="ti ti-users"></i><span>Perfiles y Usuarios</span>
-  </a>
-  <a href="/logs" class="nav-tab sidebar-only-item" id="admin-logs-btn" title="Registro de actividad" style="display:none;text-decoration:none">
-    <i class="ti ti-history"></i><span>Logs</span>
-  </a>
-  <button class="nav-tab sidebar-only-item" id="prefs-btn" onclick="openPrefs()" title="Preferencias" style="display:none">
-    <i class="ti ti-settings"></i><span>Settings</span>
-  </button>
+
   <div class="nav-tab sidebar-only-item" id="brand-nav-item" style="cursor:default;margin-top:auto" title="Bichon Labs">
     <i class="ti ti-paw"></i>
     <span>Bichon Labs</span>
@@ -955,17 +1031,27 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-content" style="padding:16px 20px 28px;display:flex;flex-direction:column;gap:10px">
-      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('locales',navTabEl('locales'))"><i class="ti ti-building-store"></i> Locales</button>
-      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('materiales')"><i class="ti ti-printer"></i> Materiales</button>
-      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('pagos')"><i class="ti ti-credit-card"></i> Pagos</button>
-      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('canales')"><i class="ti ti-broadcast"></i> Canales</button>
+      <div class="more-sheet-section-title">Catálogo</div>
+      <a href="/stock-receipts" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-truck-delivery"></i> Ingreso de Inventario</a>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('inventory',navTabEl('inventory'))"><i class="ti ti-box"></i> Inventario</button>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('catalogo',navTabEl('catalogo'))"><i class="ti ti-tag"></i> Catálogo</button>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('precios',navTabEl('precios'))"><i class="ti ti-currency-dollar"></i> Precios</button>
+      <a href="/stock-alerts" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-alert-triangle"></i> Alertas de Inventario</a>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('alertasPrecio',navTabEl('alertasPrecio'))"><i class="ti ti-cash-banknote"></i> Alertas de Precio</button>
+
+      <div class="more-sheet-section-title">Finanzas</div>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('pagos')"><i class="ti ti-credit-card"></i> Medios de Pago</button>
       <a href="/finanzas" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-heart nav-fin-icon"></i> Finanzas</a>
       <a href="/cupones" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-discount-2"></i> Cupones</a>
-      <a href="/stock-alerts" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-bell-ringing"></i> Alertas de stock</a>
-      <a href="/stock-receipts" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-truck-delivery"></i> Ingreso de inventario</a>
+
+      <div class="more-sheet-section-title">Configuraciones</div>
+      <button class="btn btn-outline" id="prefs-btn-mobile" onclick="closeSheet('sheet-mobile-more');openPrefs()" style="display:none"><i class="ti ti-adjustments"></i> Settings</button>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('locales',navTabEl('locales'))"><i class="ti ti-building-store"></i> Locales</button>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('canales')"><i class="ti ti-broadcast"></i> Canales de Venta</button>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('materiales')"><i class="ti ti-printer"></i> Materiales</button>
       <a href="/users" class="btn btn-outline" id="admin-users-btn-mobile" style="display:none;text-decoration:none"><i class="ti ti-users"></i> Perfiles y Usuarios</a>
       <a href="/logs" class="btn btn-outline" id="admin-logs-btn-mobile" style="display:none;text-decoration:none"><i class="ti ti-history"></i> Logs</a>
-      <button class="btn btn-outline" id="prefs-btn-mobile" onclick="closeSheet('sheet-mobile-more');openPrefs()" style="display:none"><i class="ti ti-settings"></i> Settings</button>
+
       <div class="btn btn-outline" style="cursor:default;color:var(--text3)"><i class="ti ti-paw"></i> Bichon Labs</div>
     </div>
   </div>
@@ -2589,7 +2675,7 @@ function sellable() {
 }
 
 // URL map for nav tabs
-const PAGE_URLS = { home:'/', inventory:'/inventory', catalogo:'/catalog', ventas:'/orders', locales:'/locales', delivery:'/delivery-hub', meson:'/meson-creativo', prefs:'/preferencias' };
+const PAGE_URLS = { home:'/', inventory:'/inventory', catalogo:'/catalog', ventas:'/orders', locales:'/locales', delivery:'/delivery-hub', meson:'/meson-creativo', prefs:'/preferencias', precios:'/precios', alertasPrecio:'/alertas-precio' };
 
 function showPage(id, el, pushURL = true) {
   // Close order detail overlay when navigating to any tab
@@ -2604,7 +2690,7 @@ function showPage(id, el, pushURL = true) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  if (el) el.classList.add('active');
+  if (el) { el.classList.add('active'); expandNavGroupChain(el); }
   S.currentPage = id;
   if (id==='home')      renderHome();
   if (id==='inventory') {
@@ -7876,6 +7962,48 @@ function toggleSidebar() {
   try { if (localStorage.getItem('sf_sidebar') === '1') document.body.classList.add('sidebar-expanded'); } catch(e){}
 })();
 
+// ── SIDEBAR 2° NIVEL: grupos expandibles (Catálogo, Finanzas, Configuraciones, Alertas) ──
+function _navGroupsState() {
+  try { return JSON.parse(localStorage.getItem('sf_nav_groups') || '[]'); } catch(e){ return []; }
+}
+function _saveNavGroupsState(ids) {
+  try { localStorage.setItem('sf_nav_groups', JSON.stringify(ids)); } catch(e){}
+}
+function toggleNavGroup(id) {
+  const grp = document.getElementById(id);
+  if (!grp) return;
+  // Collapsed sidebar has no room to show sub-items — expand it first.
+  if (!document.body.classList.contains('sidebar-expanded')) {
+    document.body.classList.add('sidebar-expanded');
+    try { localStorage.setItem('sf_sidebar', '1'); } catch(e){}
+  }
+  grp.classList.toggle('expanded');
+  const openIds = _navGroupsState();
+  const idx = openIds.indexOf(id);
+  if (grp.classList.contains('expanded')) { if (idx === -1) openIds.push(id); }
+  else if (idx !== -1) openIds.splice(idx, 1);
+  _saveNavGroupsState(openIds);
+}
+// Expand every ancestor .nav-group of a nav-tab so it stays visible when its page is active.
+function expandNavGroupChain(el) {
+  let grp = el.closest ? el.closest('.nav-group') : null;
+  let changed = false;
+  const openIds = _navGroupsState();
+  while (grp) {
+    if (!grp.classList.contains('expanded')) { grp.classList.add('expanded'); changed = true; }
+    if (grp.id && openIds.indexOf(grp.id) === -1) { openIds.push(grp.id); }
+    grp = grp.parentElement ? grp.parentElement.closest('.nav-group') : null;
+  }
+  if (changed) _saveNavGroupsState(openIds);
+}
+// Restore previously expanded nav groups
+(function(){
+  _navGroupsState().forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('expanded');
+  });
+})();
+
 // ── LISTEN FOR ORDER UPDATES FROM IFRAMES ─────
 window.addEventListener('message', async (e) => {
   if (!e.data) return;
@@ -8486,6 +8614,8 @@ function applyRoute() {
   if (path === '/locales')      { showPage('locales',       navTabEl('locales'),    false); return; }
   if (path === '/delivery-hub') { showPage('delivery',      navTabEl('delivery'),   false); return; }
   if (path === '/preferencias') { showPage('prefs',         document.getElementById('prefs-btn'), false); return; }
+  if (path === '/precios')      { showPage('precios',       navTabEl('precios'),    false); return; }
+  if (path === '/alertas-precio') { showPage('alertasPrecio', navTabEl('alertasPrecio'), false); return; }
   // Default: home
   showPage('home', navTabEl('home'), false);
 }
