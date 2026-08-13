@@ -41,6 +41,16 @@ async function fetchAlertProducts(sql, tenantId) {
              (SELECT sr.unit_cost FROM stock_receipts sr
               WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku
               ORDER BY sr.created_at DESC LIMIT 1),
+             (SELECT COALESCE((item->>'unitCostAtSale')::numeric, (item->>'cost')::numeric)
+              FROM orders o, jsonb_array_elements(o.items) AS item
+              WHERE o.tenant_id = p.tenant_id AND item->>'sku' = p.sku
+              ORDER BY o.created_at DESC LIMIT 1),
+             (SELECT (comp->>'unitCost')::numeric
+              FROM orders o,
+                   jsonb_array_elements(o.items) AS item,
+                   jsonb_array_elements(COALESCE(item->'componentBreakdown', '[]'::jsonb)) AS comp
+              WHERE o.tenant_id = p.tenant_id AND comp->>'sku' = p.sku
+              ORDER BY o.created_at DESC LIMIT 1),
              0
            ) AS cost
     FROM products p
