@@ -336,7 +336,6 @@ function removeReceiptLine(id) {
   _lines = _lines.filter(l => l.id !== id);
   if (!_lines.length) addReceiptLine(); else renderReceiptLines();
 }
-function _productKey(p) { return p.sku + '::' + (p.warehouse_id || ''); }
 function _lineProduct(line) {
   return PRODUCTS.find(p => p.sku === line.sku && (p.warehouse_id || '') === line.warehouse_id);
 }
@@ -373,12 +372,47 @@ function updateLinePreview(id) {
   const el = document.getElementById(`receipt-preview-${id}`);
   if (line && el) el.innerHTML = _linePreviewHtml(line);
 }
+// Búsqueda de producto: mismo patrón "combobox propio" que Formatos en
+// index.html (input libre + lista de sugerencias en flujo normal, no
+// position:absolute) — con muchos productos, un <select> nativo obliga a
+// scrollear toda la lista sin poder filtrar por nombre/SKU.
+function _filterProductSuggestions(lineId, value) {
+  const box = document.getElementById(`prod-suggest-${lineId}`);
+  if (!box) return;
+  const q = (value || '').trim().toLowerCase();
+  const matches = PRODUCTS
+    .filter(p => !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q))
+    .sort((a,b) => a.name.localeCompare(b.name))
+    .slice(0, 20);
+  if (!matches.length) {
+    box.innerHTML = `<div style="padding:10px 12px;font-size:12.5px;font-weight:600;color:var(--text3)">Sin resultados para "${escHtml(value)}"</div>`;
+    box.style.display = '';
+    return;
+  }
+  box.innerHTML = matches.map(p => `
+    <div onmousedown="_pickProductSuggestion(${lineId},'${p.sku.replace(/'/g,"\\'")}','${(p.warehouse_id||'').replace(/'/g,"\\'")}')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:700">${escHtml(p.name)} <span style="font-weight:600;color:var(--text3)">(${escHtml(p.sku)})</span></div>
+      <div style="font-size:11px;color:var(--text3);font-weight:600">${WAREHOUSE_NAMES[p.warehouse_id] ? escHtml(WAREHOUSE_NAMES[p.warehouse_id]) + ' · ' : ''}stock actual: ${p.stock} ${escHtml(p.stock_unit || 'unidad')}</div>
+    </div>`).join('');
+  box.style.display = '';
+}
+function _hideProductSuggestions(lineId) {
+  const box = document.getElementById(`prod-suggest-${lineId}`);
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  // Si no eligió nada de la lista, vuelve a mostrar el producto ya
+  // seleccionado (o queda vacío) en vez de dejar tildado lo que haya tipeado.
+  const line = _lines.find(l => l.id === lineId);
+  const input = document.getElementById(`prod-search-${lineId}`);
+  if (line && input) {
+    const p = _lineProduct(line);
+    input.value = p ? `${p.name} (${p.sku})` : '';
+  }
+}
+function _pickProductSuggestion(lineId, sku, warehouseId) {
+  updateReceiptLine(lineId, 'product', sku + '::' + warehouseId);
+}
 function renderReceiptLines() {
   const wrap = document.getElementById('receipt-lines');
-  const productOptions = '<option value="">Selecciona un producto...</option>' + PRODUCTS
-    .slice().sort((a,b) => a.name.localeCompare(b.name))
-    .map(p => `<option value="${_productKey(p)}">${escHtml(p.name)} (${escHtml(p.sku)})${WAREHOUSE_NAMES[p.warehouse_id] ? ' — ' + escHtml(WAREHOUSE_NAMES[p.warehouse_id]) : ''} · stock actual: ${p.stock} ${escHtml(p.stock_unit || 'unidad')}</option>`)
-    .join('');
 
   wrap.innerHTML = _lines.map((line, idx) => {
     const p = _lineProduct(line);
@@ -396,7 +430,11 @@ function renderReceiptLines() {
       </div>
       <div class="form-group">
         <div class="form-label">Producto</div>
-        <select class="form-input" onchange="updateReceiptLine(${line.id},'product',this.value)">${productOptions.replace(`value="${_productKey({sku:line.sku,warehouse_id:line.warehouse_id})}"`, `value="${_productKey({sku:line.sku,warehouse_id:line.warehouse_id})}" selected`)}</select>
+        <input class="form-input" id="prod-search-${line.id}" placeholder="Busca por nombre o SKU..." value="${p ? escHtml(p.name + ' (' + p.sku + ')') : ''}"
+          oninput="_filterProductSuggestions(${line.id},this.value)"
+          onfocus="_filterProductSuggestions(${line.id},this.value)"
+          onblur="setTimeout(()=>_hideProductSuggestions(${line.id}),200)">
+        <div class="pf-suggest" id="prod-suggest-${line.id}" style="display:none;margin-top:2px;background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;overflow:hidden"></div>
       </div>
       <div class="form-row">
         <div class="form-group">
