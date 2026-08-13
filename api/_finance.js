@@ -36,6 +36,11 @@ function round2(n) {
 // (lo próximo que se va a vender), o si no queda ninguno activo, el del
 // último lote registrado (mejor referencia disponible). Se computa en vivo
 // contra stock_receipts — products ya no tiene una columna cost cacheada.
+// Primero busca en el almacén exacto de la fila; si no hay ningún lote ahí
+// (ej. el registro de catálogo, warehouse_id vacío, que nunca tiene lotes
+// propios porque Ingreso de inventario siempre exige elegir un almacén
+// real), cae a cualquier lote del SKU en cualquier almacén — mejor esa
+// referencia que mostrar $0 cuando el producto sí tiene costo en otro lado.
 // Usado para estimar costo cuando NO hay una consumición real de la que
 // tomarlo (ver buildSaleSnapshot para el caso con consumición real): el
 // backfill de costos históricos, y las líneas de una Pre Compra que no
@@ -49,6 +54,12 @@ async function loadCostMaps(sql, tenantId) {
          ORDER BY sr.created_at ASC LIMIT 1),
         (SELECT sr.unit_cost FROM stock_receipts sr
          WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id
+         ORDER BY sr.created_at DESC LIMIT 1),
+        (SELECT sr.unit_cost FROM stock_receipts sr
+         WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.remaining_qty > 0
+         ORDER BY sr.created_at ASC LIMIT 1),
+        (SELECT sr.unit_cost FROM stock_receipts sr
+         WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku
          ORDER BY sr.created_at DESC LIMIT 1),
         0
       ) AS cost

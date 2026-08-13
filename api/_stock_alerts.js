@@ -35,6 +35,12 @@ async function fetchAlertProducts(sql, tenantId) {
              (SELECT sr.unit_cost FROM stock_receipts sr
               WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id
               ORDER BY sr.created_at DESC LIMIT 1),
+             (SELECT sr.unit_cost FROM stock_receipts sr
+              WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.remaining_qty > 0
+              ORDER BY sr.created_at ASC LIMIT 1),
+             (SELECT sr.unit_cost FROM stock_receipts sr
+              WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku
+              ORDER BY sr.created_at DESC LIMIT 1),
              0
            ) AS cost
     FROM products p
