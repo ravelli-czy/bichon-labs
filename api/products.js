@@ -118,7 +118,11 @@ module.exports = async (req, res) => {
     // cost ya no es una columna propia — se computa en vivo: el unit_cost del
     // lote FIFO más viejo con stock (lo próximo que se va a vender), o si no
     // queda ninguno activo, el del último lote registrado (mejor referencia
-    // disponible). Ver api/_finance.js:loadCostMaps, misma lógica.
+    // disponible). Si el almacén exacto de la fila no tiene ningún lote (ej.
+    // el registro de catálogo, warehouse_id vacío, que nunca tiene lotes
+    // propios porque Ingreso de inventario siempre exige elegir un almacén
+    // real), cae a cualquier lote del SKU en cualquier almacén. Ver
+    // api/_finance.js:loadCostMaps, misma lógica.
     if (req.method === 'GET') {
       const rows = await sql`
         SELECT p.sku, p.name, p.brand, p.cat, p.tipo, p.price, p.stock, p.threshold,
@@ -130,6 +134,12 @@ module.exports = async (req, res) => {
                   ORDER BY sr.created_at ASC LIMIT 1),
                  (SELECT sr.unit_cost FROM stock_receipts sr
                   WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id
+                  ORDER BY sr.created_at DESC LIMIT 1),
+                 (SELECT sr.unit_cost FROM stock_receipts sr
+                  WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.remaining_qty > 0
+                  ORDER BY sr.created_at ASC LIMIT 1),
+                 (SELECT sr.unit_cost FROM stock_receipts sr
+                  WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku
                   ORDER BY sr.created_at DESC LIMIT 1),
                  0
                ) AS cost
