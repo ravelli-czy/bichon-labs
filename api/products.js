@@ -121,8 +121,10 @@ module.exports = async (req, res) => {
     // disponible). Si el almacén exacto de la fila no tiene ningún lote (ej.
     // el registro de catálogo, warehouse_id vacío, que nunca tiene lotes
     // propios porque Ingreso de inventario siempre exige elegir un almacén
-    // real), cae a cualquier lote del SKU en cualquier almacén. Ver
-    // api/_finance.js:loadCostMaps, misma lógica.
+    // real), cae a cualquier lote del SKU en cualquier almacén. Si el SKU
+    // nunca tuvo NINGÚN lote, cae al último costo con el que efectivamente
+    // se vendió (última orden donde aparece, directo o como componente de un
+    // KIT). Ver api/_finance.js:loadCostMaps, misma lógica.
     if (req.method === 'GET') {
       const rows = await sql`
         SELECT p.sku, p.name, p.brand, p.cat, p.tipo, p.price, p.stock, p.threshold,
@@ -141,6 +143,16 @@ module.exports = async (req, res) => {
                  (SELECT sr.unit_cost FROM stock_receipts sr
                   WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku
                   ORDER BY sr.created_at DESC LIMIT 1),
+                 (SELECT COALESCE((item->>'unitCostAtSale')::numeric, (item->>'cost')::numeric)
+                  FROM orders o, jsonb_array_elements(o.items) AS item
+                  WHERE o.tenant_id = p.tenant_id AND item->>'sku' = p.sku
+                  ORDER BY o.created_at DESC LIMIT 1),
+                 (SELECT (comp->>'unitCost')::numeric
+                  FROM orders o,
+                       jsonb_array_elements(o.items) AS item,
+                       jsonb_array_elements(COALESCE(item->'componentBreakdown', '[]'::jsonb)) AS comp
+                  WHERE o.tenant_id = p.tenant_id AND comp->>'sku' = p.sku
+                  ORDER BY o.created_at DESC LIMIT 1),
                  0
                ) AS cost
         FROM products p

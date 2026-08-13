@@ -39,8 +39,12 @@ function round2(n) {
 // Primero busca en el almacén exacto de la fila; si no hay ningún lote ahí
 // (ej. el registro de catálogo, warehouse_id vacío, que nunca tiene lotes
 // propios porque Ingreso de inventario siempre exige elegir un almacén
-// real), cae a cualquier lote del SKU en cualquier almacén — mejor esa
-// referencia que mostrar $0 cuando el producto sí tiene costo en otro lado.
+// real), cae a cualquier lote del SKU en cualquier almacén. Si el SKU nunca
+// tuvo NINGÚN lote (nunca se compró por Ingreso de inventario — ej. un
+// insumo que se cargó a mano hace tiempo y hoy está en 0), cae al último
+// costo con el que efectivamente se vendió: la última orden donde aparece,
+// directo o como componente de un KIT (ver items[].unitCostAtSale/cost y
+// items[].componentBreakdown[].unitCost). Mejor esa referencia que $0.
 // Usado para estimar costo cuando NO hay una consumición real de la que
 // tomarlo (ver buildSaleSnapshot para el caso con consumición real): el
 // backfill de costos históricos, y las líneas de una Pre Compra que no
@@ -61,6 +65,16 @@ async function loadCostMaps(sql, tenantId) {
         (SELECT sr.unit_cost FROM stock_receipts sr
          WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku
          ORDER BY sr.created_at DESC LIMIT 1),
+        (SELECT COALESCE((item->>'unitCostAtSale')::numeric, (item->>'cost')::numeric)
+         FROM orders o, jsonb_array_elements(o.items) AS item
+         WHERE o.tenant_id = p.tenant_id AND item->>'sku' = p.sku
+         ORDER BY o.created_at DESC LIMIT 1),
+        (SELECT (comp->>'unitCost')::numeric
+         FROM orders o,
+              jsonb_array_elements(o.items) AS item,
+              jsonb_array_elements(COALESCE(item->'componentBreakdown', '[]'::jsonb)) AS comp
+         WHERE o.tenant_id = p.tenant_id AND comp->>'sku' = p.sku
+         ORDER BY o.created_at DESC LIMIT 1),
         0
       ) AS cost
     FROM products p WHERE p.tenant_id = ${tenantId}
