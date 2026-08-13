@@ -17,6 +17,7 @@
 
 const { writeLog } = require('./_log');
 const { sendEmail, kitShortageAlertEmailHtml } = require('./_email');
+const { kitShortageAlertPdf } = require('./_purchase_list_pdf');
 const A = require('./_kit_shortage_alerts');
 
 const ADMIN_ROLES = ['admin', 'superadmin', 'master'];
@@ -42,12 +43,25 @@ function mapSettings(row) {
 async function notifyRunByEmail(settings, run) {
   if (!settings.channel_email || !settings.email_to) return;
   const recipients = settings.email_to.split(',').map(s => s.trim()).filter(Boolean);
+  if (!recipients.length) return;
+
+  // El PDF se arma una sola vez y se reusa para todos los destinatarios —
+  // así el correo trae la lista adjunta sin depender de entrar a la
+  // plataforma para verla.
+  let pdfBuffer = null;
+  try {
+    pdfBuffer = await kitShortageAlertPdf(run);
+  } catch (pdfErr) {
+    console.error('[kit-shortage-alerts] pdf error:', pdfErr.message);
+  }
+
   for (const to of recipients) {
     try {
       await sendEmail({
         to,
         subject: `Insumos de KIT por comprar — ${run.item_count} producto${run.item_count !== 1 ? 's' : ''} para ${run.order_count} venta${run.order_count !== 1 ? 's' : ''}`,
         html: kitShortageAlertEmailHtml({ run }),
+        attachments: pdfBuffer ? [{ filename: `${run.id}.pdf`, content: pdfBuffer }] : undefined,
       });
     } catch (emailErr) {
       console.error('[kit-shortage-alerts] email error:', emailErr.message);

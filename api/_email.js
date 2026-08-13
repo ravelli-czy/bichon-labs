@@ -1,7 +1,9 @@
 // api/_email.js — Resend email helper (not a serverless function)
 // Requires env var: RESEND_API_KEY
 
-async function sendEmail({ to, subject, html, text }) {
+// attachments: [{ filename, content: Buffer }] (opcional) — Resend espera el
+// contenido en base64 dentro del JSON, no un multipart/form-data.
+async function sendEmail({ to, subject, html, text, attachments }) {
   const key = process.env.RESEND_API_KEY;
   if (!key) throw new Error('RESEND_API_KEY no configurado en variables de entorno de Vercel');
 
@@ -17,6 +19,9 @@ async function sendEmail({ to, subject, html, text }) {
       subject,
       html,
       ...(text ? { text } : {}),
+      ...(attachments && attachments.length
+        ? { attachments: attachments.map(a => ({ filename: a.filename, content: a.content.toString('base64') })) }
+        : {}),
     }),
   });
 
