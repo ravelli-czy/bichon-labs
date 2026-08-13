@@ -1278,6 +1278,21 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   </div>
 </div>
 
+<!-- SHEET: STOCK DEL KIT (sólo lectura — "abrir" un KIT desde Inventario) -->
+<div class="overlay-page hidden" id="sheet-kit-stock">
+  <div class="overlay-topbar">
+    <button class="icon-btn" onclick="closeKitStockSheet()" title="Volver"><i class="ti ti-arrow-left"></i></button>
+    <div class="overlay-topbar-title sheet-title"><i class="ti ti-stack-2" style="color:var(--amber-dark)"></i> Stock del KIT</div>
+  </div>
+  <div class="overlay-scroll">
+    <div class="page-form-wrap" id="kit-stock-content"></div>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-outline" onclick="closeKitStockSheet()" style="flex:1;width:auto">Cerrar</button>
+    <button class="btn btn-primary" id="kit-stock-edit-btn" style="flex:2"><i class="ti ti-pencil"></i> Editar KIT</button>
+  </div>
+</div>
+
 <!-- SHEET: TEMPLATE DE ETIQUETA/TARJETA -->
 <div class="overlay-page hidden" id="sheet-label-template">
   <div class="overlay-topbar">
@@ -3262,22 +3277,12 @@ function renderKits() {
     : '');
 }
 
-function _kitCardHtml(kit, localId, whs) {
-  const skuEsc    = kit.sku.replace(/'/g,"&#39;");
-  const stk       = localId ? kitStockForLocale(kit, localId) : kitStock(kit);
-  const color     = stk===0?'var(--red)':stk<=2?'var(--amber-dark)':'var(--green-dark)';
-  const kitAlert  = kitAlertLevel(kit);
-  const variants  = S.kits.filter(k => k.sku === kit.sku && (k.warehouse_id||'') !== '');
-
-  const alertBadge = kitAlert
-    ? `<span class="kit-alert-badge ${kitAlert}"><i class="ti ti-alert-triangle"></i>${kitAlert==='critical'?'Sin stock en componente':'Stock bajo en componente'}</span>`
-    : '';
-  // Igual que prodRow(): siempre se muestra cuando la fila representa una
-  // tienda concreta (filtrada o no) — sólo se omite en el fallback global.
-  const loc = localId ? (getLocalesData()||[]).find(l => l.id === localId) : null;
-  const whBadge = loc ? `<span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:rgba(13,148,136,.08);padding:1px 6px;border-radius:8px"><i class="ti ti-building-store" style="font-size:9px"></i> ${loc.prefix || loc.name}</span>` : '';
-
-  const comps = kit.items.map(i => {
+// Desglose de componentes de un KIT (nombre, chip de grupo, alerta de stock
+// bajo/agotado, cantidad) — extraído de _kitCardHtml para reusarlo también en
+// la vista de sólo-stock (viewKitStock), que ya no lo muestra inline en la
+// lista de Inventario.
+function _kitCompsHtml(kit, localId) {
+  return kit.items.map(i => {
     if (i.type === 'kit') {
       const sub = S.kits.find(x => x.sku === i.sku && (x.warehouse_id||'') === '');
       const subStk = sub ? (localId ? kitStockForLocale(sub, localId) : kitStock(sub)) : 0;
@@ -3306,6 +3311,22 @@ function _kitCardHtml(kit, localId, whs) {
       <span class="kit-comp-right">${stockInfo}×${i.qty}</span>
     </div>`;
   }).join('');
+}
+
+function _kitCardHtml(kit, localId, whs) {
+  const skuEsc    = kit.sku.replace(/'/g,"&#39;");
+  const stk       = localId ? kitStockForLocale(kit, localId) : kitStock(kit);
+  const color     = stk===0?'var(--red)':stk<=2?'var(--amber-dark)':'var(--green-dark)';
+  const kitAlert  = kitAlertLevel(kit);
+  const variants  = S.kits.filter(k => k.sku === kit.sku && (k.warehouse_id||'') !== '');
+
+  const alertBadge = kitAlert
+    ? `<span class="kit-alert-badge ${kitAlert}"><i class="ti ti-alert-triangle"></i>${kitAlert==='critical'?'Sin stock en componente':'Stock bajo en componente'}</span>`
+    : '';
+  // Igual que prodRow(): siempre se muestra cuando la fila representa una
+  // tienda concreta (filtrada o no) — sólo se omite en el fallback global.
+  const loc = localId ? (getLocalesData()||[]).find(l => l.id === localId) : null;
+  const whBadge = loc ? `<span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:rgba(13,148,136,.08);padding:1px 6px;border-radius:8px"><i class="ti ti-building-store" style="font-size:9px"></i> ${loc.prefix || loc.name}</span>` : '';
 
   const skuBlock = whs.length > 0 ? `
     <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -3313,13 +3334,14 @@ function _kitCardHtml(kit, localId, whs) {
       ${variants.map(v => {
         const vwh = whs.find(w => w.id === v.warehouse_id);
         const vEsc = v.warehouse_id.replace(/'/g,"&#39;");
-        return `<span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:var(--bg3);padding:2px 8px;border-radius:8px;cursor:pointer" onclick="editKit('${skuEsc}')" title="${v.warehouse_id}">${vwh?vwh.name:v.warehouse_id}</span>
-        <button onclick="deleteKitSku('${skuEsc}','${vEsc}')" style="width:18px;height:18px;border-radius:5px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:-4px" title="Eliminar SKU"><i class="ti ti-x" style="font-size:9px"></i></button>`;
+        return `<span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:var(--bg3);padding:2px 8px;border-radius:8px;cursor:pointer" onclick="event.stopPropagation();editKit('${skuEsc}')" title="${v.warehouse_id}">${vwh?vwh.name:v.warehouse_id}</span>
+        <button onclick="event.stopPropagation();deleteKitSku('${skuEsc}','${vEsc}')" style="width:18px;height:18px;border-radius:5px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:-4px" title="Eliminar SKU"><i class="ti ti-x" style="font-size:9px"></i></button>`;
       }).join('')}
-      ${whs.length > variants.length ? `<button onclick="openAddKitSkuSheet('${skuEsc}')" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;border:none;background:var(--primary-light);color:var(--primary);cursor:pointer;display:inline-flex;align-items:center;gap:3px"><i class="ti ti-plus" style="font-size:10px"></i> SKU</button>` : ''}
+      ${whs.length > variants.length ? `<button onclick="event.stopPropagation();openAddKitSkuSheet('${skuEsc}')" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;border:none;background:var(--primary-light);color:var(--primary);cursor:pointer;display:inline-flex;align-items:center;gap:3px"><i class="ti ti-plus" style="font-size:10px"></i> SKU</button>` : ''}
     </div>` : '';
 
-  return `<div class="kit-card${kitAlert?' kit-alert-'+kitAlert:''}">
+  const localIdJs = localId ? `'${localId.replace(/'/g,"\\'")}'` : 'null';
+  return `<div class="kit-card${kitAlert?' kit-alert-'+kitAlert:''}" style="cursor:pointer" onclick="viewKitStock('${skuEsc}',${localIdJs})">
     <div class="kit-header">
       <div style="flex:1;min-width:0">
         <div class="kit-name">${kit.name}${alertBadge}</div>
@@ -3330,13 +3352,73 @@ function _kitCardHtml(kit, localId, whs) {
           <div class="kit-stock-big" style="color:${color}">${stk}</div>
           <div class="kit-stock-label">disponibles</div>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="editKit('${skuEsc}')" title="Editar"><i class="ti ti-pencil"></i></button>
-        <button class="btn btn-sm" style="background:var(--red-light);color:var(--red);border:none" onclick="deleteKit('${skuEsc}')" title="Eliminar"><i class="ti ti-trash"></i></button>
+        <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();editKit('${skuEsc}')" title="Editar"><i class="ti ti-pencil"></i></button>
+        <button class="btn btn-sm" style="background:var(--red-light);color:var(--red);border:none" onclick="event.stopPropagation();deleteKit('${skuEsc}')" title="Eliminar"><i class="ti ti-trash"></i></button>
       </div>
     </div>
-    <div class="kit-components">${comps}</div>
     ${skuBlock}
   </div>`;
+}
+
+// Vista de sólo-stock de un KIT — lo que se abre al tocar una tarjeta de KIT
+// en Inventario (antes iba directo a "Editar KIT"). Sin controles de edición;
+// "Editar KIT" queda como acción explícita en el footer para quien sí quiera
+// tocar nombre/precio/componentes.
+function viewKitStock(sku, localId, pushURL = true) {
+  const kit = S.kits.find(k => k.sku === sku && (k.warehouse_id||'') === '');
+  if (!kit) return;
+  const stk      = localId ? kitStockForLocale(kit, localId) : kitStock(kit);
+  const color    = stk===0?'var(--red)':stk<=2?'var(--amber-dark)':'var(--green-dark)';
+  const kitAlert = kitAlertLevel(kit);
+  const alertBadge = kitAlert
+    ? `<span class="kit-alert-badge ${kitAlert}"><i class="ti ti-alert-triangle"></i>${kitAlert==='critical'?'Sin stock en componente':'Stock bajo en componente'}</span>`
+    : '';
+  const loc = localId ? (getLocalesData()||[]).find(l => l.id === localId) : null;
+
+  const qualifying = kitQualifyingLocales(kit);
+  const localesBlock = qualifying.length ? `
+    <div style="margin-bottom:14px">
+      <div class="form-label" style="margin-bottom:6px">Stock por tienda</div>
+      <div class="card" style="padding:4px 0">
+        ${qualifying.map(lid => {
+          const l = (getLocalesData()||[]).find(x => x.id === lid);
+          const s = kitStockForLocale(kit, lid);
+          const c = s===0?'var(--red)':s<=2?'var(--amber-dark)':'var(--green-dark)';
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px;font-weight:700">${l?.name||lid}</span>
+            <span style="font-size:15px;font-weight:900;color:${c}">${s} disp.</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+
+  document.getElementById('kit-stock-content').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;padding:14px;background:var(--bg3);border-radius:var(--radius);margin-bottom:14px;border:1px solid var(--border)">
+      <div style="width:44px;height:44px;border-radius:12px;background:var(--amber-light,#fef3c7);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i class="ti ti-stack-2" style="font-size:20px;color:var(--amber-dark,#c97316)"></i>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:15px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${kit.name}${alertBadge}</div>
+        <div style="font-size:11px;color:var(--text3);font-weight:700;margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">${kit.sku} · ${fmt(kit.price)} ${kitTipoBadge(kit.tipo)}${loc ? `<span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:rgba(13,148,136,.08);padding:1px 6px;border-radius:8px"><i class="ti ti-building-store" style="font-size:9px"></i> ${loc.prefix||loc.name}</span>` : ''}</div>
+      </div>
+    </div>
+    <div style="text-align:center;padding:18px 0;margin-bottom:14px">
+      <div style="font-size:44px;font-weight:900;color:${color};line-height:1">${stk}</div>
+      <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-top:4px">disponibles${loc ? ' en ' + (loc.name||'') : ''}</div>
+    </div>
+    ${localesBlock}
+    <div class="form-label" style="margin-bottom:6px">Componentes</div>
+    <div class="kit-components" style="margin-bottom:0">${_kitCompsHtml(kit, localId)}</div>
+  `;
+  document.getElementById('kit-stock-edit-btn').onclick = () => editKit(sku);
+  openSheet('sheet-kit-stock');
+  if (pushURL) history.pushState({ kitStockSku: sku }, '', '/' + _editPagePrefix() + '/kit/' + encodeURIComponent(sku));
+}
+function closeKitStockSheet() {
+  closeSheet('sheet-kit-stock');
+  if (location.pathname.startsWith('/catalog/kit/') || location.pathname.startsWith('/inventory/kit/')) {
+    history.pushState({ page: S.currentPage }, '', PAGE_URLS[S.currentPage] || '/');
+  }
 }
 
 // ── VENTAS ────────────────────────────────────
@@ -8758,6 +8840,13 @@ function applyRoute() {
   if (m) {
     showParentPage(m[1] === 'catalog' ? 'catalogo' : 'inventory');
     editKit(decodeURIComponent(m[2]), false);
+    return;
+  }
+  // /inventory/kit/:sku (sin /edit) — ver stock del KIT, sólo lectura
+  m = path.match(/^\/inventory\/kit\/([^\/]+)$/);
+  if (m) {
+    showParentPage('inventory');
+    viewKitStock(decodeURIComponent(m[1]), null, false);
     return;
   }
   // /orders/new — nueva venta
