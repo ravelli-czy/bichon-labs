@@ -115,8 +115,28 @@ module.exports = async (req, res) => {
     }
 
     // ── GET — list all products ───────────────────────────────────────────
+    // cost ya no es una columna propia — se computa en vivo: el unit_cost del
+    // lote FIFO más viejo con stock (lo próximo que se va a vender), o si no
+    // queda ninguno activo, el del último lote registrado (mejor referencia
+    // disponible). Ver api/_finance.js:loadCostMaps, misma lógica.
     if (req.method === 'GET') {
-      const rows = await sql`SELECT * FROM products WHERE tenant_id = ${tenantId} ORDER BY warehouse_id, name`;
+      const rows = await sql`
+        SELECT p.sku, p.name, p.brand, p.cat, p.tipo, p.price, p.stock, p.threshold,
+               p.created_by, p.updated_by, p.created_at, p.updated_at, p.tenant_id, p.warehouse_id,
+               p.barcode, p.groups, p.stock_unit, p.purchase_unit, p.purchase_factor, p.purchase_forms,
+               COALESCE(
+                 (SELECT sr.unit_cost FROM stock_receipts sr
+                  WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id AND sr.remaining_qty > 0
+                  ORDER BY sr.created_at ASC LIMIT 1),
+                 (SELECT sr.unit_cost FROM stock_receipts sr
+                  WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id
+                  ORDER BY sr.created_at DESC LIMIT 1),
+                 0
+               ) AS cost
+        FROM products p
+        WHERE p.tenant_id = ${tenantId}
+        ORDER BY p.warehouse_id, p.name
+      `;
       return res.json(rows);
     }
 
@@ -124,7 +144,7 @@ module.exports = async (req, res) => {
     if (req.method === 'POST') {
       const {
         name, brand = 'Sin marca', cat = 'General',
-        tipo = 'producto', cost = 0, price = 0,
+        tipo = 'producto', price = 0,
         stock = 0, threshold = 10, warehouse_id = '', barcode = '',
         groups = [], sku: explicitSku,
         stock_unit = 'unidad',
@@ -150,8 +170,8 @@ module.exports = async (req, res) => {
       }
 
       const [row] = await sql`
-        INSERT INTO products (sku, name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, created_by, tenant_id, warehouse_id, stock_unit)
-        VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${cost}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${actor}, ${tenantId}, ${warehouse_id}, ${stock_unit})
+        INSERT INTO products (sku, name, brand, cat, tipo, price, stock, threshold, barcode, groups, created_by, tenant_id, warehouse_id, stock_unit)
+        VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${actor}, ${tenantId}, ${warehouse_id}, ${stock_unit})
         RETURNING *
       `;
 

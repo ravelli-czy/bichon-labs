@@ -6,13 +6,16 @@
 //
 // Costeo: cada venta consume stock_receipts lote por lote, del más antiguo
 // al más nuevo (FIFO) — ver remaining_qty en api/_stock_receipts_routes.js.
-// products.cost siempre queda igual al unit_cost del lote más viejo con
-// remaining_qty > 0 (lo próximo que se va a vender), así el snapshot de
-// costo que toma _finance.js al momento de la venta (ANTES de que esta
-// deducción corra) ya refleja el costo correcto del lote que se está por
-// consumir. Si los lotes se agotan a mitad de una venta (sobreventa de un
-// insumo que no bloquea la orden), lo que sobra simplemente no tiene lote
-// del cual descontar — el costo del producto no se toca más allá de eso.
+// A diferencia del diseño anterior (un products.cost cacheado, sincronizado
+// después de cada consumo), acá el costo de una venta se arma con el costo
+// REAL de los lotes que efectivamente se tocaron en ESA consumición —
+// _consumeLotsFifo devuelve el detalle lote por lote consumido, y quien
+// llama arma el costo ponderado a partir de eso. Si una venta cruza dos
+// lotes de distinto costo, el snapshot refleja el costo ponderado real, no
+// sólo el del lote más viejo. Si los lotes se agotan a mitad de una venta
+// (sobreventa de un insumo que no bloquea la orden), lo que sobra no tiene
+// lote del cual descontar — se extrapola el costo ponderado observado a la
+// cantidad faltante (mejor aproximación disponible, ver deductStockForItems).
 
 // A KIT's components can live in DIFFERENT warehouses of the SAME store
 // (distinct almacenes/closets), so the right warehouse for a component is
@@ -31,50 +34,48 @@ async function _componentWarehouseId(sql, tenantId, sku, locationId, fallbackWid
   return fallbackWid;
 }
 
-// Deja products.cost apuntando al lote más viejo con remaining_qty > 0. Si
-// no queda ningún lote activo, no lo toca — mantiene la última referencia
-// conocida en vez de resetear a 0 (sirve para mostrar "cuánto costaba"
-// mientras está sin stock).
-async function _syncProductCost(sql, tenantId, sku, wid) {
-  const [oldest] = await sql`
-    SELECT unit_cost FROM stock_receipts
-    WHERE tenant_id = ${tenantId} AND sku = ${sku} AND warehouse_id = ${wid} AND remaining_qty > 0
-    ORDER BY created_at ASC LIMIT 1
-  `;
-  if (!oldest) return;
-  await sql`
-    UPDATE products SET cost = ${oldest.unit_cost}
-    WHERE sku = ${sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
-  `;
-}
-
 // Consume `qty` de stock_receipts para (sku, wid), lote por lote del más
 // antiguo al más nuevo. No lanza error si los lotes no alcanzan — sólo
-// descuenta lo que hay, igual que products.stock se clampea en 0.
+// descuenta lo que hay, igual que products.stock se clampea en 0. Devuelve
+// el detalle de lo realmente consumido: [{ unitCost, qty }, ...] — uno por
+// cada lote tocado (puede ser más de uno si el más viejo no alcanzaba).
 async function _consumeLotsFifo(sql, tenantId, sku, wid, qty) {
-  if (!(qty > 0)) return;
+  if (!(qty > 0)) return [];
   let remaining = qty;
   const lots = await sql`
-    SELECT id, remaining_qty FROM stock_receipts
+    SELECT id, remaining_qty, unit_cost FROM stock_receipts
     WHERE tenant_id = ${tenantId} AND sku = ${sku} AND warehouse_id = ${wid} AND remaining_qty > 0
     ORDER BY created_at ASC
   `;
+  const consumed = [];
   for (const lot of lots) {
     if (remaining <= 0) break;
     const take = Math.min(lot.remaining_qty, remaining);
     if (take <= 0) continue;
     await sql`UPDATE stock_receipts SET remaining_qty = remaining_qty - ${take} WHERE id = ${lot.id}`;
     remaining -= take;
+    consumed.push({ unitCost: lot.unit_cost, qty: take });
   }
-  await _syncProductCost(sql, tenantId, sku, wid);
+  return consumed;
+}
+
+// Reduce el detalle de _consumeLotsFifo a { unitCost, totalCost } — costo
+// ponderado real de lo consumido, extrapolado a `requestedQty` si los lotes
+// no alcanzaron a cubrirla completa (ver nota de sobreventa arriba).
+function _weightedCost(consumed, requestedQty) {
+  const qtyCovered = consumed.reduce((s, c) => s + c.qty, 0);
+  const costCovered = consumed.reduce((s, c) => s + c.unitCost * c.qty, 0);
+  const unitCost = qtyCovered > 0 ? costCovered / qtyCovered : 0;
+  return { unitCost, totalCost: unitCost * (requestedQty || 0) };
 }
 
 // Inversa de _consumeLotsFifo — se usa al restaurar stock (orden editada o
 // cancelada). Devuelve la cantidad al lote más viejo activo, para no alterar
 // el orden FIFO de lo que ya había. Si no queda ningún lote (se vendió todo
-// lo que había), crea uno nuevo al costo actual del producto — es la mejor
-// referencia disponible, no hay forma de saber de qué lote salió realmente
-// sin un registro de consumo por línea de orden (fuera del alcance acá).
+// lo que había), crea uno nuevo — al costo del último lote registrado para
+// este sku/almacén (la mejor referencia disponible; no hay forma de saber de
+// qué lote salió realmente la venta que se está restaurando sin un registro
+// de consumo por línea de orden, fuera del alcance acá).
 async function _restoreLotsFifo(sql, tenantId, sku, wid, qty) {
   if (!(qty > 0)) return;
   const [oldest] = await sql`
@@ -87,33 +88,52 @@ async function _restoreLotsFifo(sql, tenantId, sku, wid, qty) {
     return;
   }
   const [product] = await sql`
-    SELECT name, cost FROM products WHERE sku = ${sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
+    SELECT name FROM products WHERE sku = ${sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
   `;
   if (!product) return;
+  const [lastLot] = await sql`
+    SELECT unit_cost FROM stock_receipts
+    WHERE tenant_id = ${tenantId} AND sku = ${sku} AND warehouse_id = ${wid}
+    ORDER BY created_at DESC LIMIT 1
+  `;
+  const fallbackCost = lastLot ? lastLot.unit_cost : 0;
   const id = 'RESTORE-' + sku + '-' + (wid || 'x') + '-' + Date.now().toString(36);
   await sql`
     INSERT INTO stock_receipts
       (id, tenant_id, sku, warehouse_id, product_name, form_label, factor, qty_purchased, total_cost, units_added, unit_cost, new_avg_cost, remaining_qty, created_by)
     VALUES
-      (${id}, ${tenantId}, ${sku}, ${wid}, ${product.name}, 'Restaurado (orden editada o cancelada)', 1, ${qty}, ${qty * (product.cost || 0)}, ${qty}, ${product.cost || 0}, ${product.cost || 0}, ${qty}, 'sistema')
+      (${id}, ${tenantId}, ${sku}, ${wid}, ${product.name}, 'Restaurado (orden editada o cancelada)', 1, ${qty}, ${qty * fallbackCost}, ${qty}, ${fallbackCost}, ${fallbackCost}, ${qty}, 'sistema')
     ON CONFLICT (id) DO NOTHING
   `;
-  await _syncProductCost(sql, tenantId, sku, wid);
 }
 
+// Deduce stock de los componentes de un KIT (recursivo — un KIT puede
+// contener otros KITs vía Mesón Creativo). Devuelve { totalCost, components }
+// — components es una lista PLANA (los KITs anidados se aplanan) con la
+// cantidad y el costo ponderado real consumido por cada componente, para la
+// qty total pedida (no normalizado por unidad — eso lo hace quien llama).
 async function _deductKit(sql, kitSku, qty, wid, tenantId, locationId) {
   const [kit] = await sql`SELECT items FROM kits WHERE sku = ${kitSku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
-  if (!kit?.items) return;
+  if (!kit?.items) return { totalCost: 0, components: [] };
+  const components = [];
+  let totalCost = 0;
   for (const comp of kit.items) {
     if (comp.type === 'kit') {
-      await _deductKit(sql, comp.sku, comp.qty * qty, wid, tenantId, locationId);
+      const nested = await _deductKit(sql, comp.sku, comp.qty * qty, wid, tenantId, locationId);
+      totalCost += nested.totalCost;
+      components.push(...nested.components);
     } else {
       const compWid = await _componentWarehouseId(sql, tenantId, comp.sku, locationId, wid);
-      await sql`UPDATE products SET stock = GREATEST(0, stock - ${comp.qty * qty}), updated_at = NOW()
+      const compQty = comp.qty * qty;
+      await sql`UPDATE products SET stock = GREATEST(0, stock - ${compQty}), updated_at = NOW()
         WHERE sku = ${comp.sku} AND warehouse_id = ${compWid} AND tenant_id = ${tenantId}`;
-      await _consumeLotsFifo(sql, tenantId, comp.sku, compWid, comp.qty * qty);
+      const consumed = await _consumeLotsFifo(sql, tenantId, comp.sku, compWid, compQty);
+      const { unitCost, totalCost: lineCost } = _weightedCost(consumed, compQty);
+      totalCost += lineCost;
+      components.push({ sku: comp.sku, warehouseId: compWid || '', quantity: compQty, unitCost, totalCost: lineCost });
     }
   }
+  return { totalCost, components };
 }
 
 async function _restoreKit(sql, kitSku, qty, wid, tenantId, locationId) {
@@ -132,25 +152,43 @@ async function _restoreKit(sql, kitSku, qty, wid, tenantId, locationId) {
 }
 
 // Deducts stock for a list of order items — same logic used when an order
-// is first created (ver POST /api/orders).
+// is first created (ver POST /api/orders). Devuelve un arreglo paralelo a
+// `items` con el costo REAL consumido por cada línea: { unitCost, totalCost,
+// components? } — components sólo en líneas KIT, normalizado a "por 1
+// unidad del KIT" (mismo shape que el componentBreakdown histórico).
 async function deductStockForItems(sql, items, tenantId, orderWarehouseId, locationId) {
+  const results = [];
   for (const item of items) {
     const wid = item.warehouse_id || orderWarehouseId || '';
+    const qty = item.qty || 0;
     if (item.type === 'kit') {
-      await _deductKit(sql, item.sku, item.qty, wid, tenantId, locationId);
+      const { totalCost, components } = await _deductKit(sql, item.sku, qty, wid, tenantId, locationId);
+      results.push({
+        unitCost: qty > 0 ? totalCost / qty : 0,
+        totalCost,
+        components: components.map(c => ({
+          sku: c.sku, warehouseId: c.warehouseId,
+          quantity: qty > 0 ? c.quantity / qty : 0, // por 1 unidad del KIT
+          unitCost: c.unitCost,
+          totalCost: qty > 0 ? c.totalCost / qty : 0, // idem
+        })),
+      });
     } else {
       await sql`
-        UPDATE products SET stock = GREATEST(0, stock - ${item.qty}), updated_at = NOW()
+        UPDATE products SET stock = GREATEST(0, stock - ${qty}), updated_at = NOW()
         WHERE sku = ${item.sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
       `;
-      await _consumeLotsFifo(sql, tenantId, item.sku, wid, item.qty);
+      const consumed = await _consumeLotsFifo(sql, tenantId, item.sku, wid, qty);
+      results.push(_weightedCost(consumed, qty));
     }
   }
+  return results;
 }
 
 // Restores stock for a list of order items — the inverse of
 // deductStockForItems, used when items are removed/reduced from an order
-// that already decremented stock (ver PUT /api/orders/:id action=items).
+// that already decremented stock (ver PUT /api/orders/:id action=items) o
+// se elimina una orden restituyendo su stock.
 async function restoreStockForItems(sql, items, tenantId, orderWarehouseId, locationId) {
   for (const item of items) {
     const wid = item.warehouse_id || orderWarehouseId || '';

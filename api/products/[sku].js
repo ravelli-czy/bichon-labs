@@ -141,9 +141,30 @@ module.exports = async (req, res) => {
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
+    // cost ya no es una columna propia — se computa en vivo: el unit_cost del
+    // lote FIFO más viejo con stock (lo próximo que se va a vender), o si no
+    // queda ninguno activo, el del último lote registrado. Ver
+    // api/_finance.js:loadCostMaps, misma lógica (repetida en texto acá
+    // porque el driver de Neon no soporta componer fragments de sql``).
+
     // ── GET ───────────────────────────────────────────────────────────────
     if (req.method === 'GET') {
-      const [row] = await sql`SELECT * FROM products WHERE sku = ${sku} AND warehouse_id = ${warehouse_id} AND tenant_id = ${tenantId}`;
+      const [row] = await sql`
+        SELECT p.sku, p.name, p.brand, p.cat, p.tipo, p.price, p.stock, p.threshold,
+               p.created_by, p.updated_by, p.created_at, p.updated_at, p.tenant_id, p.warehouse_id,
+               p.barcode, p.groups, p.stock_unit, p.purchase_unit, p.purchase_factor, p.purchase_forms,
+               COALESCE(
+                 (SELECT sr.unit_cost FROM stock_receipts sr
+                  WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id AND sr.remaining_qty > 0
+                  ORDER BY sr.created_at ASC LIMIT 1),
+                 (SELECT sr.unit_cost FROM stock_receipts sr
+                  WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id
+                  ORDER BY sr.created_at DESC LIMIT 1),
+                 0
+               ) AS cost
+        FROM products p
+        WHERE p.sku = ${sku} AND p.warehouse_id = ${warehouse_id} AND p.tenant_id = ${tenantId}
+      `;
       if (!row) return res.status(404).json({ error: 'Product not found' });
       return res.json(row);
     }
@@ -151,18 +172,17 @@ module.exports = async (req, res) => {
     // ── PUT — update product ──────────────────────────────────────────────
     if (req.method === 'PUT') {
       const {
-        name, brand, cat, tipo, cost, price, stock, threshold, barcode, groups, new_warehouse_id,
+        name, brand, cat, tipo, price, stock, threshold, barcode, groups, new_warehouse_id,
         stock_unit,
       } = req.body || {};
       if (groups !== undefined && !Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
       const groupsJson = groups !== undefined ? JSON.stringify(groups) : null;
-      const [row] = await sql`
+      await sql`
         UPDATE products SET
           name            = COALESCE(${name            ?? null}, name),
           brand           = COALESCE(${brand           ?? null}, brand),
           cat             = COALESCE(${cat             ?? null}, cat),
           tipo            = COALESCE(${tipo            ?? null}, tipo),
-          cost            = COALESCE(${cost            ?? null}, cost),
           price           = COALESCE(${price           ?? null}, price),
           stock           = COALESCE(${stock           ?? null}, stock),
           threshold       = COALESCE(${threshold       ?? null}, threshold),
@@ -173,7 +193,25 @@ module.exports = async (req, res) => {
           updated_by = ${actor},
           updated_at = NOW()
         WHERE sku = ${sku} AND warehouse_id = ${warehouse_id} AND tenant_id = ${tenantId}
-        RETURNING *
+      `;
+      // new_warehouse_id (mover el SKU a otro almacén) cambia la PK — hay que
+      // volver a buscar por el warehouse_id nuevo, no el original.
+      const finalWarehouseId = new_warehouse_id ?? warehouse_id;
+      const [row] = await sql`
+        SELECT p.sku, p.name, p.brand, p.cat, p.tipo, p.price, p.stock, p.threshold,
+               p.created_by, p.updated_by, p.created_at, p.updated_at, p.tenant_id, p.warehouse_id,
+               p.barcode, p.groups, p.stock_unit, p.purchase_unit, p.purchase_factor, p.purchase_forms,
+               COALESCE(
+                 (SELECT sr.unit_cost FROM stock_receipts sr
+                  WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id AND sr.remaining_qty > 0
+                  ORDER BY sr.created_at ASC LIMIT 1),
+                 (SELECT sr.unit_cost FROM stock_receipts sr
+                  WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id
+                  ORDER BY sr.created_at DESC LIMIT 1),
+                 0
+               ) AS cost
+        FROM products p
+        WHERE p.sku = ${sku} AND p.warehouse_id = ${finalWarehouseId} AND p.tenant_id = ${tenantId}
       `;
       if (!row) return res.status(404).json({ error: 'Product not found' });
 

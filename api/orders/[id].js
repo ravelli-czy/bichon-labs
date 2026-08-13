@@ -72,7 +72,27 @@ module.exports = async (req, res) => {
           if (!newMap.has(key)) toRestore.push(item);
         }
         const locationId = before.location_id || '';
-        if (toDeduct.length) await deductStockForItems(sql, toDeduct, tenantId, '', locationId);
+        // Los ítems recién deducidos acá (delta positivo) reciben el costo
+        // REAL de los lotes FIFO que se acaban de consumir — más preciso que
+        // el "costo actual" que traían del snapshot de arriba. Los que no
+        // cambiaron de cantidad (o se restituyen) se quedan con esa
+        // estimación: no hay una consumición nueva de la cual tomar el dato.
+        if (toDeduct.length) {
+          const deductResults = await deductStockForItems(sql, toDeduct, tenantId, '', locationId);
+          toDeduct.forEach((deductedItem, i) => {
+            const target = items.find(it => keyOf(it) === keyOf(deductedItem));
+            const result = deductResults[i];
+            if (!target || !result) return;
+            // Aplica el costo unitario real (de la porción recién deducida) a
+            // toda la línea — más simple que mezclarlo con el costo estimado
+            // que ya traía la porción previa, y siempre más preciso que la
+            // estimación genérica que reemplaza.
+            target.unitCostAtSale  = result.unitCost;
+            target.cost            = result.unitCost;
+            target.totalCostAtSale = Math.round((result.unitCost || 0) * (target.qty || 0) * 100) / 100;
+            if (target.type === 'kit' && result.components) target.componentBreakdown = result.components;
+          });
+        }
         if (toRestore.length) await restoreStockForItems(sql, toRestore, tenantId, '', locationId);
 
         const itemsSubtotal = items.reduce((s, i) => s + (i.price || 0) * (i.qty || 0), 0);

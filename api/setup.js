@@ -93,7 +93,6 @@ module.exports = async (req, res) => {
         brand       TEXT NOT NULL DEFAULT 'Sin marca',
         cat         TEXT NOT NULL DEFAULT 'General',
         tipo        TEXT NOT NULL DEFAULT 'producto',
-        cost        INTEGER NOT NULL DEFAULT 0,
         price       INTEGER NOT NULL DEFAULT 0,
         stock       INTEGER NOT NULL DEFAULT 0,
         threshold   INTEGER NOT NULL DEFAULT 10,
@@ -129,6 +128,15 @@ module.exports = async (req, res) => {
     } catch (pkErr) {
       console.log('[setup] Products PK migration skipped:', pkErr.message);
     }
+    // products.cost — reemplazada por el costo en vivo (lote FIFO más viejo
+    // con stock, ver api/_finance.js:loadCostMaps): ya nada en la app la lee
+    // ni la escribe. El backfill que garantizaba que todo el stock existente
+    // tuviera un lote de respaldo con ese mismo dato ya corrió (confirmado:
+    // 0 lotes pendientes en la última corrida) — se saca la columna acá.
+    // Irreversible: si algo todavía la necesitara, esto lo rompería recién
+    // al ejecutarse, no antes (el resto del código ya no depende de ella).
+    await sql`ALTER TABLE products DROP COLUMN IF EXISTS cost`;
+    const productsCostColumnDropped = true;
 
     await sql`
       CREATE TABLE IF NOT EXISTS kits (
@@ -246,10 +254,11 @@ module.exports = async (req, res) => {
     // comprada, cuánto se pagó en total y cuántas unidades de stock_unit
     // resultaron. Además de ser el historial, cada fila ES un lote: remaining_qty
     // es cuánto de esa recepción sigue sin venderse. Al vender se consume
-    // lote por lote empezando por el más antiguo (FIFO) — ver
-    // api/_stock.js y api/_stock_receipts_routes.js. products.cost ya no se
-    // edita a mano: siempre refleja el unit_cost del lote más antiguo con
-    // remaining_qty > 0 (el próximo que se va a consumir).
+    // lote por lote empezando por el más antiguo (FIFO) — ver api/_stock.js
+    // y api/_stock_receipts_routes.js. El "costo actual" de un producto (para
+    // mostrar, o al armar un snapshot de venta sin una consumición real de la
+    // que tomarlo) se computa en vivo contra esta tabla — ver
+    // api/_finance.js:loadCostMaps — products ya no tiene una columna cost.
     await sql`
       CREATE TABLE IF NOT EXISTS stock_receipts (
         id            TEXT PRIMARY KEY,
@@ -276,71 +285,14 @@ module.exports = async (req, res) => {
     await sql`CREATE INDEX IF NOT EXISTS stock_receipts_tenant_idx ON stock_receipts (tenant_id, created_at DESC)`;
     await sql`CREATE INDEX IF NOT EXISTS stock_receipts_fifo_idx ON stock_receipts (tenant_id, sku, warehouse_id, created_at) WHERE remaining_qty > 0`;
 
-    // Backfill único e idempotente: el stock que un producto ya tenía ANTES
-    // de que existiera el sistema de lotes no tiene ningún stock_receipt real
-    // detrás (o los que hay no reflejan cuánto de cada uno sigue sin vender,
-    // ese dato nunca se llevó). Se crea UN solo lote "legacy" por producto
-    // con el stock y costo que tiene HOY — que es justo lo que se pidió:
-    // lo ya vendido/entregado no se retocA, y lo que queda en stock arranca
-    // el FIFO al costo actual del producto. id determinístico (sku+almacén)
-    // para que reintentar esta migración no duplique el lote.
-    const legacyStockRows = await sql`
-      SELECT sku, warehouse_id, tenant_id, stock, cost, name FROM products
-      WHERE warehouse_id != '' AND stock > 0
-    `;
-    let legacyLotsCreated = 0;
-    for (const p of legacyStockRows) {
-      const legacyId = 'LEGACY-' + p.sku + '-' + (p.warehouse_id || 'x');
-      const inserted = await sql`
-        INSERT INTO stock_receipts
-          (id, tenant_id, sku, warehouse_id, product_name, form_label, factor, qty_purchased, total_cost, units_added, unit_cost, new_avg_cost, remaining_qty, created_by, created_at)
-        VALUES
-          (${legacyId}, ${p.tenant_id}, ${p.sku}, ${p.warehouse_id}, ${p.name}, 'Stock existente (migración a lotes)', 1, ${p.stock}, ${p.stock * (p.cost || 0)}, ${p.stock}, ${p.cost || 0}, ${p.cost || 0}, ${p.stock}, 'sistema', NOW())
-        ON CONFLICT (id) DO NOTHING
-        RETURNING id
-      `;
-      if (inserted.length) legacyLotsCreated++;
-    }
-
-    // Backfill de "brecha" (adicional al legacy de arriba, idempotente
-    // también): cubre stock que sigue sin ningún lote de respaldo suficiente
-    // — productos que en el momento del backfill legacy tenían stock 0 (por
-    // eso no calificaron ahí) pero lo tienen ahora, o cuyo stock se editó a
-    // mano desde la ficha de producto (ese campo escribe products.stock
-    // directo, sin pasar por Ingreso de inventario ni crear lote). Por cada
-    // producto donde el stock actual supera lo que sus lotes ya cubren, crea
-    // UN lote por la diferencia al costo actual del producto (products.cost)
-    // — así ningún stock en Inventario queda con precio costo $0. Si
-    // products.cost es 0 (nunca se cargó), el lote también queda en 0: no
-    // hay de dónde sacar ese dato. id determinístico + ON CONFLICT DO
-    // NOTHING: seguro de reintentar sin duplicar.
-    // Un solo INSERT...SELECT (en vez de loop fila por fila) para que no
-    // arriesgue el timeout de la function en tenants con muchos SKUs.
-    const gapInserted = await sql`
-      INSERT INTO stock_receipts
-        (id, tenant_id, sku, warehouse_id, product_name, form_label, factor, qty_purchased, total_cost, units_added, unit_cost, new_avg_cost, remaining_qty, created_by, created_at)
-      SELECT
-        'BACKFILL-' || p.sku || '-' || COALESCE(NULLIF(p.warehouse_id, ''), 'x'),
-        p.tenant_id, p.sku, p.warehouse_id, p.name,
-        'Ajuste de costo (backfill stock existente)', 1,
-        (p.stock - COALESCE(cov.covered, 0)),
-        (p.stock - COALESCE(cov.covered, 0)) * COALESCE(p.cost, 0),
-        (p.stock - COALESCE(cov.covered, 0)),
-        COALESCE(p.cost, 0),
-        COALESCE(p.cost, 0),
-        (p.stock - COALESCE(cov.covered, 0)),
-        'sistema', NOW()
-      FROM products p
-      LEFT JOIN (
-        SELECT tenant_id, sku, warehouse_id, SUM(remaining_qty) AS covered
-        FROM stock_receipts
-        GROUP BY tenant_id, sku, warehouse_id
-      ) cov ON cov.tenant_id = p.tenant_id AND cov.sku = p.sku AND cov.warehouse_id = p.warehouse_id
-      WHERE p.warehouse_id != '' AND p.stock > COALESCE(cov.covered, 0)
-      ON CONFLICT (id) DO NOTHING
-      RETURNING id
-    `;
-    const gapLotsCreated = gapInserted.length;
+    // Los dos backfills que vivían acá (lote "legacy" por stock previo al
+    // sistema de lotes, y el de "brecha" para stock sin lote de respaldo)
+    // ya cumplieron su función — la última corrida confirmó 0 lotes
+    // pendientes en ambos, o sea que todo el stock existente ya tiene su
+    // costo respaldado por un lote real. Se sacan de acá porque leían
+    // products.cost, columna que este mismo archivo borra más abajo — de
+    // haberse dejado, la primera vez que ese DROP corriera habría roto
+    // /api/setup para siempre (columna inexistente en la siguiente corrida).
 
     await sql`
       CREATE TABLE IF NOT EXISTS orders (
@@ -824,10 +776,22 @@ module.exports = async (req, res) => {
       if (parseInt(count) === 0) {
         for (const p of SEED_PRODUCTS) {
           await sql`
-            INSERT INTO products (sku, name, brand, cat, tipo, cost, price, stock, threshold)
-            VALUES (${p.sku}, ${p.name}, ${p.brand}, ${p.cat}, ${p.tipo}, ${p.cost}, ${p.price}, ${p.stock}, ${p.threshold})
+            INSERT INTO products (sku, name, brand, cat, tipo, price, stock, threshold)
+            VALUES (${p.sku}, ${p.name}, ${p.brand}, ${p.cat}, ${p.tipo}, ${p.price}, ${p.stock}, ${p.threshold})
             ON CONFLICT (sku) DO NOTHING
           `;
+          // El costo demo (p.cost) ya no vive en products — se siembra como
+          // un lote de stock_receipts, igual que un Ingreso de inventario
+          // real, así el costo en vivo (loadCostMaps) muestra algo sensato.
+          if (p.stock > 0) {
+            await sql`
+              INSERT INTO stock_receipts
+                (id, tenant_id, sku, warehouse_id, product_name, form_label, factor, qty_purchased, total_cost, units_added, unit_cost, new_avg_cost, remaining_qty, created_by, created_at)
+              VALUES
+                ('SEED-' || ${p.sku}, 'TEN-001', ${p.sku}, '', ${p.name}, 'Carga inicial (demo)', 1, ${p.stock}, ${p.stock * p.cost}, ${p.stock}, ${p.cost}, ${p.cost}, ${p.stock}, 'sistema', NOW())
+              ON CONFLICT (id) DO NOTHING
+            `;
+          }
         }
         for (const k of SEED_KITS) {
           await sql`
@@ -844,8 +808,7 @@ module.exports = async (req, res) => {
       ok: true,
       tables: created,
       seeded,
-      legacyLotsCreated,
-      gapLotsCreated,
+      productsCostColumnDropped,
       message: seeded
         ? 'Tables created and seeded with demo data'
         : 'Tables created (or already existed)',

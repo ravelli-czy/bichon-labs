@@ -95,9 +95,21 @@ async function generateRun(sql, tenantId, leadDays) {
   const kits = await sql`SELECT sku, items, stock_group_ids FROM kits WHERE tenant_id = ${tenantId} AND warehouse_id = ''`;
   const kitsBySku = Object.fromEntries(kits.map(k => [k.sku, k]));
 
+  // cost ya no es una columna propia — se computa en vivo, mismo criterio
+  // que api/_finance.js:loadCostMaps (lote FIFO más viejo con stock, o el
+  // último lote registrado si no queda ninguno activo).
   const products = await sql`
-    SELECT p.sku, p.name, p.warehouse_id, p.stock, p.cost, p.groups,
-           w.name AS warehouse_name, w.local_id, l.name AS local_name
+    SELECT p.sku, p.name, p.warehouse_id, p.stock, p.groups,
+           w.name AS warehouse_name, w.local_id, l.name AS local_name,
+           COALESCE(
+             (SELECT sr.unit_cost FROM stock_receipts sr
+              WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id AND sr.remaining_qty > 0
+              ORDER BY sr.created_at ASC LIMIT 1),
+             (SELECT sr.unit_cost FROM stock_receipts sr
+              WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id
+              ORDER BY sr.created_at DESC LIMIT 1),
+             0
+           ) AS cost
     FROM products p
     LEFT JOIN warehouses w ON w.id = p.warehouse_id AND w.tenant_id = p.tenant_id
     LEFT JOIN locales l ON l.id = w.local_id AND l.tenant_id = p.tenant_id

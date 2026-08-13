@@ -5,7 +5,7 @@ const cors = require('./_cors');
 const { createShipment } = require('./shipments');
 const { writeLog } = require('./_log');
 const { getSession, resolveTenantId } = require('./_tenant');
-const { loadCostMaps, withFinancialSnapshot } = require('./_finance');
+const { loadCostMaps, withFinancialSnapshot, buildSaleSnapshot } = require('./_finance');
 const { handleFinanceResource, FINANCE_RESOURCES } = require('./_finance_routes');
 const { handleCouponsResource, COUPON_RESOURCES } = require('./_coupons_routes');
 const { claimCoupon, computeDiscountAmount } = require('./_coupons');
@@ -106,11 +106,16 @@ async function _resolveLocalIdFromItems(sql, tenantId, items) {
 
 // ── Cost snapshotting ────────────────────────────────────────────────────
 // An order item's cost at time of sale isn't tracked automatically (products'
-// cost can change later), so we snapshot it at creation time. `withFinancialSnapshot`
-// (api/_finance.js) resolves each product/KIT's current cost, recursing into
-// nested KITs (a KIT built from other KITs via Mesón Creativo) to full depth,
-// and attaches the full financial snapshot the Finanzas module relies on
-// (unitCostAtSale, totalCostAtSale, etc.) without touching the existing keys.
+// cost can change later), so we snapshot it at creation time. On order
+// creation, deductStockForItems runs FIRST — it consumes the real FIFO lots
+// and reports exactly what was drawn from where — and buildSaleSnapshot
+// (api/_finance.js) turns that into the financial snapshot the Finanzas
+// module relies on (unitCostAtSale, totalCostAtSale, componentBreakdown for
+// KITs, etc.) without touching the existing keys. withFinancialSnapshot
+// (estimates cost from the CURRENT reference cost, no real consumption
+// involved) stays in use only where there's no sale actually happening yet
+// — ?action=backfill-costs (historical orders) and the unchanged lines of a
+// Pre Compra items edit (see api/orders/[id].js).
 const _loadCostMaps = loadCostMaps;
 const _withCostSnapshot = withFinancialSnapshot;
 
@@ -292,9 +297,33 @@ module.exports = async (req, res) => {
       if (mustSelectLabel && !label_selections.etiqueta) {
         return res.status(400).json({ error: 'Selecciona un template de etiqueta' });
       }
-      // Snapshot each item's current cost (and full financial snapshot for
-      // Finanzas) so it survives future cost/price changes
-      const items = _withCostSnapshot(rawItems, await _loadCostMaps(sql, tenantId));
+      // Location (store) for Finanzas filtering and the order-id prefix.
+      // Priority: (1) the store the frontend's Nueva venta picker explicitly
+      // selected (S._ventaSelectedLocale) — the client always knows this now
+      // and it's the most reliable signal; (2) the delivery method's name,
+      // which is unique per local (ver _resolveLocationIdFromDelivery); (3)
+      // resolving from the items themselves, which also handles KIT-only
+      // orders whose components live in different warehouses of the same
+      // store (ver _resolveLocalIdFromItems — same logic used by the
+      // ?action=backfill-location endpoint above, kept in sync with it).
+      // Se resuelve ANTES de descontar stock porque deductStockForItems la
+      // necesita para ubicar los componentes de un KIT en la tienda correcta.
+      let locationId = orderLocationId || '';
+      try {
+        if (!locationId) locationId = await _resolveLocationIdFromDelivery(sql, tenantId, delivery);
+        if (!locationId) locationId = await _resolveLocalIdFromItems(sql, tenantId, rawItems);
+        if (!locationId && orderWarehouseId) {
+          const [wh] = await sql`SELECT local_id FROM warehouses WHERE id = ${orderWarehouseId} AND tenant_id = ${tenantId}`;
+          locationId = wh?.local_id || '';
+        }
+      } catch { /* non-fatal — location filter just won't apply to this order */ }
+
+      // Descuenta stock ANTES de armar el snapshot financiero: consume los
+      // lotes FIFO reales y devuelve exactamente qué costó lo consumido, así
+      // el costo de venta que se guarda en la orden es el real (ponderado si
+      // la venta cruzó más de un lote), no una estimación leída de antemano.
+      const consumption = await deductStockForItems(sql, rawItems, tenantId, orderWarehouseId, locationId);
+      const items = buildSaleSnapshot(rawItems, consumption);
 
       // Cupón (opcional): reclama un uso atómicamente (falla si no existe,
       // está inactivo o ya alcanzó max_uses — evita que dos ventas
@@ -321,25 +350,6 @@ module.exports = async (req, res) => {
       `;
       const id = 'ORD-' + String(parseInt(max_num) + 1).padStart(4, '0');
       const fecha = new Date().toLocaleDateString('es-CL');
-
-      // Location (store) for Finanzas filtering and the order-id prefix.
-      // Priority: (1) the store the frontend's Nueva venta picker explicitly
-      // selected (S._ventaSelectedLocale) — the client always knows this now
-      // and it's the most reliable signal; (2) the delivery method's name,
-      // which is unique per local (ver _resolveLocationIdFromDelivery); (3)
-      // resolving from the items themselves, which also handles KIT-only
-      // orders whose components live in different warehouses of the same
-      // store (ver _resolveLocalIdFromItems — same logic used by the
-      // ?action=backfill-location endpoint above, kept in sync with it).
-      let locationId = orderLocationId || '';
-      try {
-        if (!locationId) locationId = await _resolveLocationIdFromDelivery(sql, tenantId, delivery);
-        if (!locationId) locationId = await _resolveLocalIdFromItems(sql, tenantId, rawItems);
-        if (!locationId && orderWarehouseId) {
-          const [wh] = await sql`SELECT local_id FROM warehouses WHERE id = ${orderWarehouseId} AND tenant_id = ${tenantId}`;
-          locationId = wh?.local_id || '';
-        }
-      } catch { /* non-fatal — location filter just won't apply to this order */ }
 
       // Insert order. label_selections and coupon_id/coupon_code are newer
       // columns (migration via POST /api/setup) — each tier falls back to
@@ -421,8 +431,7 @@ module.exports = async (req, res) => {
         }
       }
 
-      // Decrement stock for each sold item (scoped to tenant + warehouse)
-      await deductStockForItems(sql, items, tenantId, orderWarehouseId, locationId);
+      // Stock ya se descontó más arriba (antes de armar el snapshot de costo).
 
       // Auto-create shipment from order data
       let shipment = null;
