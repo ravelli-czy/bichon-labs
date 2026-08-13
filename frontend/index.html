@@ -1060,10 +1060,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
           </datalist>
         </div>
       </div>
-      <!-- Formas de compra ya usadas en CUALQUIER producto del tenant (ej: "Pack x3",
-           "A granel") — compartido entre productos, se completa solo (ver
-           _registerNewPurchaseFormLabels) la primera vez que alguien tipea una nueva. -->
-      <datalist id="datalist-purchase-form-labels"></datalist>
       <div class="form-group">
         <div class="form-label">Formas de compra <span style="font-weight:600;color:var(--text3)">(opcional — para convertir al ingresar inventario)</span></div>
         <div id="p-purchase-forms-wrap"></div>
@@ -3683,16 +3679,45 @@ function editProdStock(sku, warehouseId, pushURL = true) {
 // factor de conversión a stock_unit. Se usan en /stock-receipts (Ingreso de
 // inventario) para convertir la compra a stock automáticamente; ver
 // api/_stock_receipts_routes.js.
+// El dropdown nativo de <datalist> no se muestra de forma confiable en
+// Chrome Android (sobre todo dentro del WebView en que corre esta app), así
+// que el "combobox" es propio: input de texto libre + una lista de
+// sugerencias filtrada que se arma/oculta a mano (ver
+// _filterPurchaseFormSuggestions/_pickPurchaseFormSuggestion abajo).
 function renderPurchaseFormRows() {
   const wrap = document.getElementById('p-purchase-forms-wrap');
   if (!wrap) return;
   const rows = S.tempPurchaseForms || [];
   wrap.innerHTML = rows.map((f, idx) => `
     <div class="form-row" style="align-items:flex-end;margin-bottom:6px">
-      <div class="form-group"><input class="form-input" list="datalist-purchase-form-labels" placeholder="Ej: pack x3, a granel" value="${(f.label||'').replace(/"/g,'&quot;')}" oninput="updatePurchaseFormRow(${idx},'label',this.value)"></div>
+      <div class="form-group" style="position:relative">
+        <input class="form-input" placeholder="Ej: pack x3, a granel" value="${(f.label||'').replace(/"/g,'&quot;')}"
+          oninput="updatePurchaseFormRow(${idx},'label',this.value);_filterPurchaseFormSuggestions(${idx},this.value)"
+          onfocus="_filterPurchaseFormSuggestions(${idx},this.value)"
+          onblur="setTimeout(()=>_hidePurchaseFormSuggestions(${idx}),150)">
+        <div class="pf-suggest" id="pf-suggest-${idx}" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;margin-top:4px;background:var(--bg2);border:1.5px solid var(--border);border-radius:10px;max-height:180px;overflow-y:auto;box-shadow:0 4px 14px rgba(0,0,0,.15)"></div>
+      </div>
       <div class="form-group" style="max-width:110px"><input class="form-input" type="number" min="0" step="any" placeholder="Ej: 3" value="${f.factor ?? ''}" oninput="updatePurchaseFormRow(${idx},'factor',this.value)"></div>
       <button type="button" class="btn-icon-sm" onclick="removePurchaseFormRow(${idx})" title="Quitar" style="margin-bottom:10px"><i class="ti ti-trash"></i></button>
     </div>`).join('');
+}
+function _filterPurchaseFormSuggestions(idx, value) {
+  const box = document.getElementById(`pf-suggest-${idx}`);
+  if (!box) return;
+  const q = (value || '').trim().toLowerCase();
+  const matches = getCatalogList('purchaseFormLabels').filter(l => l.toLowerCase().includes(q)).slice(0, 8);
+  if (!matches.length) { box.style.display = 'none'; return; }
+  box.innerHTML = matches.map(l => `
+    <div onmousedown="_pickPurchaseFormSuggestion(${idx},'${l.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')" style="padding:10px 12px;font-size:13.5px;font-weight:700;cursor:pointer;border-bottom:1px solid var(--border)">${l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`).join('');
+  box.style.display = '';
+}
+function _hidePurchaseFormSuggestions(idx) {
+  const box = document.getElementById(`pf-suggest-${idx}`);
+  if (box) box.style.display = 'none';
+}
+function _pickPurchaseFormSuggestion(idx, label) {
+  updatePurchaseFormRow(idx, 'label', label);
+  renderPurchaseFormRows();
 }
 function addPurchaseFormRow() {
   S.tempPurchaseForms = S.tempPurchaseForms || [];
@@ -4591,9 +4616,6 @@ function _populateCatalogLists() {
   const brands    = getCatalogList('brands');
   const brandList = document.getElementById('datalist-brands');
   if (brandList) brandList.innerHTML = brands.map(b => `<option value="${b.replace(/"/g,'&quot;')}">`).join('');
-  const pfLabels    = getCatalogList('purchaseFormLabels');
-  const pfLabelList = document.getElementById('datalist-purchase-form-labels');
-  if (pfLabelList) pfLabelList.innerHTML = pfLabels.map(l => `<option value="${l.replace(/"/g,'&quot;')}">`).join('');
 }
 
 async function saveCatalogList(key, arr) {
