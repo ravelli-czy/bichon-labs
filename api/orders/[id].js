@@ -77,8 +77,9 @@ module.exports = async (req, res) => {
         // el "costo actual" que traían del snapshot de arriba. Los que no
         // cambiaron de cantidad (o se restituyen) se quedan con esa
         // estimación: no hay una consumición nueva de la cual tomar el dato.
+        const movementMeta = { tenantId, type: 'edicion_orden', refType: 'orden', refId: id, actor };
         if (toDeduct.length) {
-          const deductResults = await deductStockForItems(sql, toDeduct, tenantId, '', locationId);
+          const deductResults = await deductStockForItems(sql, toDeduct, tenantId, '', locationId, movementMeta);
           toDeduct.forEach((deductedItem, i) => {
             const target = items.find(it => keyOf(it) === keyOf(deductedItem));
             const result = deductResults[i];
@@ -93,7 +94,7 @@ module.exports = async (req, res) => {
             if (target.type === 'kit' && result.components) target.componentBreakdown = result.components;
           });
         }
-        if (toRestore.length) await restoreStockForItems(sql, toRestore, tenantId, '', locationId);
+        if (toRestore.length) await restoreStockForItems(sql, toRestore, tenantId, '', locationId, movementMeta);
 
         const itemsSubtotal = items.reduce((s, i) => s + (i.price || 0) * (i.qty || 0), 0);
         const shippingRevenue = before.delivery?.slot_cost || 0;
@@ -338,7 +339,8 @@ module.exports = async (req, res) => {
       // was deducted when this order was created — mirrors the restore path
       // already used when items are removed from a Pre-Compra.
       if (restoreStock && existing.items?.length) {
-        await restoreStockForItems(sql, existing.items, tenantId, '', existing.location_id);
+        await restoreStockForItems(sql, existing.items, tenantId, '', existing.location_id,
+          { tenantId, type: 'restitucion', refType: 'orden', refId: id, actor });
       }
 
       // Delete linked shipment first (if any)

@@ -11,6 +11,7 @@ const { writeLog } = require('./_log');
 const { getSession, resolveTenantId } = require('./_tenant');
 const { handleStockReceiptsResource, STOCK_RECEIPT_RESOURCES } = require('./_stock_receipts_routes');
 const { handlePurchaseFormatsResource, PURCHASE_FORMAT_RESOURCES } = require('./_purchase_formats_routes');
+const { handleStockMovementsResource, STOCK_MOVEMENT_RESOURCES } = require('./_stock_movements_routes');
 
 module.exports = async (req, res) => {
   if (cors(req, res)) return;
@@ -31,6 +32,10 @@ module.exports = async (req, res) => {
   // ── Mantenedor de Formatos de compra ─────────────────────────────────────
   if (PURCHASE_FORMAT_RESOURCES.includes(req.query?.resource)) {
     return handlePurchaseFormatsResource(req, res, sql, session, tenantId, actor);
+  }
+  // ── Historial de movimientos de stock (tab Historial en Inventario) ─────
+  if (STOCK_MOVEMENT_RESOURCES.includes(req.query?.resource)) {
+    return handleStockMovementsResource(req, res, sql, session, tenantId, actor);
   }
 
   try {

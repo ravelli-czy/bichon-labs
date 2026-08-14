@@ -342,11 +342,23 @@ module.exports = async (req, res) => {
         }
       } catch { /* non-fatal — location filter just won't apply to this order */ }
 
+      // ID must be globally unique (orders.id is a plain PK shared across
+      // tenants) — se genera ACÁ, antes de descontar stock, para poder
+      // referenciarlo como ref_id en el historial de movimientos de stock
+      // (ver stock_movements / tab Historial de Inventario) de esta misma venta.
+      const [{ max_num }] = await sql`
+        SELECT COALESCE(MAX(CAST(SUBSTRING(id FROM 5) AS INTEGER)), 0) AS max_num
+        FROM orders WHERE id ~ '^ORD-[0-9]+$'
+      `;
+      const id = 'ORD-' + String(parseInt(max_num) + 1).padStart(4, '0');
+      const fecha = new Date().toLocaleDateString('es-CL');
+
       // Descuenta stock ANTES de armar el snapshot financiero: consume los
       // lotes FIFO reales y devuelve exactamente qué costó lo consumido, así
       // el costo de venta que se guarda en la orden es el real (ponderado si
       // la venta cruzó más de un lote), no una estimación leída de antemano.
-      const consumption = await deductStockForItems(sql, rawItems, tenantId, orderWarehouseId, locationId);
+      const consumption = await deductStockForItems(sql, rawItems, tenantId, orderWarehouseId, locationId,
+        { tenantId, type: 'venta', refType: 'orden', refId: id, actor });
       const items = buildSaleSnapshot(rawItems, consumption);
 
       // Cupón (opcional): reclama un uso atómicamente (falla si no existe,
@@ -366,14 +378,6 @@ module.exports = async (req, res) => {
       }
       const shippingRevenue = delivery?.slot_cost || 0;
       const total = itemsSubtotal - discountAmount + shippingRevenue;
-
-      // ID must be globally unique (orders.id is a plain PK shared across tenants)
-      const [{ max_num }] = await sql`
-        SELECT COALESCE(MAX(CAST(SUBSTRING(id FROM 5) AS INTEGER)), 0) AS max_num
-        FROM orders WHERE id ~ '^ORD-[0-9]+$'
-      `;
-      const id = 'ORD-' + String(parseInt(max_num) + 1).padStart(4, '0');
-      const fecha = new Date().toLocaleDateString('es-CL');
 
       // Insert order. label_selections and coupon_id/coupon_code are newer
       // columns (migration via POST /api/setup) — each tier falls back to
