@@ -54,6 +54,8 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;max-
 .hero-metrics{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
 .hero-metric{}
 .hero-metric-val{font-size:22px;font-weight:900;color:#fff;line-height:1;margin-bottom:3px}
+.hero-metric-val.skeleton{color:transparent;background:rgba(255,255,255,.35);border-radius:6px;animation:skeletonPulse 1.1s ease-in-out infinite}
+@keyframes skeletonPulse{0%,100%{opacity:.55}50%{opacity:1}}
 .hero-metric-lbl{font-size:11px;font-weight:700;color:rgba(255,255,255,.65)}
 .hero-metric-sub{font-size:11px;font-weight:700;margin-top:4px;display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px}
 .hero-metric-sub.up{background:rgba(22,201,141,.25);color:#7fffcd}
@@ -251,12 +253,12 @@ body.embedded #modules-section,body.embedded .footer{display:none}
     <div class="hero-date" id="hero-date">—</div>
     <div class="hero-metrics">
       <div class="hero-metric">
-        <div class="hero-metric-val" id="hero-ventas">$0</div>
+        <div class="hero-metric-val skeleton" id="hero-ventas">$0</div>
         <div class="hero-metric-lbl" id="hero-ventas-lbl">Ventas del mes</div>
         <div class="hero-metric-sub up" id="hero-ventas-var" style="display:none"><i class="ti ti-trending-up" style="font-size:11px"></i> —</div>
       </div>
       <div class="hero-metric">
-        <div class="hero-metric-val" id="hero-util">$0</div>
+        <div class="hero-metric-val skeleton" id="hero-util">$0</div>
         <div class="hero-metric-lbl">Utilidad bruta</div>
         <div class="hero-metric-sub margin" id="hero-margin">—% margen</div>
       </div>
@@ -419,6 +421,8 @@ let critical = [], warning = [], alertas = [];
 // renderHero, renderOrders, renderModules
 // called by init() once API data arrives
 function renderHero() {
+  document.getElementById('hero-ventas').classList.remove('skeleton');
+  document.getElementById('hero-util').classList.remove('skeleton');
   document.getElementById('hero-ventas').textContent    = fmt(totalVentas);
   document.getElementById('hero-util').textContent      = fmt(utilidad);
   document.getElementById('hero-margin').textContent    = margen + '% margen';

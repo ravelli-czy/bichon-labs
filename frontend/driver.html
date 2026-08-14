@@ -21,6 +21,7 @@
 }
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;overflow:hidden}
 body{display:flex;flex-direction:column;max-width:420px;margin:0 auto;position:relative}
+div[role="button"]:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 
 /* ── SCREENS ── */
 .screen{display:none;flex-direction:column;height:100%;overflow:hidden}
@@ -202,7 +203,8 @@ input[type=file]{display:none}
 .route-item-sub{font-size:12px;font-weight:600;color:var(--text2);margin-top:2px}
 
 /* TOAST */
-#toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg2);color:var(--text);border:1px solid var(--border);padding:10px 20px;border-radius:24px;font-size:13px;font-weight:700;opacity:0;transition:all .3s;z-index:999;white-space:nowrap;box-shadow:var(--sh)}
+#toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg2);color:var(--text);border:1px solid var(--border);padding:10px 20px;border-radius:18px;font-size:13px;font-weight:700;opacity:0;transition:all .3s;z-index:999;max-width:min(92vw,360px);width:max-content;text-align:center;white-space:normal;box-shadow:var(--sh)}
+#toast.sync-error{background:var(--red-l);color:var(--red);border-color:var(--red)}
 </style>
 </head>
 <body>
@@ -769,13 +771,7 @@ async function startLeg() {
   currentStop.status = 'on_the_way';
   renderDeliveryFooter();
   renderStopList();
-  try {
-    await fetch(`/api/shipments/${currentStop.id}`, {
-      method: 'PUT',
-      headers: driverAuthHeaders(),
-      body: JSON.stringify({ status: 'on_the_way', note: 'Tramo iniciado por repartidor' })
-    });
-  } catch(e) { console.warn('[Driver] startLeg API error', e); }
+  await syncShipmentUpdate(currentStop.id, { status: 'on_the_way', note: 'Tramo iniciado por repartidor' }, 'Tramo iniciado');
 }
 
 // ── REINTENTAR ENTREGA ─────────────────────────
@@ -785,13 +781,7 @@ async function retryDelivery() {
   currentStop.fail_reason = null;
   renderDeliveryFooter();
   renderStopList();
-  try {
-    await fetch(`/api/shipments/${currentStop.id}`, {
-      method: 'PUT',
-      headers: driverAuthHeaders(),
-      body: JSON.stringify({ status: 'on_the_way', note: 'Reintento de entrega' })
-    });
-  } catch(e) { console.warn('[Driver] retryDelivery API error', e); }
+  await syncShipmentUpdate(currentStop.id, { status: 'on_the_way', note: 'Reintento de entrega' }, 'Reintento');
 }
 
 // ── CIERRE DE RUTA ─────────────────────────────
@@ -852,13 +842,7 @@ async function confirmDelivered() {
   document.getElementById('success-overlay').classList.remove('hidden');
 
   // Persist to API
-  try {
-    await fetch(`/api/shipments/${currentStop.id}`, {
-      method: 'PUT',
-      headers: driverAuthHeaders(),
-      body: JSON.stringify({ status: 'delivered', note: 'Entregado por repartidor' })
-    });
-  } catch(e) { console.warn('[Driver] confirmDelivered API error', e); }
+  await syncShipmentUpdate(currentStop.id, { status: 'delivered', note: 'Entregado por repartidor' }, 'Entrega');
 }
 
 function closeSuccess() {
@@ -891,13 +875,7 @@ async function confirmFail() {
   _checkRouteComplete();
 
   // Persist to API
-  try {
-    await fetch(`/api/shipments/${currentStop.id}`, {
-      method: 'PUT',
-      headers: driverAuthHeaders(),
-      body: JSON.stringify({ status: 'not_delivered', note: fullNote })
-    });
-  } catch(e) { console.warn('[Driver] confirmFail API error', e); }
+  await syncShipmentUpdate(currentStop.id, { status: 'not_delivered', note: fullNote }, 'No entregado');
 }
 
 // ── NAVEGACIÓN ─────────────────────────────────
@@ -918,14 +896,67 @@ function openComandaSheet() {
 }
 
 // ── TOAST ──────────────────────────────────────
-function toast(msg) {
+function toast(msg, opts) {
   const t=document.getElementById('toast');
+  clearTimeout(t._timer);
+  t.classList.toggle('sync-error', !!(opts && opts.error));
   t.textContent=msg;t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';
-  setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(20px)';},2800);
+  t._timer = setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(20px)';},(opts && opts.duration) || 2800);
+}
+
+// ── SINCRONIZACIÓN CON EL SERVIDOR ─────────────
+// Las acciones de reparto (iniciar tramo, entregar, marcar no entregado) se
+// aplican primero en el equipo del repartidor para que la app responda al
+// toque aunque la señal sea mala, y luego se intentan sincronizar. Antes esto
+// fallaba en silencio (solo un console.warn): el repartidor nunca sabía si el
+// estado realmente llegó al servidor. Ahora siempre se avisa.
+async function syncShipmentUpdate(stopId, payload, actionLabel) {
+  try {
+    await fetch(`/api/shipments/${stopId}`, {
+      method: 'PUT',
+      headers: driverAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    toast(`✅ ${actionLabel} — sincronizado`);
+    return true;
+  } catch (e) {
+    console.warn('[Driver] sync error', e);
+    toast(`⚠️ ${actionLabel} guardado en el equipo, pero no se pudo sincronizar. Revisa tu conexión.`, { error: true, duration: 4500 });
+    return false;
+  }
 }
 
 // Auto start GPS
 startGPS();
+
+// Accessibility: <div onclick=...> is used throughout this page as a lightweight
+// clickable card/option, but plain divs are invisible to keyboard navigation and
+// screen readers. Patch them generically instead of touching every call site:
+// make them focusable + announced as buttons, and let Enter/Space activate them.
+(function enableClickableDivA11y() {
+  function patch(el) {
+    if (!el.hasAttribute('tabindex')) el.tabIndex = 0;
+    if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
+  }
+  document.querySelectorAll('div[onclick]').forEach(patch);
+  new MutationObserver(muts => {
+    for (const m of muts) {
+      for (const node of m.addedNodes) {
+        if (node.nodeType !== 1) continue;
+        if (node.matches && node.matches('div[onclick]')) patch(node);
+        if (node.querySelectorAll) node.querySelectorAll('div[onclick]').forEach(patch);
+      }
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const el = e.target;
+    if (el && el.tagName === 'DIV' && el.hasAttribute('onclick')) {
+      e.preventDefault();
+      el.click();
+    }
+  });
+})();
 </script>
 </body>
 </html>

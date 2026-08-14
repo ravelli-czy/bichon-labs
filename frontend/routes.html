@@ -172,6 +172,8 @@ header{background:var(--paper);border-bottom:1px solid var(--line);display:flex;
 .comanda-line:last-child{border-bottom:none}
 .comanda-qty{font-family:'DM Mono',monospace;font-weight:700;color:var(--accent);min-width:28px}
 .comanda-item{flex:1;font-weight:500}
+.reason-opt{padding:8px 14px;border-radius:20px;border:1.5px solid var(--line);font-size:13px;font-weight:600;cursor:pointer;background:var(--paper2);color:var(--ink2);transition:all .15s}
+.reason-opt.selected{background:var(--red-l);border-color:var(--red);color:var(--red)}
 .comanda-note{background:var(--amber-l);border:1px solid #fde68a;border-radius:var(--r);padding:10px 14px;font-size:13px;font-weight:500;color:var(--amber);margin-top:12px;display:flex;gap:8px;align-items:flex-start}
 
 /* SETTINGS PANEL */
@@ -366,6 +368,30 @@ input[type=text].sp-input:focus{border-color:var(--accent)}
     <div style="display:flex;gap:8px;margin-top:20px">
       <button class="btn" style="flex:1;justify-content:center" onclick="closeModal('modal-add')">Cancelar</button>
       <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="addStop()"><i class="ti ti-plus"></i> Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: MOTIVO DE NO ENTREGA (mismas opciones que delivery.html/driver.html,
+     para no pedirle al usuario un motivo distinto según qué pantalla del flujo
+     de reparto esté usando) -->
+<div class="modal-overlay hidden" id="modal-fail-reason">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+      <div class="modal-title">¿Por qué no se entregó?</div>
+      <button class="btn" onclick="closeModal('modal-fail-reason')"><i class="ti ti-x"></i></button>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px" id="fail-reason-opts">
+      <div class="reason-opt" onclick="selectFailReasonOpt(this,'Nadie en casa')">Nadie en casa</div>
+      <div class="reason-opt" onclick="selectFailReasonOpt(this,'Dirección incorrecta')">Dirección incorrecta</div>
+      <div class="reason-opt" onclick="selectFailReasonOpt(this,'Cliente rechazó el pedido')">Cliente rechazó el pedido</div>
+      <div class="reason-opt" onclick="selectFailReasonOpt(this,'Zona sin acceso')">Zona sin acceso</div>
+      <div class="reason-opt" onclick="selectFailReasonOpt(this,'Otro')">Otro motivo</div>
+    </div>
+    <textarea id="fail-reason-note" placeholder="Notas adicionales (opcional)..." rows="2" style="width:100%;background:var(--paper2);border:1px solid var(--line);border-radius:var(--r);padding:10px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;resize:vertical"></textarea>
+    <div style="display:flex;gap:8px;margin-top:20px">
+      <button class="btn" style="flex:1;justify-content:center" onclick="closeModal('modal-fail-reason')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-confirm-fail-reason" style="flex:1;justify-content:center" disabled onclick="confirmFailReason()"><i class="ti ti-circle-x"></i> Confirmar</button>
     </div>
   </div>
 </div>
@@ -869,11 +895,44 @@ function onDragEnd(e) {
 }
 
 // ── CAMBIAR ESTADO ─────────────────────────────
+let _failReasonStopId = null;
+let _failReason = null;
+
 async function changeStopStatus(id, newStatus) {
+  if (newStatus === 'not_delivered') {
+    _failReasonStopId = id;
+    _failReason = null;
+    document.getElementById('fail-reason-note').value = '';
+    document.querySelectorAll('#fail-reason-opts .reason-opt').forEach(o => o.classList.remove('selected'));
+    document.getElementById('btn-confirm-fail-reason').disabled = true;
+    document.getElementById('map-popup').classList.add('hidden');
+    document.getElementById('modal-fail-reason').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('map-popup').classList.add('hidden');
+  await applyStopStatus(id, newStatus, statusLabel(newStatus));
+}
+
+function selectFailReasonOpt(el, reason) {
+  document.querySelectorAll('#fail-reason-opts .reason-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  _failReason = reason;
+  document.getElementById('btn-confirm-fail-reason').disabled = false;
+}
+
+async function confirmFailReason() {
+  if (!_failReason || !_failReasonStopId) return;
+  const extra = document.getElementById('fail-reason-note').value.trim();
+  const note = _failReason + (extra ? ' — ' + extra : '');
+  const id = _failReasonStopId;
+  closeModal('modal-fail-reason');
+  await applyStopStatus(id, 'not_delivered', note);
+}
+
+async function applyStopStatus(id, newStatus, note) {
   const stop = currentRoute.find(s => s.id === id);
   if (!stop) return;
   stop.status = newStatus;
-  document.getElementById('map-popup').classList.add('hidden');
   selectedStop = null;
   renderStops();
   renderMap();
@@ -881,7 +940,6 @@ async function changeStopStatus(id, newStatus) {
   // Persist to API if stop is a real shipment ID
   if (id && !id.startsWith('SHP-NEW-')) {
     try {
-      const note = newStatus === 'not_delivered' ? 'No entregado (ruta)' : statusLabel(newStatus);
       await fetch(`/api/shipments/${id}`, {
         method: 'PUT',
         headers: authHeaders(),
