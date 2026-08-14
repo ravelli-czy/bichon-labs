@@ -655,7 +655,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       </div>
     </div>
     <div class="section-sub">Productos, insumos y KITs</div>
-    <a href="/stock-receipts" class="meson-hub-banner">
+    <a href="javascript:void(0)" class="meson-hub-banner" onclick="showPage('stockReceipts', navTabEl('stockReceipts'), true)">
       <div class="meson-hub-icon"><i class="ti ti-truck-delivery"></i></div>
       <div class="meson-hub-text">
         <div class="meson-hub-title">🚚 Ingresar Mercadería</div>
@@ -742,6 +742,13 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
   <div class="page" id="page-locales">
     <div class="page-iframe-wrap">
       <iframe id="iframe-locales" src="" frameborder="0"></iframe>
+    </div>
+  </div>
+
+  <!-- INGRESO DE INVENTARIO (iframe, lazy-loaded) -->
+  <div class="page" id="page-stockReceipts">
+    <div class="page-iframe-wrap">
+      <iframe id="iframe-stockReceipts" src="" frameborder="0"></iframe>
     </div>
   </div>
 
@@ -1949,9 +1956,10 @@ function toggleDarkMode() {
   const on = !document.body.classList.contains('dark-mode');
   savePref('darkMode', on);
   applyDarkMode();
-  // Same-origin embedded pages (Home/Locales) keep their own copy of the
-  // toggle — flip it live instead of reloading and losing their state.
-  ['iframe-home', 'iframe-locales'].forEach(id => {
+  // Same-origin embedded pages (Home/Locales/Ingreso de Inventario) keep
+  // their own copy of the toggle — flip it live instead of reloading and
+  // losing their state.
+  ['iframe-home', 'iframe-locales', 'iframe-stockReceipts'].forEach(id => {
     const ifr = document.getElementById(id);
     try { ifr?.contentDocument?.body.classList.toggle('dark-mode', on); } catch (e) {}
   });
@@ -2739,12 +2747,15 @@ async function saveBrandSettings() {
     if (payload.logo_url) localStorage.setItem('sf_tenant_logo_url', payload.logo_url);
     applyTenantBranding();
     S._brandLogoDataUrl = null;
-    // Embedded Home/Locales pages read the brand colors from localStorage
-    // only once on their own load — reload them so the new colors show up.
+    // Embedded Home/Locales/Ingreso de Inventario pages read the brand
+    // colors from localStorage only once on their own load — reload them
+    // so the new colors show up.
     const homeIfr = document.getElementById('iframe-home');
     if (homeIfr?.getAttribute('src')) homeIfr.src = homeIfr.src;
     const locIfr = document.getElementById('iframe-locales');
     if (locIfr?.getAttribute('src')) locIfr.src = locIfr.src;
+    const stockIfr = document.getElementById('iframe-stockReceipts');
+    if (stockIfr?.getAttribute('src')) stockIfr.src = stockIfr.src;
     toast('✅ Personalización guardada');
   } catch (e) {
     toast('❌ ' + (e.message || 'No se pudo guardar la personalización'));
@@ -2775,7 +2786,7 @@ function sellable() {
 }
 
 // URL map for nav tabs
-const PAGE_URLS = { home:'/', inventory:'/inventory', catalogo:'/catalog', ventas:'/orders', locales:'/locales', delivery:'/delivery-hub', meson:'/meson-creativo', prefs:'/preferencias', precios:'/precios', alertasPrecio:'/alertas-precio' };
+const PAGE_URLS = { home:'/', inventory:'/inventory', catalogo:'/catalog', ventas:'/orders', locales:'/locales', delivery:'/delivery-hub', meson:'/meson-creativo', prefs:'/preferencias', precios:'/precios', alertasPrecio:'/alertas-precio', stockReceipts:'/stock-receipts' };
 
 function showPage(id, el, pushURL = true) {
   // Close order detail overlay when navigating to any tab
@@ -2824,6 +2835,10 @@ function showPage(id, el, pushURL = true) {
   if (id === 'locales') {
     const ifr = document.getElementById('iframe-locales');
     if (ifr && !ifr.getAttribute('src')) ifr.src = 'locales.html?embed=1';
+  }
+  if (id === 'stockReceipts') {
+    const ifr = document.getElementById('iframe-stockReceipts');
+    if (ifr && !ifr.getAttribute('src')) ifr.src = 'stock-receipts.html?embed=1';
   }
   if (pushURL) history.pushState({ page: id }, '', PAGE_URLS[id] || '/');
 }
@@ -8937,6 +8952,7 @@ function applyRoute() {
     showPage('ventas',        navTabEl('ventas'),     false); return;
   }
   if (path === '/locales')      { showPage('locales',       navTabEl('locales'),    false); return; }
+  if (path === '/stock-receipts') { showPage('stockReceipts', navTabEl('stockReceipts'), false); return; }
   if (path === '/delivery-hub') { showPage('delivery',      navTabEl('delivery'),   false); return; }
   if (path === '/preferencias') { showPage('prefs',         document.getElementById('prefs-btn'), false); return; }
   if (path === '/precios')      { showPage('precios',       navTabEl('precios'),    false); return; }

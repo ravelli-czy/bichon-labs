@@ -44,6 +44,7 @@
     { "source": "/meson-creativo",            "destination": "/" },
     { "source": "/reportes",                  "destination": "/" },
     { "source": "/locales",                   "destination": "/" },
+    { "source": "/stock-receipts",             "destination": "/" },
     { "source": "/delivery-hub",              "destination": "/" },
     { "source": "/precios",                   "destination": "/" },
     { "source": "/alertas-precio",            "destination": "/" },
