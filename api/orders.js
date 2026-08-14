@@ -11,6 +11,7 @@ const { handleCouponsResource, COUPON_RESOURCES } = require('./_coupons_routes')
 const { claimCoupon, computeDiscountAmount } = require('./_coupons');
 const { handleStockAlertsResource, STOCK_ALERT_RESOURCES, handleStockAlertsCron } = require('./_stock_alerts_routes');
 const { handleKitShortageAlertsResource, KIT_SHORTAGE_ALERT_RESOURCES, handleKitShortageAlertsCron } = require('./_kit_shortage_alerts_routes');
+const { handlePriceAlertsResource, PRICE_ALERT_RESOURCES, runPriceAlertsCronCore } = require('./_price_alerts_routes');
 const { deductStockForItems } = require('./_stock');
 
 // Resolves which specific warehouse row to decrement a KIT component's
@@ -136,7 +137,25 @@ module.exports = async (req, res) => {
   }
   // ── Cron de Alertas de insumos de KIT — mismo motivo/patrón. Ver
   // handleKitShortageAlertsCron en api/_kit_shortage_alerts_routes.js.
+  // Alertas de precio (Margen bajo) viaja colgada de este mismo disparo: el
+  // plan Hobby de Vercel tiene tope de 2 Cron Jobs por proyecto y ya están
+  // los 2 usados (ver vercel.json), así que un tercer tipo de alerta
+  // automática no suma un horario propio — ver runPriceAlertsCronCore en
+  // api/_price_alerts_routes.js. Se autentica acá mismo (antes de tocar la
+  // tabla) para no correr sin CRON_SECRET válido; handleKitShortageAlertsCron
+  // vuelve a chequearlo por su cuenta, sin problema (mismo secreto, sin
+  // efectos secundarios en repetirlo).
   if (req.query?.resource === 'kit-shortage-alerts' && req.query?.action === 'cron-run') {
+    const secret = process.env.CRON_SECRET;
+    if (secret) {
+      const auth = req.headers.authorization || '';
+      if (auth !== `Bearer ${secret}`) return res.status(401).json({ error: 'No autorizado' });
+    }
+    try {
+      await runPriceAlertsCronCore(sql);
+    } catch (priceCronErr) {
+      console.error('price-alerts cron error:', priceCronErr);
+    }
     return handleKitShortageAlertsCron(req, res, sql);
   }
 
@@ -169,6 +188,11 @@ module.exports = async (req, res) => {
   // Mismo motivo — vive en api/_kit_shortage_alerts_routes.js.
   if (KIT_SHORTAGE_ALERT_RESOURCES.includes(req.query?.resource)) {
     return handleKitShortageAlertsResource(req, res, sql, session, tenantId, actor);
+  }
+  // ── Alertas de precio (Margen bajo): configuración + historial + detalle ─
+  // Mismo motivo — vive en api/_price_alerts_routes.js.
+  if (PRICE_ALERT_RESOURCES.includes(req.query?.resource)) {
+    return handlePriceAlertsResource(req, res, sql, session, tenantId, actor);
   }
 
   try {

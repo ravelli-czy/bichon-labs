@@ -479,6 +479,51 @@ module.exports = async (req, res) => {
     `;
     await sql`CREATE INDEX IF NOT EXISTS kit_shortage_alert_runs_tenant_idx ON kit_shortage_alert_runs (tenant_id, generated_at DESC)`;
 
+    // ── Alertas de precio: primer tipo, Margen bajo — avisa cuándo el precio
+    // de venta de un producto/KIT cae bajo el % de utilidad bruta esperado
+    // (margin_threshold_pct) respecto de su costo actual. Mismo esquema que
+    // Alertas de stock/insumos de KIT arriba. Ver api/_price_alerts.js. El
+    // cron no tiene horario propio (Vercel Hobby tope 2 Cron Jobs por
+    // proyecto, ya usados) — viaja colgado del cron diario de Alertas de
+    // insumos de KIT, ver runPriceAlertsCronCore en
+    // api/_price_alerts_routes.js y el dispatch en api/orders.js.
+    await sql`
+      CREATE TABLE IF NOT EXISTS price_alert_settings (
+        tenant_id             TEXT PRIMARY KEY,
+        frequency             TEXT NOT NULL DEFAULT 'semanal',
+        weekday               INTEGER,
+        month_day             INTEGER,
+        margin_threshold_pct  NUMERIC NOT NULL DEFAULT 30,
+        channel_home          BOOLEAN NOT NULL DEFAULT TRUE,
+        channel_email         BOOLEAN NOT NULL DEFAULT FALSE,
+        email_to              TEXT DEFAULT '',
+        last_run_date         TEXT DEFAULT '',
+        updated_by            TEXT DEFAULT '',
+        updated_at            TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    // items: snapshot inmutable — por cada producto/KIT con margen bajo:
+    // sku, nombre, tipo, precio de venta, costo actual, margen % — nunca se
+    // recalcula después, ver generateRun en api/_price_alerts.js.
+    // margin_threshold_pct queda grabado en la corrida (no sólo en la config
+    // vigente) para que el historial no cambie de significado si el %
+    // esperado se edita más adelante.
+    await sql`
+      CREATE TABLE IF NOT EXISTS price_alert_runs (
+        id                    TEXT PRIMARY KEY,
+        tenant_id             TEXT NOT NULL DEFAULT 'TEN-001',
+        generated_at          TIMESTAMPTZ DEFAULT NOW(),
+        item_count            INTEGER NOT NULL DEFAULT 0,
+        avg_margin_pct        NUMERIC NOT NULL DEFAULT 0,
+        margin_threshold_pct  NUMERIC NOT NULL DEFAULT 0,
+        status                TEXT NOT NULL DEFAULT 'pendiente',
+        reviewed_by           TEXT DEFAULT '',
+        reviewed_at           TIMESTAMPTZ,
+        items                 JSONB NOT NULL DEFAULT '[]'::jsonb
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS price_alert_runs_tenant_idx ON price_alert_runs (tenant_id, generated_at DESC)`;
+
     // ── Finanzas: categorías de gasto ──────────────────────────────────────
     await sql`
       CREATE TABLE IF NOT EXISTS expense_categories (
