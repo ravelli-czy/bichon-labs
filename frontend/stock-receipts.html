@@ -82,6 +82,16 @@ table.wh-table tr:last-child td{border-bottom:none}
 
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;padding:11px 20px;border-radius:24px;font-size:13px;font-weight:800;z-index:999;opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap;max-width:90vw;text-overflow:ellipsis;overflow:hidden}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ═══════════════════════════════════════════════
+   EMBED MODE (loaded inside app iframe)
+═══════════════════════════════════════════════ */
+body.embedded .topbar{display:none}
+body.embedded .content{padding-top:12px}
+.embed-page-header{display:none;margin-bottom:4px}
+body.embedded .embed-page-header{display:block}
+.embed-page-title{font-size:20px;font-weight:900;color:var(--text);margin-bottom:2px}
+.embed-page-sub{font-size:13px;color:var(--text3);font-weight:600}
 </style>
 </head>
 <body>
@@ -99,6 +109,11 @@ table.wh-table tr:last-child td{border-bottom:none}
 </div>
 
 <div class="content">
+
+  <div class="embed-page-header">
+    <div class="embed-page-title">Ingreso de inventario</div>
+    <div class="embed-page-sub" style="margin-bottom:16px">Registra compras y conviértelas a stock automáticamente</div>
+  </div>
 
   <div class="tabs">
     <button class="tab-btn active" id="tab-btn-ingresar" onclick="switchTab('ingresar')"><i class="ti ti-package-import"></i> Registrar Inventario</button>
@@ -165,6 +180,9 @@ table.wh-table tr:last-child td{border-bottom:none}
 <div id="toast"></div>
 
 <script>
+// Embed mode: hide topbar when loaded inside app iframe
+if (new URLSearchParams(location.search).has('embed')) document.body.classList.add('embedded');
+
 // ── Auth / tenant context (mismo esquema que stock-alerts.html) ────────────
 const token    = localStorage.getItem('sf_token') || '';
 const tenantId = localStorage.getItem('sf_tenant_id') || '';
