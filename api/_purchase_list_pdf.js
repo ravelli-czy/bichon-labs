@@ -130,4 +130,26 @@ async function kitShortageAlertPdf(run) {
   });
 }
 
-module.exports = { stockAlertPdf, kitShortageAlertPdf };
+async function priceAlertPdf(run) {
+  return renderPurchaseListPdf({
+    heading: 'Alertas de precio — Margen bajo',
+    subheading: `${run.id} · Margen promedio: ${Number(run.avg_margin_pct || 0).toFixed(1)}% (esperado ${Number(run.margin_threshold_pct || 0)}%)`,
+    generatedAt: run.generated_at ? new Date(run.generated_at).toLocaleString('es-CL') : '',
+    estimatedValue: null,
+    columns: [
+      { key: 'name',       label: 'Producto', width: 185 },
+      { key: 'sku',        label: 'SKU',       width: 80 },
+      { key: 'tipo',       label: 'Tipo',      width: 60 },
+      { key: 'price',      label: 'Precio',    width: 65, align: 'right', money: true },
+      { key: 'cost',       label: 'Costo',     width: 65, align: 'right', money: true },
+      { key: 'margin_pct', label: 'Margen',    width: 60, align: 'right' },
+    ],
+    rows: (run.items || []).map(it => ({
+      ...it,
+      tipo: it.tipo === 'kit' ? 'KIT' : 'Producto',
+      margin_pct: Number(it.margin_pct).toFixed(1) + '%',
+    })),
+  });
+}
+
+module.exports = { stockAlertPdf, kitShortageAlertPdf, priceAlertPdf };

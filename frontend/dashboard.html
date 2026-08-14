@@ -88,6 +88,9 @@ a.hero-chip:active{transform:scale(.96)}
    urgente que Alertas de insumos de KIT (rojo, base de .stock-alert-banner
    arriba), que sí bloquea ventas de KITs en curso si no se repone a tiempo. */
 #stock-alert-banner{background:#d97706;box-shadow:0 4px 14px rgba(217,119,6,.35)}
+/* Alertas de precio (margen bajo) en azul — aviso de salud financiera, no
+   de quiebre de stock, así que se distingue del rojo/amber de arriba. */
+#price-alert-banner{background:#0891b2;box-shadow:0 4px 14px rgba(8,145,178,.35)}
 .stock-alert-banner .dot{width:8px;height:8px;border-radius:50%;background:#fff;flex-shrink:0;animation:sabPulse 1.4s ease-in-out infinite}
 .stock-alert-banner span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stock-alert-banner i:last-child{font-size:13px;flex-shrink:0;margin-left:auto}
@@ -226,6 +229,13 @@ body.embedded #modules-section,body.embedded .footer{display:none}
     <span class="dot"></span>
     <i class="ti ti-stack-2"></i>
     <span id="kit-shortage-banner-text">Nueva lista de insumos por venta de KITs pendiente</span>
+    <i class="ti ti-chevron-right"></i>
+  </a>
+
+  <a href="#" id="price-alert-banner" class="stock-alert-banner" style="display:none">
+    <span class="dot"></span>
+    <i class="ti ti-cash-banknote"></i>
+    <span id="price-alert-banner-text">Productos con margen bajo lo esperado</span>
     <i class="ti ti-chevron-right"></i>
   </a>
 
@@ -446,6 +456,18 @@ function renderKitShortageBanner(pending) {
   document.getElementById('kit-shortage-banner-text').textContent =
     `Insumos por comprar (venta de KITs) — ${pending.item_count} insumo${pending.item_count !== 1 ? 's' : ''}`;
   el.onclick = (e) => { e.preventDefault(); _navigateTop('/stock-alerts?tab=kits&id=' + encodeURIComponent(pending.id)); };
+}
+
+// Mismo criterio que renderStockAlertBanner, para la corrida 'pendiente' de
+// Alertas de precio ("Margen bajo" en /price-alerts). `pending` es la
+// corrida más reciente (o null) de GET ?resource=price-alerts&scope=pending.
+function renderPriceAlertBanner(pending) {
+  const el = document.getElementById('price-alert-banner');
+  if (!pending) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  document.getElementById('price-alert-banner-text').textContent =
+    `Margen bajo lo esperado — ${pending.item_count} producto${pending.item_count !== 1 ? 's' : ''} (${Number(pending.avg_margin_pct).toFixed(1)}% promedio)`;
+  el.onclick = (e) => { e.preventDefault(); _navigateTop('/price-alerts?id=' + encodeURIComponent(pending.id)); };
 }
 
 // ── HUINCHA DE PEDIDOS POR HACER — semáforo por fecha de entrega ──────
@@ -702,24 +724,28 @@ function renderModules() {
   if (tenantId) authHeaders['X-Tenant-Id']   = tenantId;
   let stockAlertPending = null;
   let kitShortagePending = null;
+  let priceAlertPending = null;
   try {
-    const [products, kits, orders, pending, kitPending] = await Promise.all([
+    const [products, kits, orders, pending, kitPending, pricePending] = await Promise.all([
       fetch('/api/products', { headers: authHeaders }).then(r => r.ok ? r.json() : []),
       fetch('/api/kits', { headers: authHeaders }).then(r => r.ok ? r.json() : []),
       fetch('/api/orders', { headers: authHeaders }).then(r => r.ok ? r.json() : []),
       fetch('/api/orders?resource=stock-alerts&scope=pending', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/orders?resource=kit-shortage-alerts&scope=pending', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/orders?resource=price-alerts&scope=pending', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
     ]);
     PRODUCTS  = Array.isArray(products) ? products : [];
     KITS_LIST = Array.isArray(kits)     ? kits     : [];
     VENTAS    = Array.isArray(orders)   ? orders   : [];
     stockAlertPending  = pending;
     kitShortagePending = kitPending;
+    priceAlertPending  = pricePending;
   } catch(e) {
     console.warn('[Dashboard] API unavailable:', e.message);
   }
   renderStockAlertBanner(stockAlertPending);
   renderKitShortageBanner(kitShortagePending);
+  renderPriceAlertBanner(priceAlertPending);
 
   // Compute derived values
   allTimeVentas = _sumVentasCosto(VENTAS).total; // used by the "Ventas" module card stat, unaffected by the hero range toggle

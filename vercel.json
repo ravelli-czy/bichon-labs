@@ -47,7 +47,6 @@
     { "source": "/stock-receipts",             "destination": "/" },
     { "source": "/delivery-hub",              "destination": "/" },
     { "source": "/precios",                   "destination": "/" },
-    { "source": "/alertas-precio",            "destination": "/" },
     { "source": "/shipments",                 "destination": "/delivery" },
     { "source": "/shipments/:id",             "destination": "/delivery" }
   ]

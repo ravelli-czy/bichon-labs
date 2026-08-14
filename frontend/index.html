@@ -64,6 +64,11 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
    además es la página activa, sí toma ese mismo tono de selección. */
 .nav-tab.pinned{background:var(--amber-light);color:var(--amber-dark);border-radius:10px}
 .nav-tab.pinned.active{background:var(--primary-light);color:var(--primary)}
+/* Atajos que sólo existen en la barra inferior mobile (Inicio/Inventario/
+   Catálogo) — en desktop esas páginas ya se alcanzan desde el sidebar
+   expandido (grupo Catálogo), así que acá quedan ocultos por default y sólo
+   se muestran bajo @media(max-width:767px) más abajo. */
+.mobile-only-item{display:none}
 
 /* Sidebar 2do nivel: grupos expandibles (Catálogo, Finanzas, Configuraciones
    y el sub-grupo Alertas dentro de Catálogo). Los hijos son .nav-tab
@@ -453,9 +458,22 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 
 /* Mobile: the sidebar-only admin items + brand live in the "Más" sheet
    instead, opened via the hamburger nav-tab — never show them inline in
-   the cramped bottom bar, regardless of what the role-based JS sets. */
+   the cramped bottom bar, regardless of what the role-based JS sets.
+   The bottom bar itself is capped at 4 shortcuts + "Más": Inicio,
+   Inventario, Catálogo, Ventas — Delivery moves into the "Más" sheet (see
+   #nav-delivery-toplevel below) to make room. order: puts them in that
+   exact sequence regardless of where each button actually sits in the DOM
+   (kept in their original desktop-sidebar spot so this doesn't reshuffle
+   desktop). */
 @media(max-width:767px){
   .sidebar-only-item{display:none!important}
+  .mobile-only-item{display:flex!important}
+  #mobile-nav-home{order:1}
+  #mobile-nav-inventory{order:2}
+  #mobile-nav-catalogo{order:3}
+  .nav-tab.pinned{order:4}
+  #mobile-more-btn{order:5}
+  #nav-delivery-toplevel{display:none!important}
 }
 
 @media(min-width:768px){
@@ -795,13 +813,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div id="pri-content"></div>
   </div>
 
-  <!-- ALERTAS DE PRECIO (placeholder) -->
-  <div class="page" id="page-alertasPrecio">
-    <div class="section-title">Alertas de Precio</div>
-    <div class="section-sub">Avisos por cambios o inconsistencias de precio</div>
-    <div class="empty-state"><i class="ti ti-cash-banknote"></i><p>Próximamente.</p></div>
-  </div>
-
   <!-- MESÓN CREATIVO -->
   <div class="page" id="page-meson">
     <div class="section-title">🔨 Mesón Creativo</div>
@@ -971,6 +982,13 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 <nav class="bottom-nav">
   <button class="nav-tab pinned" onclick="showPage('ventas',this)"><i class="ti ti-shopping-bag"></i><span>Ventas</span></button>
 
+  <!-- Atajos mobile-only (ver .mobile-only-item) — Inicio/Inventario/
+       Catálogo promovidos a la barra inferior en mobile; en desktop ya
+       están cubiertos por el sidebar (Home vía logo, Catálogo expandido). -->
+  <button class="nav-tab mobile-only-item" id="mobile-nav-home" onclick="showPage('home',this)"><i class="ti ti-home"></i><span>Inicio</span></button>
+  <button class="nav-tab mobile-only-item" id="mobile-nav-inventory" onclick="showPage('inventory',this)"><i class="ti ti-box"></i><span>Inventario</span></button>
+  <button class="nav-tab mobile-only-item" id="mobile-nav-catalogo" onclick="showPage('catalogo',this)"><i class="ti ti-tag"></i><span>Catálogo</span></button>
+
   <div class="nav-group sidebar-only-item" id="navgroup-catalogo">
     <button class="nav-tab nav-group-header" onclick="toggleNavGroup('navgroup-catalogo')" title="Catálogo">
       <i class="ti ti-category"></i><span>Catálogo</span><i class="ti ti-chevron-right nav-group-chevron"></i>
@@ -993,15 +1011,15 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
           <a href="/stock-alerts" class="nav-tab" title="Alertas de Inventario">
             <i class="ti ti-alert-triangle"></i><span>Alertas de Inventario</span>
           </a>
-          <button class="nav-tab" onclick="showPage('alertasPrecio',this)">
+          <a href="/price-alerts" class="nav-tab" title="Alertas de Precio">
             <i class="ti ti-cash-banknote"></i><span>Alertas de Precio</span>
-          </button>
+          </a>
         </div>
       </div>
     </div>
   </div>
 
-  <button class="nav-tab" onclick="showPage('delivery',this)"><i class="ti ti-truck-delivery"></i><span>Delivery</span></button>
+  <button class="nav-tab" id="nav-delivery-toplevel" onclick="showPage('delivery',this)"><i class="ti ti-truck-delivery"></i><span>Delivery</span></button>
 
   <div class="nav-group sidebar-only-item" id="navgroup-finanzas">
     <button class="nav-tab nav-group-header" onclick="toggleNavGroup('navgroup-finanzas')" title="Finanzas">
@@ -1066,13 +1084,20 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 <div class="sheet-overlay hidden" id="sheet-mobile-more" onclick="if(event.target===this)closeSheet('sheet-mobile-more')">
   <div class="sheet">
     <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-menu-2"></i> Más</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-mobile-more')"><i class="ti ti-x"></i></button>
+    </div>
     <div class="sheet-content" style="padding:16px 20px 28px;display:flex;flex-direction:column;gap:10px">
       <div class="more-sheet-section-title">Catálogo</div>
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('inventory',navTabEl('inventory'))"><i class="ti ti-box"></i> Inventario</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('catalogo',navTabEl('catalogo'))"><i class="ti ti-tag"></i> Catálogo</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('precios',navTabEl('precios'))"><i class="ti ti-currency-dollar"></i> Precios</button>
       <a href="/stock-alerts" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-alert-triangle"></i> Alertas de Inventario</a>
-      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('alertasPrecio',navTabEl('alertasPrecio'))"><i class="ti ti-cash-banknote"></i> Alertas de Precio</button>
+      <a href="/price-alerts" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-cash-banknote"></i> Alertas de Precio</a>
+
+      <div class="more-sheet-section-title">Delivery</div>
+      <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('delivery',navTabEl('delivery'))"><i class="ti ti-truck-delivery"></i> Delivery</button>
 
       <div class="more-sheet-section-title">Finanzas</div>
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');openCatalogTab('pagos')"><i class="ti ti-credit-card"></i> Medios de Pago</button>
@@ -2786,7 +2811,7 @@ function sellable() {
 }
 
 // URL map for nav tabs
-const PAGE_URLS = { home:'/', inventory:'/inventory', catalogo:'/catalog', ventas:'/orders', locales:'/locales', delivery:'/delivery-hub', meson:'/meson-creativo', prefs:'/preferencias', precios:'/precios', alertasPrecio:'/alertas-precio', stockReceipts:'/stock-receipts' };
+const PAGE_URLS = { home:'/', inventory:'/inventory', catalogo:'/catalog', ventas:'/orders', locales:'/locales', delivery:'/delivery-hub', meson:'/meson-creativo', prefs:'/preferencias', precios:'/precios', stockReceipts:'/stock-receipts' };
 
 function showPage(id, el, pushURL = true) {
   // Close order detail overlay when navigating to any tab
@@ -8818,8 +8843,14 @@ async function _renderSalesHeatmap() {
 
 // ── URL ROUTER ────────────────────────────────
 function navTabEl(pageId) {
-  return Array.from(document.querySelectorAll('.nav-tab'))
-    .find(t => t.getAttribute('onclick')?.includes(`'${pageId}'`)) || null;
+  const matches = Array.from(document.querySelectorAll('.nav-tab'))
+    .filter(t => t.getAttribute('onclick')?.includes(`'${pageId}'`));
+  if (!matches.length) return null;
+  // Some pages have two nav-tabs pointing at them — one promoted onto the
+  // mobile bottom bar (.mobile-only-item: Inicio/Inventario/Catálogo) and
+  // one inside the desktop sidebar's Catálogo group — so prefer whichever
+  // is actually visible right now instead of always the first in DOM order.
+  return matches.find(t => t.offsetParent !== null) || matches[0];
 }
 
 // Cierra las páginas de edición (producto, KIT, editar/duplicar orden, nueva
@@ -8956,7 +8987,6 @@ function applyRoute() {
   if (path === '/delivery-hub') { showPage('delivery',      navTabEl('delivery'),   false); return; }
   if (path === '/preferencias') { showPage('prefs',         document.getElementById('prefs-btn'), false); return; }
   if (path === '/precios')      { showPage('precios',       navTabEl('precios'),    false); return; }
-  if (path === '/alertas-precio') { showPage('alertasPrecio', navTabEl('alertasPrecio'), false); return; }
   // Default: home
   showPage('home', navTabEl('home'), false);
 }
