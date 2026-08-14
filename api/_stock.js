@@ -17,6 +17,34 @@
 // lote del cual descontar — se extrapola el costo ponderado observado a la
 // cantidad faltante (mejor aproximación disponible, ver deductStockForItems).
 
+// Un id correlativo simple alcanza acá — a diferencia de otras tablas (ORD-,
+// REC-...) esto no se muestra al usuario como referencia, sólo necesita ser
+// único. timestamp + contador de proceso evita colisiones dentro de la misma
+// venta (varios ítems/componentes se registran en el mismo milisegundo).
+let _movementSeq = 0;
+function _movementId() {
+  _movementSeq = (_movementSeq + 1) % 1e6;
+  return 'MOV-' + Date.now().toString(36).toUpperCase() + '-' + _movementSeq.toString(36).toUpperCase();
+}
+
+// Inserta una fila en stock_movements (tab Historial de Inventario, ver
+// api/_stock_movements_routes.js). `movement` es opcional — deductStockForItems/
+// restoreStockForItems se usan también en contextos que no necesitan quedar
+// en el historial (ninguno hoy, pero deja la puerta abierta sin forzar el
+// registro en cada llamada). No registra deltas en 0 (nada que contar).
+async function _recordMovement(sql, movement, { sku, warehouseId, productName, delta, unitCost, stockAfter }) {
+  if (!movement || !delta) return;
+  const id = _movementId();
+  const valueDelta = delta * (unitCost || 0);
+  await sql`
+    INSERT INTO stock_movements
+      (id, tenant_id, sku, warehouse_id, product_name, type, delta, unit_cost, value_delta, stock_after, ref_type, ref_id, created_by)
+    VALUES
+      (${id}, ${movement.tenantId}, ${sku}, ${warehouseId || ''}, ${productName || ''}, ${movement.type},
+       ${delta}, ${unitCost || 0}, ${valueDelta}, ${stockAfter || 0}, ${movement.refType || ''}, ${movement.refId || ''}, ${movement.actor || 'sistema'})
+  `;
+}
+
 // A KIT's components can live in DIFFERENT warehouses of the SAME store
 // (distinct almacenes/closets), so the right warehouse for a component is
 // resolved by store (locationId), not by the order's blanket warehouse_id —
@@ -76,21 +104,24 @@ function _weightedCost(consumed, requestedQty) {
 // este sku/almacén (la mejor referencia disponible; no hay forma de saber de
 // qué lote salió realmente la venta que se está restaurando sin un registro
 // de consumo por línea de orden, fuera del alcance acá).
+// Devuelve el unit_cost aplicado (el del lote al que se devolvió, o el
+// fallback si tuvo que crear uno nuevo) — lo usa quien llama para registrar
+// el value_delta del movimiento de historial (ver _recordMovement arriba).
 async function _restoreLotsFifo(sql, tenantId, sku, wid, qty) {
-  if (!(qty > 0)) return;
+  if (!(qty > 0)) return 0;
   const [oldest] = await sql`
-    SELECT id FROM stock_receipts
+    SELECT id, unit_cost FROM stock_receipts
     WHERE tenant_id = ${tenantId} AND sku = ${sku} AND warehouse_id = ${wid} AND remaining_qty > 0
     ORDER BY created_at ASC LIMIT 1
   `;
   if (oldest) {
     await sql`UPDATE stock_receipts SET remaining_qty = remaining_qty + ${qty} WHERE id = ${oldest.id}`;
-    return;
+    return oldest.unit_cost;
   }
   const [product] = await sql`
     SELECT name FROM products WHERE sku = ${sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
   `;
-  if (!product) return;
+  if (!product) return 0;
   const [lastLot] = await sql`
     SELECT unit_cost FROM stock_receipts
     WHERE tenant_id = ${tenantId} AND sku = ${sku} AND warehouse_id = ${wid}
@@ -105,6 +136,7 @@ async function _restoreLotsFifo(sql, tenantId, sku, wid, qty) {
       (${id}, ${tenantId}, ${sku}, ${wid}, ${product.name}, 'Restaurado (orden editada o cancelada)', 1, ${qty}, ${qty * fallbackCost}, ${qty}, ${fallbackCost}, ${fallbackCost}, ${qty}, 'sistema')
     ON CONFLICT (id) DO NOTHING
   `;
+  return fallbackCost;
 }
 
 // Deduce stock de los componentes de un KIT (recursivo — un KIT puede
@@ -112,41 +144,56 @@ async function _restoreLotsFifo(sql, tenantId, sku, wid, qty) {
 // — components es una lista PLANA (los KITs anidados se aplanan) con la
 // cantidad y el costo ponderado real consumido por cada componente, para la
 // qty total pedida (no normalizado por unidad — eso lo hace quien llama).
-async function _deductKit(sql, kitSku, qty, wid, tenantId, locationId) {
+async function _deductKit(sql, kitSku, qty, wid, tenantId, locationId, movement) {
   const [kit] = await sql`SELECT items FROM kits WHERE sku = ${kitSku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
   if (!kit?.items) return { totalCost: 0, components: [] };
   const components = [];
   let totalCost = 0;
   for (const comp of kit.items) {
     if (comp.type === 'kit') {
-      const nested = await _deductKit(sql, comp.sku, comp.qty * qty, wid, tenantId, locationId);
+      const nested = await _deductKit(sql, comp.sku, comp.qty * qty, wid, tenantId, locationId, movement);
       totalCost += nested.totalCost;
       components.push(...nested.components);
     } else {
       const compWid = await _componentWarehouseId(sql, tenantId, comp.sku, locationId, wid);
       const compQty = comp.qty * qty;
-      await sql`UPDATE products SET stock = GREATEST(0, stock - ${compQty}), updated_at = NOW()
-        WHERE sku = ${comp.sku} AND warehouse_id = ${compWid} AND tenant_id = ${tenantId}`;
+      const [row] = await sql`UPDATE products SET stock = GREATEST(0, stock - ${compQty}), updated_at = NOW()
+        WHERE sku = ${comp.sku} AND warehouse_id = ${compWid} AND tenant_id = ${tenantId}
+        RETURNING stock, name`;
       const consumed = await _consumeLotsFifo(sql, tenantId, comp.sku, compWid, compQty);
       const { unitCost, totalCost: lineCost } = _weightedCost(consumed, compQty);
       totalCost += lineCost;
       components.push({ sku: comp.sku, warehouseId: compWid || '', quantity: compQty, unitCost, totalCost: lineCost });
+      if (row) {
+        await _recordMovement(sql, movement, {
+          sku: comp.sku, warehouseId: compWid, productName: row.name,
+          delta: -compQty, unitCost, stockAfter: row.stock,
+        });
+      }
     }
   }
   return { totalCost, components };
 }
 
-async function _restoreKit(sql, kitSku, qty, wid, tenantId, locationId) {
+async function _restoreKit(sql, kitSku, qty, wid, tenantId, locationId, movement) {
   const [kit] = await sql`SELECT items FROM kits WHERE sku = ${kitSku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
   if (!kit?.items) return;
   for (const comp of kit.items) {
     if (comp.type === 'kit') {
-      await _restoreKit(sql, comp.sku, comp.qty * qty, wid, tenantId, locationId);
+      await _restoreKit(sql, comp.sku, comp.qty * qty, wid, tenantId, locationId, movement);
     } else {
       const compWid = await _componentWarehouseId(sql, tenantId, comp.sku, locationId, wid);
-      await sql`UPDATE products SET stock = stock + ${comp.qty * qty}, updated_at = NOW()
-        WHERE sku = ${comp.sku} AND warehouse_id = ${compWid} AND tenant_id = ${tenantId}`;
-      await _restoreLotsFifo(sql, tenantId, comp.sku, compWid, comp.qty * qty);
+      const compQty = comp.qty * qty;
+      const [row] = await sql`UPDATE products SET stock = stock + ${compQty}, updated_at = NOW()
+        WHERE sku = ${comp.sku} AND warehouse_id = ${compWid} AND tenant_id = ${tenantId}
+        RETURNING stock, name`;
+      const unitCost = await _restoreLotsFifo(sql, tenantId, comp.sku, compWid, compQty);
+      if (row) {
+        await _recordMovement(sql, movement, {
+          sku: comp.sku, warehouseId: compWid, productName: row.name,
+          delta: compQty, unitCost, stockAfter: row.stock,
+        });
+      }
     }
   }
 }
@@ -156,13 +203,18 @@ async function _restoreKit(sql, kitSku, qty, wid, tenantId, locationId) {
 // `items` con el costo REAL consumido por cada línea: { unitCost, totalCost,
 // components? } — components sólo en líneas KIT, normalizado a "por 1
 // unidad del KIT" (mismo shape que el componentBreakdown histórico).
-async function deductStockForItems(sql, items, tenantId, orderWarehouseId, locationId) {
+// `movement` (opcional) — { tenantId, type, refType, refId, actor } — cuando
+// se pasa, registra un movimiento en stock_movements por cada SKU real
+// tocado (KITs se descomponen en sus componentes, ver _deductKit). Sin
+// `movement` se comporta exactamente igual que antes (usado en contextos que
+// no deben quedar en el historial).
+async function deductStockForItems(sql, items, tenantId, orderWarehouseId, locationId, movement = null) {
   const results = [];
   for (const item of items) {
     const wid = item.warehouse_id || orderWarehouseId || '';
     const qty = item.qty || 0;
     if (item.type === 'kit') {
-      const { totalCost, components } = await _deductKit(sql, item.sku, qty, wid, tenantId, locationId);
+      const { totalCost, components } = await _deductKit(sql, item.sku, qty, wid, tenantId, locationId, movement);
       results.push({
         unitCost: qty > 0 ? totalCost / qty : 0,
         totalCost,
@@ -174,12 +226,20 @@ async function deductStockForItems(sql, items, tenantId, orderWarehouseId, locat
         })),
       });
     } else {
-      await sql`
+      const [row] = await sql`
         UPDATE products SET stock = GREATEST(0, stock - ${qty}), updated_at = NOW()
         WHERE sku = ${item.sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
+        RETURNING stock, name
       `;
       const consumed = await _consumeLotsFifo(sql, tenantId, item.sku, wid, qty);
-      results.push(_weightedCost(consumed, qty));
+      const costInfo = _weightedCost(consumed, qty);
+      results.push(costInfo);
+      if (row) {
+        await _recordMovement(sql, movement, {
+          sku: item.sku, warehouseId: wid, productName: row.name,
+          delta: -qty, unitCost: costInfo.unitCost, stockAfter: row.stock,
+        });
+      }
     }
   }
   return results;
@@ -189,19 +249,27 @@ async function deductStockForItems(sql, items, tenantId, orderWarehouseId, locat
 // deductStockForItems, used when items are removed/reduced from an order
 // that already decremented stock (ver PUT /api/orders/:id action=items) o
 // se elimina una orden restituyendo su stock.
-async function restoreStockForItems(sql, items, tenantId, orderWarehouseId, locationId) {
+// `movement` — mismo contrato que deductStockForItems.
+async function restoreStockForItems(sql, items, tenantId, orderWarehouseId, locationId, movement = null) {
   for (const item of items) {
     const wid = item.warehouse_id || orderWarehouseId || '';
     if (item.type === 'kit') {
-      await _restoreKit(sql, item.sku, item.qty, wid, tenantId, locationId);
+      await _restoreKit(sql, item.sku, item.qty, wid, tenantId, locationId, movement);
     } else {
-      await sql`
+      const [row] = await sql`
         UPDATE products SET stock = stock + ${item.qty}, updated_at = NOW()
         WHERE sku = ${item.sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
+        RETURNING stock, name
       `;
-      await _restoreLotsFifo(sql, tenantId, item.sku, wid, item.qty);
+      const unitCost = await _restoreLotsFifo(sql, tenantId, item.sku, wid, item.qty);
+      if (row) {
+        await _recordMovement(sql, movement, {
+          sku: item.sku, warehouseId: wid, productName: row.name,
+          delta: item.qty, unitCost, stockAfter: row.stock,
+        });
+      }
     }
   }
 }
 
-module.exports = { deductStockForItems, restoreStockForItems };
+module.exports = { deductStockForItems, restoreStockForItems, recordStockMovement: _recordMovement };

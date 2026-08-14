@@ -524,6 +524,38 @@ module.exports = async (req, res) => {
     `;
     await sql`CREATE INDEX IF NOT EXISTS price_alert_runs_tenant_idx ON price_alert_runs (tenant_id, generated_at DESC)`;
 
+    // ── Historial de movimientos de stock (tab Historial en Inventario) ────
+    // Un registro por cada vez que products.stock sube o baja: venta
+    // (decremento, ver deductStockForItems en api/_stock.js), restitución al
+    // eliminar una orden con "devolver stock" o al editar una Pre Compra
+    // (incremento, restoreStockForItems), e Ingreso de inventario
+    // (incremento, api/_stock_receipts_routes.js). value_delta = delta *
+    // unit_cost — variación del valor de inventario que produjo este
+    // movimiento, usada para reconstruir la serie de "valor de stock" del
+    // gráfico anual sin mantener un total acumulado aparte (ver
+    // api/_stock_movements_routes.js). stock_after es el stock del SKU/
+    // almacén ya después de este movimiento — snapshot inmutable, igual
+    // criterio que stock_alert_runs.items: nunca se recalcula después.
+    await sql`
+      CREATE TABLE IF NOT EXISTS stock_movements (
+        id           TEXT PRIMARY KEY,
+        tenant_id    TEXT NOT NULL DEFAULT 'TEN-001',
+        sku          TEXT NOT NULL,
+        warehouse_id TEXT NOT NULL DEFAULT '',
+        product_name TEXT NOT NULL DEFAULT '',
+        type         TEXT NOT NULL,
+        delta        INTEGER NOT NULL,
+        unit_cost    NUMERIC NOT NULL DEFAULT 0,
+        value_delta  NUMERIC NOT NULL DEFAULT 0,
+        stock_after  INTEGER NOT NULL DEFAULT 0,
+        ref_type     TEXT DEFAULT '',
+        ref_id       TEXT DEFAULT '',
+        created_by   TEXT DEFAULT '',
+        created_at   TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS stock_movements_tenant_idx ON stock_movements (tenant_id, created_at DESC)`;
+
     // ── Finanzas: categorías de gasto ──────────────────────────────────────
     await sql`
       CREATE TABLE IF NOT EXISTS expense_categories (

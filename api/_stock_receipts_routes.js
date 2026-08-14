@@ -29,6 +29,7 @@
 // o el del último lote registrado si no queda ninguno activo (ver
 // api/_finance.js:loadCostMaps, misma lógica).
 const { writeLog } = require('./_log');
+const { recordStockMovement } = require('./_stock');
 
 const STOCK_RECEIPT_RESOURCES = ['stock-receipts'];
 
@@ -139,6 +140,12 @@ async function handleStockReceiptsResource(req, res, sql, session, tenantId, act
           entity_name: `${line.sku} — ${product.name}`,
           details:     { id, form_label: formLabel, qty_purchased: line.qty_purchased, factor, units_added: unitsAdded, total_cost: totalCost, product_cost: newCost },
         });
+        // Historial de movimientos de stock (tab Historial en Inventario) —
+        // usa unit_cost (el costo real de ESTA compra), no newCost (el costo
+        // de referencia del lote FIFO más viejo), para que value_delta
+        // refleje la plata efectivamente gastada en este ingreso.
+        await recordStockMovement(sql, { tenantId, type: 'ingreso', refType: 'stock_receipt', refId: id, actor },
+          { sku: line.sku, warehouseId: wid, productName: product.name, delta: unitsAdded, unitCost, stockAfter: updated.stock });
       }
 
       return res.status(201).json({ receipts });

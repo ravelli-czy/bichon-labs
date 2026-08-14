@@ -685,8 +685,9 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <div class="tab" id="itab-alertas" onclick="switchInvTab('alertas',this)">Alertas<span class="tbadge" id="alert-tab-count" style="display:none">0</span></div>
       <div class="tab" id="itab-kits" onclick="switchInvTab('kits',this)">KITs<span class="tbadge" id="kit-alert-tab-count" style="display:none">0</span></div>
       <div class="tab" id="itab-todos" onclick="switchInvTab('todos',this)">Todos</div>
+      <div class="tab" id="itab-historial" onclick="switchInvTab('historial',this)">Historial</div>
     </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:10px" id="inv-filter-row">
       <div class="chip-group-wrap" id="inv-type-filter">
         <div class="chip-group selected" id="itype-venta" onclick="switchInvTypeFilter('venta')"><i class="ti ti-shopping-cart"></i>Venta</div>
         <div class="chip-group" id="itype-insumos" onclick="switchInvTypeFilter('insumos')"><i class="ti ti-tool"></i>Insumos</div>
@@ -699,6 +700,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     </div>
     <div id="inv-content"></div>
     <div id="kits-content" style="display:none"></div>
+    <div id="historial-content" style="display:none"></div>
   </div>
 
   <!-- VENTAS -->
@@ -1084,7 +1086,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 <div class="sheet-overlay hidden" id="sheet-mobile-more" onclick="if(event.target===this)closeSheet('sheet-mobile-more')">
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-header">
+    <div class="sheet-header" style="padding-top:28px">
       <div class="sheet-title"><i class="ti ti-menu-2"></i> Más</div>
       <button class="sheet-close" onclick="closeSheet('sheet-mobile-more')"><i class="ti ti-x"></i></button>
     </div>
@@ -2837,17 +2839,27 @@ function showPage(id, el, pushURL = true) {
 
     const invContent  = document.getElementById('inv-content');
     const kitsContent = document.getElementById('kits-content');
+    const historialContent = document.getElementById('historial-content');
     const searchBar   = document.getElementById('inv-search-bar');
+    const filterRow   = document.getElementById('inv-filter-row');
     document.getElementById('itype-venta').classList.toggle('selected', S.invTypeFilter === 'venta');
     document.getElementById('itype-insumos').classList.toggle('selected', S.invTypeFilter === 'insumos');
-    if (searchBar) searchBar.style.display = '';
-    if (S.invTab === 'kits') {
+    if (searchBar) searchBar.style.display = S.invTab === 'historial' ? 'none' : '';
+    if (filterRow) filterRow.style.display = S.invTab === 'historial' ? 'none' : '';
+    if (S.invTab === 'historial') {
+      if (invContent) invContent.style.display = 'none';
+      if (kitsContent) kitsContent.style.display = 'none';
+      if (historialContent) historialContent.style.display = '';
+      renderStockHistory();
+    } else if (S.invTab === 'kits') {
       if (invContent)  invContent.style.display  = 'none';
       if (kitsContent) kitsContent.style.display = '';
+      if (historialContent) historialContent.style.display = 'none';
       renderKits();
     } else {
       if (invContent)  invContent.style.display  = '';
       if (kitsContent) kitsContent.style.display = 'none';
+      if (historialContent) historialContent.style.display = 'none';
       renderInventory();
     }
   }
@@ -2875,16 +2887,27 @@ function switchInvTab(tab, el) {
   if (target) target.classList.add('active');
   const invContent  = document.getElementById('inv-content');
   const kitsContent = document.getElementById('kits-content');
+  const historialContent = document.getElementById('historial-content');
   const searchBar   = document.getElementById('inv-search-bar');
-  if (searchBar) searchBar.style.display = '';
-  if (tab === 'kits') {
+  const filterRow   = document.getElementById('inv-filter-row');
+  if (searchBar) searchBar.style.display = tab === 'historial' ? 'none' : '';
+  if (filterRow) filterRow.style.display = tab === 'historial' ? 'none' : '';
+  if (tab === 'historial') {
+    if (invContent) invContent.style.display = 'none';
+    if (kitsContent) kitsContent.style.display = 'none';
+    if (historialContent) historialContent.style.display = '';
+    if (S.currentPage === 'inventory') renderStockHistory();
+    else showPage('inventory');
+  } else if (tab === 'kits') {
     if (invContent)  invContent.style.display  = 'none';
     if (kitsContent) kitsContent.style.display = '';
+    if (historialContent) historialContent.style.display = 'none';
     if (S.currentPage === 'inventory') renderKits();
     else showPage('inventory');
   } else {
     if (invContent)  invContent.style.display  = '';
     if (kitsContent) kitsContent.style.display = 'none';
+    if (historialContent) historialContent.style.display = 'none';
     if (S.currentPage === 'inventory') renderInventory();
     else showPage('inventory');
   }
@@ -2898,6 +2921,135 @@ function switchInvTypeFilter(type) {
   document.getElementById('itype-insumos').classList.toggle('selected', type === 'insumos');
   if (S.invTab === 'kits') renderKits();
   else renderInventory();
+}
+
+// ── INVENTARIO: HISTORIAL ──────────────────────
+// Tab "Historial" — todo lo que sube o baja products.stock, con fecha: venta
+// (decremento), restitución al eliminar una orden o editar una Pre Compra
+// (incremento), Ingreso de inventario (incremento). Ver stock_movements en
+// api/setup.js y quién escribe cada fila (deductStockForItems/
+// restoreStockForItems en api/_stock.js, y el POST de
+// api/_stock_receipts_routes.js).
+const MOVEMENT_TYPE_META = {
+  venta:         { label: 'Venta',                icon: 'ti-shopping-cart',   positive: false },
+  restitucion:   { label: 'Orden eliminada (restitución)', icon: 'ti-rotate', positive: true  },
+  edicion_orden: { label: 'Edición de venta',      icon: 'ti-edit',            positive: null  },
+  ingreso:       { label: 'Ingreso de mercadería', icon: 'ti-truck-delivery',  positive: true  },
+};
+function _movTypeMeta(type, delta) {
+  const base = MOVEMENT_TYPE_META[type] || { label: type, icon: 'ti-arrows-exchange', positive: null };
+  const positive = base.positive === null ? delta > 0 : base.positive;
+  return { ...base, positive };
+}
+function fmtHistDay(dayStr) {
+  return new Date(dayStr + 'T12:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+}
+function fmtHistDateTime(iso) {
+  return new Date(iso).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+let _stockHistoryChart = null;
+let _stockHistoryData = null; // cache: { current_value, movements } — se recarga con el botón "Actualizar"
+async function renderStockHistory(forceReload = false) {
+  const el = document.getElementById('historial-content');
+  if (!el) return;
+  if (!_stockHistoryData || forceReload) {
+    el.innerHTML = `<div class="skeleton" style="height:260px"></div><div class="skeleton" style="height:56px"></div>`;
+    try {
+      _stockHistoryData = await apiFetch('/api/products?resource=stock-movements');
+    } catch (e) {
+      el.innerHTML = `<div class="empty-state"><i class="ti ti-alert-triangle"></i><p>No se pudo cargar el historial.<br>${e.message}</p></div>`;
+      return;
+    }
+  }
+  _renderStockHistoryUI(_stockHistoryData);
+}
+
+function _renderStockHistoryUI(data) {
+  const el = document.getElementById('historial-content');
+  const movements = data.movements || [];
+  const currentValue = Number(data.current_value) || 0;
+  const year = new Date().getFullYear();
+
+  if (!movements.length) {
+    el.innerHTML = `
+      <div class="chart-card">
+        <div class="chart-card-title"><i class="ti ti-chart-line"></i> Valor de stock — ${year}</div>
+        <div class="empty-state"><i class="ti ti-history"></i><p>Todavía no hay movimientos de stock registrados este año.</p></div>
+      </div>`;
+    return;
+  }
+
+  // Serie diaria: agrupa value_delta por día, luego reconstruye el valor de
+  // inventario al cierre de cada día CAMINANDO HACIA ATRÁS desde el valor
+  // actual (en vivo, calculado por el backend) — evita mantener un total
+  // acumulado aparte que podría desincronizarse con products.stock real.
+  const byDay = new Map();
+  movements.forEach(m => {
+    const day = m.created_at.slice(0, 10);
+    byDay.set(day, (byDay.get(day) || 0) + Number(m.value_delta || 0));
+  });
+  const days = [...byDay.keys()].sort();
+  const valueAtClose = new Array(days.length);
+  valueAtClose[days.length - 1] = currentValue;
+  for (let i = days.length - 2; i >= 0; i--) valueAtClose[i] = valueAtClose[i + 1] - byDay.get(days[i + 1]);
+  const openingValue = valueAtClose[0] - byDay.get(days[0]);
+
+  const chartLabels = ['Inicio', ...days.map(fmtHistDay)];
+  const chartValues = [openingValue, ...valueAtClose];
+
+  el.innerHTML = `
+    <div class="chart-card">
+      <div class="chart-card-title"><i class="ti ti-chart-line"></i> Valor de stock — ${year}</div>
+      <div class="chart-canvas-wrap"><canvas id="stock-history-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">
+        <i class="ti ti-history"></i> Movimientos (${movements.length})
+        <button class="btn btn-outline btn-sm" onclick="renderStockHistory(true)" style="margin-left:auto;padding:6px 12px;font-size:12px;background:none;color:var(--text2);border:1.5px solid var(--border);border-radius:10px;display:flex;align-items:center;gap:6px;cursor:pointer"><i class="ti ti-refresh"></i> Actualizar</button>
+      </div>
+      <div id="stock-history-list"></div>
+    </div>`;
+
+  if (window.Chart) {
+    if (_stockHistoryChart) _stockHistoryChart.destroy();
+    _stockHistoryChart = new Chart(document.getElementById('stock-history-chart'), {
+      type: 'line',
+      data: { labels: chartLabels, datasets: [{
+        data: chartValues, borderColor: '#5b4fff', backgroundColor: 'rgba(91,79,255,.12)',
+        fill: true, tension: .25, pointRadius: chartValues.length > 60 ? 0 : 3,
+        pointBackgroundColor: '#5b4fff', borderWidth: 2,
+      }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmt(ctx.parsed.y) } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#9a9bb8', font: { family: 'Nunito', size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+          y: { grid: { color: '#e4e5f0' }, ticks: { color: '#9a9bb8', font: { family: 'Nunito', size: 11 }, callback: v => fmt(v) } },
+        },
+      },
+    });
+  }
+
+  const sorted = movements.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  document.getElementById('stock-history-list').innerHTML = sorted.slice(0, 300).map(m => {
+    const meta = _movTypeMeta(m.type, Number(m.delta));
+    const delta = Number(m.delta);
+    return `<div class="product-item">
+      <div class="product-icon" style="background:${meta.positive ? 'var(--green-light)' : 'var(--red-light)'}"><i class="ti ${meta.icon}" style="color:${meta.positive ? 'var(--green-dark)' : 'var(--red)'}"></i></div>
+      <div class="product-info">
+        <div class="product-name">${m.product_name || m.sku}</div>
+        <div class="product-meta" style="gap:5px;margin-top:3px">
+          <span style="font-size:9px;font-weight:700;color:var(--text3);font-family:monospace;background:var(--bg3);padding:1px 5px;border-radius:5px">${m.sku}</span>
+          <span style="font-size:11px;color:var(--text3);font-weight:600">${meta.label} · ${fmtHistDateTime(m.created_at)}</span>
+        </div>
+      </div>
+      <div class="product-right">
+        <div class="stock-num" style="color:${meta.positive ? 'var(--green-dark)' : 'var(--red)'}">${delta > 0 ? '+' : ''}${delta}</div>
+        <div class="stock-label">stock: ${m.stock_after}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ── PRECIOS ───────────────────────────────────
