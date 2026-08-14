@@ -32,6 +32,7 @@ body.dark-mode{
   --sh:0 2px 14px rgba(0,0,0,.4);--sh-md:0 4px 20px rgba(0,0,0,.45);
 }
 body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-height:100vh;max-width:520px;margin:0 auto}
+div[role="button"]:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 
 .topbar{background:var(--bg2);padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:var(--sh)}
 .logo-icon{width:36px;height:36px;background:var(--primary);border-radius:10px;display:flex;align-items:center;justify-content:center}
@@ -1357,6 +1358,35 @@ async function initLocales() {
   }
 }
 initLocales();
+
+// Accessibility: <div onclick=...> is used throughout this page as a lightweight
+// clickable card/option, but plain divs are invisible to keyboard navigation and
+// screen readers. Patch them generically instead of touching every call site:
+// make them focusable + announced as buttons, and let Enter/Space activate them.
+(function enableClickableDivA11y() {
+  function patch(el) {
+    if (!el.hasAttribute('tabindex')) el.tabIndex = 0;
+    if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
+  }
+  document.querySelectorAll('div[onclick]').forEach(patch);
+  new MutationObserver(muts => {
+    for (const m of muts) {
+      for (const node of m.addedNodes) {
+        if (node.nodeType !== 1) continue;
+        if (node.matches && node.matches('div[onclick]')) patch(node);
+        if (node.querySelectorAll) node.querySelectorAll('div[onclick]').forEach(patch);
+      }
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const el = e.target;
+    if (el && el.tagName === 'DIV' && el.hasAttribute('onclick')) {
+      e.preventDefault();
+      el.click();
+    }
+  });
+})();
 </script>
 </body>
 </html>

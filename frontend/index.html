@@ -192,6 +192,9 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
 .search-bar input{flex:1;border:none;background:none;outline:none;font-family:'Nunito',sans-serif;font-size:15px;font-weight:600;color:var(--text)}
 .search-bar input::placeholder{color:var(--text3)}
 
+/* Visible focus ring for divs turned into keyboard-operable controls (see enableClickableDivA11y) */
+div[role="button"]:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+
 /* SHEET */
 .sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-end;backdrop-filter:blur(2px)}
 .sheet-overlay.hidden{display:none}
@@ -707,7 +710,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
       <button id="btn-select-ventas" onclick="toggleVentasSelectMode()" style="background:none;color:var(--text2);font-size:13px;font-weight:800;padding:8px 14px;border-radius:12px;display:flex;align-items:center;gap:6px;border:1.5px solid var(--border);cursor:pointer;white-space:nowrap"><i class="ti ti-checkbox"></i> Seleccionar</button>
       <button onclick="printReceptores()" style="background:none;color:var(--primary);font-size:13px;font-weight:800;padding:8px 14px;border-radius:12px;display:flex;align-items:center;gap:6px;border:1.5px solid var(--primary);cursor:pointer;white-space:nowrap"><i class="ti ti-printer"></i> Receptor</button>
-      <button onclick="openSheetVenta()" style="background:var(--red);color:#fff;font-size:13px;font-weight:800;padding:9px 16px;border-radius:12px;display:flex;align-items:center;gap:6px;border:none;cursor:pointer;white-space:nowrap"><i class="ti ti-shopping-bag"></i> Nueva venta</button>
+      <button onclick="openSheetVenta()" style="background:var(--primary);color:#fff;font-size:13px;font-weight:800;padding:9px 16px;border-radius:12px;display:flex;align-items:center;gap:6px;border:none;cursor:pointer;white-space:nowrap"><i class="ti ti-shopping-bag"></i> Nueva venta</button>
     </div>
     <!-- search + status filter for ventas -->
     <div class="search-bar" style="margin-bottom:10px">
@@ -968,7 +971,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
         <div class="pref-group-title">Datos</div>
         <div class="pref-label">Borrar toda la información del cliente activo</div>
         <div class="pref-hint" style="margin-bottom:10px">Elimina productos, KITs, órdenes y envíos. Esta acción <strong>no puede deshacerse</strong>.</div>
-        <button onclick="clearTenantData()" style="width:100%;padding:10px 16px;background:var(--red-light);color:var(--red);border:1.5px solid var(--red);border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+        <button onclick="openClearTenantDataSheet()" style="width:100%;padding:10px 16px;background:var(--red-light);color:var(--red);border:1.5px solid var(--red);border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
           <i class="ti ti-trash"></i> Limpiar datos de inventario y ventas
         </button>
       </div>
@@ -1558,6 +1561,29 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div class="sheet-footer">
       <button class="btn btn-outline" onclick="closeSheet('sheet-eliminar-orden')" style="flex:1;width:auto">Cancelar</button>
       <button class="btn btn-red" id="btn-confirmar-eliminar" onclick="confirmarEliminarOrden()" disabled style="flex:2"><i class="ti ti-trash"></i> Eliminar orden</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: BORRAR TODOS LOS DATOS DEL TENANT -->
+<div class="sheet-overlay hidden" id="sheet-clear-tenant-data">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-alert-triangle" style="color:var(--red)"></i> Borrar todos los datos</div>
+      <button class="sheet-close" onclick="closeClearTenantDataSheet()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content">
+      <div style="background:#fee2e2;border:1.5px solid var(--red);border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;font-size:13px;font-weight:600;color:#7f1d1d;display:flex;gap:10px;align-items:flex-start">
+        <i class="ti ti-alert-triangle" style="font-size:18px;flex-shrink:0;margin-top:1px"></i>
+        <span>Esta acción es <strong>irreversible</strong> y no tiene vuelta atrás. Se eliminarán <strong>todos</strong> los productos, KITs, órdenes y envíos de este negocio.</span>
+      </div>
+      <div class="form-label mb-2">Para confirmar, escribe <strong id="clear-tenant-data-phrase"></strong> abajo</div>
+      <input class="form-input" id="clear-tenant-data-input" autocomplete="off" oninput="checkClearTenantDataInput()" placeholder="Escribe aquí para confirmar">
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-outline" onclick="closeClearTenantDataSheet()" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-red" id="btn-confirmar-clear-tenant-data" onclick="confirmClearTenantData()" disabled style="flex:2"><i class="ti ti-trash"></i> Borrar todo</button>
     </div>
   </div>
 </div>
@@ -2180,7 +2206,7 @@ async function advanceOrderStatus(id) {
     toast('✅ Estado actualizado');
     if (S.currentPage === 'ventas') renderVentas();
     if (currentDetalleId === id) openOrdenDetalle(id, false);
-  } catch(e) { toast('⚠️ Error al actualizar estado'); }
+  } catch(e) { toast('⚠️ Error al actualizar estado: ' + (e.message || 'intenta de nuevo')); }
 }
 
 // Pre Compra: la orden llegó vía API de un sistema tercero (order_type:
@@ -2196,7 +2222,7 @@ async function startPreCompraConfirmation(id) {
     v.status = updated.status;
     if (S.currentPage === 'ventas') renderVentas();
     openOrderEditSheet(id);
-  } catch(e) { toast('⚠️ Error al iniciar la confirmación'); }
+  } catch(e) { toast('⚠️ Error al iniciar la confirmación: ' + (e.message || 'intenta de nuevo')); }
 }
 
 // ── CHECKLIST "INICIAR PREPARACIÓN" ───────────
@@ -2336,7 +2362,7 @@ async function markOrderDelivered(orderId) {
     toast('✅ Orden marcada como entregada');
     if (S.currentPage === 'ventas') renderVentas();
     if (currentDetalleId === orderId) openOrdenDetalle(orderId, false);
-  } catch (e) { toast('⚠️ Error al marcar como entregada'); }
+  } catch (e) { toast('⚠️ Error al marcar como entregada: ' + (e.message || 'intenta de nuevo')); }
 }
 
 // ── Load all data from API on startup ─────────
@@ -2388,6 +2414,38 @@ async function initApp() {
   applyRoute();
   renderHome();
 }
+
+// Accessibility: <div onclick=...> is used throughout this app as a lightweight
+// clickable card/chip/option (method cards, date grid, filter chips, etc.), but
+// plain divs are invisible to keyboard navigation and screen readers. Rather than
+// touching every one of those call sites (and the many more added over time via
+// innerHTML re-renders), patch them generically: make them focusable + announced
+// as buttons, and let Enter/Space activate them like a real click would.
+function enableClickableDivA11y() {
+  function patch(el) {
+    if (!el.hasAttribute('tabindex')) el.tabIndex = 0;
+    if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
+  }
+  document.querySelectorAll('div[onclick]').forEach(patch);
+  new MutationObserver(muts => {
+    for (const m of muts) {
+      for (const node of m.addedNodes) {
+        if (node.nodeType !== 1) continue;
+        if (node.matches && node.matches('div[onclick]')) patch(node);
+        if (node.querySelectorAll) node.querySelectorAll('div[onclick]').forEach(patch);
+      }
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const el = e.target;
+    if (el && el.tagName === 'DIV' && el.hasAttribute('onclick')) {
+      e.preventDefault();
+      el.click();
+    }
+  });
+}
+enableClickableDivA11y();
 
 initApp();
 
@@ -3176,16 +3234,48 @@ function setWarehouse(id) {
   renderKits(); // KITs también se filtran/dividen por tienda (ver kitQualifyingLocales)
 }
 
-async function clearTenantData() {
-  if (!confirm('¿Borrar TODOS los productos, KITs, órdenes y envíos?\n\nEsta acción no puede deshacerse.')) return;
+function _clearTenantDataPhrase() {
+  return (localStorage.getItem('sf_tenant_name') || '').trim() || 'BORRAR TODO';
+}
+
+function openClearTenantDataSheet() {
+  const phrase = _clearTenantDataPhrase();
+  document.getElementById('clear-tenant-data-phrase').textContent = phrase;
+  const input = document.getElementById('clear-tenant-data-input');
+  input.value = '';
+  const btn = document.getElementById('btn-confirmar-clear-tenant-data');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-trash"></i> Borrar todo';
+  openSheet('sheet-clear-tenant-data');
+  setTimeout(() => input.focus(), 50);
+}
+
+function closeClearTenantDataSheet() {
+  closeSheet('sheet-clear-tenant-data');
+}
+
+function checkClearTenantDataInput() {
+  const input = document.getElementById('clear-tenant-data-input');
+  const btn = document.getElementById('btn-confirmar-clear-tenant-data');
+  btn.disabled = input.value.trim() !== _clearTenantDataPhrase();
+}
+
+async function confirmClearTenantData() {
+  if (document.getElementById('clear-tenant-data-input').value.trim() !== _clearTenantDataPhrase()) return;
+  const btn = document.getElementById('btn-confirmar-clear-tenant-data');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Borrando...';
   try {
     await apiFetch('/api/setup?clear=1', { method: 'POST' });
     S.products = []; S.kits = []; S.ventas = [];
+    closeClearTenantDataSheet();
     toast('✅ Datos eliminados correctamente');
     renderHome();
     if (S.currentPage === 'inventory') renderInventory();
     if (S.currentPage === 'ventas') renderVentas();
   } catch(e) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-trash"></i> Borrar todo';
     toast('❌ Error: ' + (e.message || 'No se pudo borrar'));
   }
 }

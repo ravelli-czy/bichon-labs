@@ -414,6 +414,34 @@ body.embedded .content{padding-top:12px}
   </div>
 </div>
 
+<!-- SHEET: MOTIVO DE NO ENTREGA (mismas opciones que usa el repartidor en driver.html,
+     para no pedirle al usuario un motivo distinto según qué pantalla del flujo de
+     reparto esté usando) -->
+<div class="sheet-overlay hidden" id="sheet-fail-reason">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title"><i class="ti ti-circle-x" style="color:var(--red)"></i> ¿Por qué no se entregó?</div>
+      <button class="sheet-close" onclick="closeSheet('sheet-fail-reason')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-content">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px" id="fail-reason-opts">
+        <div class="pill-opt" onclick="selectFailReasonOpt(this,'Nadie en casa')">Nadie en casa</div>
+        <div class="pill-opt" onclick="selectFailReasonOpt(this,'Dirección incorrecta')">Dirección incorrecta</div>
+        <div class="pill-opt" onclick="selectFailReasonOpt(this,'Cliente rechazó el pedido')">Cliente rechazó el pedido</div>
+        <div class="pill-opt" onclick="selectFailReasonOpt(this,'Zona sin acceso')">Zona sin acceso</div>
+        <div class="pill-opt" onclick="selectFailReasonOpt(this,'Otro')">Otro motivo</div>
+      </div>
+      <textarea class="form-input" id="fail-reason-note" placeholder="Notas adicionales (opcional)..." rows="2"></textarea>
+      <input type="hidden" id="fail-reason-shipment-id">
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-outline" onclick="closeSheet('sheet-fail-reason')" style="flex:1;width:auto">Cancelar</button>
+      <button class="btn btn-red" id="btn-confirm-fail-reason" onclick="confirmFailReason()" disabled style="flex:2"><i class="ti ti-circle-x"></i> Confirmar</button>
+    </div>
+  </div>
+</div>
+
 <!-- SHEET: CONFIG ETIQUETA -->
 <div class="sheet-overlay hidden" id="sheet-label">
   <div class="sheet">
@@ -851,9 +879,38 @@ function openDetail(id, pushURL = true) {
 }
 
 async function changeStatus(id, newStatus) {
+  if (newStatus === 'not_delivered') {
+    document.getElementById('fail-reason-shipment-id').value = id;
+    document.getElementById('fail-reason-note').value = '';
+    document.querySelectorAll('#fail-reason-opts .pill-opt').forEach(o => o.classList.remove('selected'));
+    S._failReason = null;
+    document.getElementById('btn-confirm-fail-reason').disabled = true;
+    closeDetail();
+    openSheet('sheet-fail-reason');
+    return;
+  }
+  await applyStatusChange(id, newStatus, STATUS_META[newStatus].label);
+}
+
+function selectFailReasonOpt(el, reason) {
+  document.querySelectorAll('#fail-reason-opts .pill-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  S._failReason = reason;
+  document.getElementById('btn-confirm-fail-reason').disabled = false;
+}
+
+async function confirmFailReason() {
+  if (!S._failReason) return;
+  const id = document.getElementById('fail-reason-shipment-id').value;
+  const extra = document.getElementById('fail-reason-note').value.trim();
+  const note = S._failReason + (extra ? ' — ' + extra : '');
+  closeSheet('sheet-fail-reason');
+  await applyStatusChange(id, 'not_delivered', note);
+}
+
+async function applyStatusChange(id, newStatus, note) {
   const s = S.shipments.find(x => x.id === id);
   if (!s) return;
-  const note = newStatus==='not_delivered' ? prompt('Motivo (opcional):') || 'Sin motivo especificado' : STATUS_META[newStatus].label;
   // Optimistic update
   s.status = newStatus;
   if (newStatus === 'on_the_way') s.attempts = (s.attempts||0) + 1;

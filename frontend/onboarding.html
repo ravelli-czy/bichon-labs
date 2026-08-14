@@ -418,7 +418,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Nunito
 
   <div class="step-nav">
     <button class="btn btn-outline" onclick="goStep(4)" style="width:auto;padding:14px 20px"><i class="ti ti-arrow-left"></i></button>
-    <button class="btn btn-green" onclick="finishOnboarding()">
+    <button class="btn btn-green" id="btn-finish-onboarding" onclick="finishOnboarding()">
       <i class="ti ti-rocket"></i> ¡Empezar a operar!
     </button>
   </div>
@@ -819,7 +819,79 @@ function renderSummary() {
 }
 
 // ── STEP 6: FINISH ────────────────────────────
-function finishOnboarding() {
+async function apiFetch(path, opts = {}) {
+  const token    = localStorage.getItem('sf_token');
+  const tenantId = localStorage.getItem('sf_tenant_id');
+  const headers  = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (token)    headers['Authorization'] = 'Bearer ' + token;
+  if (tenantId) headers['X-Tenant-Id']   = tenantId;
+  const r = await fetch(path, { ...opts, headers });
+  if (r.status === 401) { localStorage.removeItem('sf_token'); location.replace('/login'); throw new Error('Unauthorized'); }
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: r.statusText }));
+    throw new Error(err.error || r.statusText);
+  }
+  return r.json();
+}
+
+// Crea en el backend todo lo que el wizard fue acumulando solo en memoria
+// (OB): el nombre del negocio, cada local con sus almacenes, y cada forma de
+// entrega con sus slots. Se hace secuencial y de forma explícita para poder
+// mostrar en qué paso falla si algo sale mal, en vez de festejar sin haber
+// guardado nada.
+async function persistOnboarding() {
+  const tenantId = localStorage.getItem('sf_tenant_id');
+  if (tenantId && OB.user.bizName) {
+    await apiFetch(`/api/auth/tenants?id=${encodeURIComponent(tenantId)}`, {
+      method: 'PUT', body: JSON.stringify({ name: OB.user.bizName }),
+    });
+    localStorage.setItem('sf_tenant_name', OB.user.bizName);
+  }
+
+  const localIds = [];
+  for (const loc of OB.locals) {
+    const created = await apiFetch('/api/locales', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: loc.name, address_street: loc.street, address_city: loc.city,
+        address_region: loc.region, phone: loc.phone, email: loc.email,
+      }),
+    });
+    localIds.push(created.id);
+    for (const wh of loc.warehouses) {
+      await apiFetch(`/api/locales?id=${encodeURIComponent(created.id)}&resource=warehouses`, {
+        method: 'POST', body: JSON.stringify({ name: wh.name, description: wh.desc || '' }),
+      });
+    }
+  }
+
+  for (const m of OB.methods) {
+    const localId = localIds[m.localIdx];
+    if (!localId) continue; // el local al que apuntaba no se creó — no dejar la forma de entrega huérfana
+    const dm = await apiFetch(`/api/locales?id=${encodeURIComponent(localId)}&resource=delivery-methods`, {
+      method: 'POST',
+      body: JSON.stringify({ name: m.name, type: m.type, base_cost: m.cost, free_above: m.free }),
+    });
+    for (const s of m.slots) {
+      await apiFetch(`/api/locales?id=${encodeURIComponent(localId)}&resource=delivery-methods&dmId=${encodeURIComponent(dm.id)}&sub=slots`, {
+        method: 'POST', body: JSON.stringify({ day_of_week: s.dow, time_from: s.from, time_to: s.to }),
+      });
+    }
+  }
+}
+
+async function finishOnboarding() {
+  const btn = document.getElementById('btn-finish-onboarding');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Guardando...';
+  try {
+    await persistOnboarding();
+  } catch (e) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-rocket"></i> ¡Empezar a operar!';
+    toast('❌ No se pudo guardar la configuración: ' + (e.message || 'intenta de nuevo'));
+    return;
+  }
   document.getElementById('completion-title').textContent = `¡Listo, ${OB.user.name.split(' ')[0]}!`;
   document.getElementById('quick-actions').innerHTML = `
     <div class="info-box green">
@@ -831,9 +903,9 @@ function finishOnboarding() {
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
-      <button class="btn btn-primary" onclick="toast('🛒 Abriendo creación de orden...')"><i class="ti ti-shopping-bag"></i> Crear primera orden</button>
-      <button class="btn btn-outline" onclick="toast('📦 Abriendo inventario...')"><i class="ti ti-box"></i> Agregar productos al inventario</button>
-      <button class="btn btn-outline" onclick="toast('⚙️ Abriendo ajustes...')"><i class="ti ti-settings"></i> Explorar ajustes</button>
+      <button class="btn btn-primary" onclick="location.href='/orders'"><i class="ti ti-shopping-bag"></i> Crear primera orden</button>
+      <button class="btn btn-outline" onclick="location.href='/inventory'"><i class="ti ti-box"></i> Agregar productos al inventario</button>
+      <button class="btn btn-outline" onclick="location.href='/preferencias'"><i class="ti ti-settings"></i> Explorar ajustes</button>
     </div>
     <p style="text-align:center;font-size:12px;color:var(--text3);font-weight:600;margin-top:20px">Puedes completar la configuración en cualquier momento desde <strong>Ajustes → Locales</strong></p>`;
   goStep(6);
