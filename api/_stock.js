@@ -144,14 +144,21 @@ async function _restoreLotsFifo(sql, tenantId, sku, wid, qty) {
 // — components es una lista PLANA (los KITs anidados se aplanan) con la
 // cantidad y el costo ponderado real consumido por cada componente, para la
 // qty total pedida (no normalizado por unidad — eso lo hace quien llama).
-async function _deductKit(sql, kitSku, qty, wid, tenantId, locationId, movement) {
+// `depth` — mismo tope (6) que el resto del código que recorre KITs
+// anidados (_flattenKitSkus en api/orders.js, accumulateInsumoNeeds en
+// api/_kit_shortage_alerts.js, _kitLeafSkus en el frontend) — corta un
+// ciclo (KIT que se contiene a sí mismo, directa o indirectamente) antes de
+// que la recursión cuelgue la función; api/kits.js no valida ciclos al crear
+// un KIT, así que esto es la única red de seguridad en la venta real.
+async function _deductKit(sql, kitSku, qty, wid, tenantId, locationId, movement, depth = 0) {
+  if (depth > 6) return { totalCost: 0, components: [] };
   const [kit] = await sql`SELECT items FROM kits WHERE sku = ${kitSku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
   if (!kit?.items) return { totalCost: 0, components: [] };
   const components = [];
   let totalCost = 0;
   for (const comp of kit.items) {
     if (comp.type === 'kit') {
-      const nested = await _deductKit(sql, comp.sku, comp.qty * qty, wid, tenantId, locationId, movement);
+      const nested = await _deductKit(sql, comp.sku, comp.qty * qty, wid, tenantId, locationId, movement, depth + 1);
       totalCost += nested.totalCost;
       components.push(...nested.components);
     } else {
@@ -175,12 +182,14 @@ async function _deductKit(sql, kitSku, qty, wid, tenantId, locationId, movement)
   return { totalCost, components };
 }
 
-async function _restoreKit(sql, kitSku, qty, wid, tenantId, locationId, movement) {
+// `depth` — mismo tope que _deductKit arriba (misma razón: cortar un ciclo).
+async function _restoreKit(sql, kitSku, qty, wid, tenantId, locationId, movement, depth = 0) {
+  if (depth > 6) return;
   const [kit] = await sql`SELECT items FROM kits WHERE sku = ${kitSku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
   if (!kit?.items) return;
   for (const comp of kit.items) {
     if (comp.type === 'kit') {
-      await _restoreKit(sql, comp.sku, comp.qty * qty, wid, tenantId, locationId, movement);
+      await _restoreKit(sql, comp.sku, comp.qty * qty, wid, tenantId, locationId, movement, depth + 1);
     } else {
       const compWid = await _componentWarehouseId(sql, tenantId, comp.sku, locationId, wid);
       const compQty = comp.qty * qty;
