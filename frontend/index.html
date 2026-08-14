@@ -655,6 +655,14 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       </div>
     </div>
     <div class="section-sub">Productos, insumos y KITs</div>
+    <a href="/stock-receipts" class="meson-hub-banner">
+      <div class="meson-hub-icon"><i class="ti ti-truck-delivery"></i></div>
+      <div class="meson-hub-text">
+        <div class="meson-hub-title">🚚 Ingresar Mercadería</div>
+        <div class="meson-hub-desc">Registra una recepción de compra o ingreso de stock</div>
+      </div>
+      <i class="ti ti-chevron-right meson-hub-arrow"></i>
+    </a>
     <div class="tabs">
       <div class="tab" id="itab-alertas" onclick="switchInvTab('alertas',this)">Alertas<span class="tbadge" id="alert-tab-count" style="display:none">0</span></div>
       <div class="tab" id="itab-kits" onclick="switchInvTab('kits',this)">KITs<span class="tbadge" id="kit-alert-tab-count" style="display:none">0</span></div>
@@ -961,9 +969,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
       <i class="ti ti-category"></i><span>Catálogo</span><i class="ti ti-chevron-right nav-group-chevron"></i>
     </button>
     <div class="nav-subgroup">
-      <a href="/stock-receipts" class="nav-tab" title="Ingreso de Inventario">
-        <i class="ti ti-truck-delivery"></i><span>Ingreso de Inventario</span>
-      </a>
       <button class="nav-tab" onclick="showPage('inventory',this)">
         <i class="ti ti-box"></i><span>Inventario</span>
       </button>
@@ -1056,7 +1061,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;min-
     <div class="sheet-handle"></div>
     <div class="sheet-content" style="padding:16px 20px 28px;display:flex;flex-direction:column;gap:10px">
       <div class="more-sheet-section-title">Catálogo</div>
-      <a href="/stock-receipts" class="btn btn-outline" style="text-decoration:none"><i class="ti ti-truck-delivery"></i> Ingreso de Inventario</a>
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('inventory',navTabEl('inventory'))"><i class="ti ti-box"></i> Inventario</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('catalogo',navTabEl('catalogo'))"><i class="ti ti-tag"></i> Catálogo</button>
       <button class="btn btn-outline" onclick="closeSheet('sheet-mobile-more');showPage('precios',navTabEl('precios'))"><i class="ti ti-currency-dollar"></i> Precios</button>
