@@ -445,9 +445,9 @@ function renderTenants() {
           <span class="tmeta"><i class="ti ti-users"></i> ${t.users_count||0} usuarios</span>
         </div>
         <div class="tenant-actions">
-          <button class="btn btn-enter btn-sm" onclick='enterTenant(${JSON.stringify(t)})'><i class="ti ti-door-enter"></i> Entrar</button>
-          ${canEdit ? `<button class="btn btn-outline btn-sm" onclick='openEditModal(${JSON.stringify(t)})'><i class="ti ti-edit"></i> Editar</button>` : ''}
-          ${canEdit && t.id !== 'TEN-001' ? `<button class="btn btn-danger btn-sm" onclick="openConfirmTenant('${t.id}','${esc(t.name).replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>` : ''}
+          <button class="btn btn-enter btn-sm" onclick='enterTenant(${jsonAttr(t)})'><i class="ti ti-door-enter"></i> Entrar</button>
+          ${canEdit ? `<button class="btn btn-outline btn-sm" onclick='openEditModal(${jsonAttr(t)})'><i class="ti ti-edit"></i> Editar</button>` : ''}
+          ${canEdit && t.id !== 'TEN-001' ? `<button class="btn btn-danger btn-sm" data-tenant-name="${esc(t.name)}" onclick="openConfirmTenant('${t.id}', this)"><i class="ti ti-trash"></i></button>` : ''}
         </div>
       </div>
     </div>`;
@@ -673,11 +673,15 @@ async function resendMasterInvite(id, username) {
 }
 
 // ── CONFIRMS ────────────────────────────────────────────
-function openConfirmTenant(id, name) {
+// `btn` en vez de pasar el nombre como string armado a mano en el onclick —
+// un nombre de tenant con una comilla podía romper el escaping encadenado
+// (\' después de esc()) y quebrar el string del handler inline. Leerlo
+// desde data-tenant-name evita ese problema por completo.
+function openConfirmTenant(id, btn) {
   deletingId  = id;
   deleteType  = 'tenant';
   document.getElementById('confirm-title').textContent = '¿Eliminar cliente?';
-  document.getElementById('confirm-sub').textContent = `Se eliminará "${name}". Los datos del ambiente deben eliminarse manualmente.`;
+  document.getElementById('confirm-sub').textContent = `Se eliminará "${btn?.dataset.tenantName || ''}". Los datos del ambiente deben eliminarse manualmente.`;
   document.getElementById('confirm-overlay').classList.add('open');
 }
 function openConfirmMaster(id, username) {
@@ -723,6 +727,14 @@ function showToast(msg, isError = false) {
 
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Para pasar un objeto como argumento de un onclick='...' armado a mano
+// (ver enterTenant/openEditModal) — JSON.stringify no escapa comillas
+// simples, así que un nombre o logo_url de tenant con un ' rompía el
+// atributo (delimitado con comillas simples) y podía inyectar HTML/JS.
+function jsonAttr(obj) {
+  return JSON.stringify(obj).replace(/'/g, '&#39;');
 }
 </script>
 </body>

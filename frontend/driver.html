@@ -214,8 +214,8 @@ input[type=file]{display:none}
   <div class="login-logo"><i class="ti ti-truck-delivery"></i></div>
   <div class="login-title">StockFlow Driver</div>
   <div class="login-sub">App para repartidores</div>
-  <input class="inp" id="login-email" type="email" placeholder="Email" value="repartidor@empresa.cl">
-  <input class="inp" id="login-pass" type="password" placeholder="Contraseña" value="••••••••">
+  <input class="inp" id="login-email" type="email" placeholder="repartidor@empresa.cl">
+  <input class="inp" id="login-pass" type="password" placeholder="Contraseña">
   <button class="btn-full btn-primary" onclick="doLogin()" style="margin-top:8px">
     <i class="ti ti-login"></i> Ingresar
   </button>
@@ -345,6 +345,12 @@ const ROUTE = [
   {id:'SHP-005',seq:5,order_id:'ORD-005',recipient_name:'Ana Soto',address_street:'Gran Av. 8900',address_city:'La Granja',status:'not_delivered',delivery_window_from:'09:00',delivery_window_to:'13:00',gps:null,photo:null,kits:[{name:'Desayuno Ejecutivo',components:[{name:'Croissant',qty:1},{name:'Jugo naranja 500ml',qty:1},{name:'Café espresso',qty:1}]}],message:'Timbre roto. Golpear puerta. Depto 4C.'},
 ];
 
+// Escapa texto de datos (destinatario, dirección, notas, nombre de
+// ruta/kit) antes de interpolarlo en HTML armado a mano vía innerHTML.
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
 let currentStop = null;
 let gpsWatcher = null;
 let currentGPS = null;
@@ -445,7 +451,7 @@ function showSelectScreen() {
       const n = nr.shipment_ids.length;
       html += `<div class="route-item named" onclick="selectRoute('${nr.id}')">
         <div class="route-item-icon"><i class="ti ti-star"></i></div>
-        <div style="flex:1"><div class="route-item-name">${nr.name}</div><div class="route-item-sub">${n} envío${n!==1?'s':''}</div></div>
+        <div style="flex:1"><div class="route-item-name">${esc(nr.name)}</div><div class="route-item-sub">${n} envío${n!==1?'s':''}</div></div>
         <i class="ti ti-chevron-right" style="color:var(--text3);font-size:20px"></i>
       </div>`;
     });
@@ -557,8 +563,8 @@ function renderStopList() {
       <div class="si-row">
         <div class="si-num ${numCls}">${isDone?'✓':isFail?'✗':stop.seq}</div>
         <div class="si-info">
-          <div class="si-name">${stop.recipient_name}</div>
-          <div class="si-addr">${stop.address_street} · ${stop.address_city}</div>
+          <div class="si-name">${esc(stop.recipient_name)}</div>
+          <div class="si-addr">${esc(stop.address_street)} · ${esc(stop.address_city)}</div>
           <div class="si-meta">
             ${isCurrent?'<span class="si-badge sb-ready">En camino</span>':''}
             ${isDone?'<span class="si-badge sb-done">Entregado</span>':''}
@@ -600,13 +606,13 @@ function renderDeliveryBody() {
     html += `<div class="section-label">Comanda<div></div></div>`;
     s.kits.forEach((kit, ki) => {
       html += `<div class="comanda-box">
-        <div class="comanda-kit-title"><i class="ti ti-stack-2" style="font-size:13px"></i> ${kit.name}</div>
+        <div class="comanda-kit-title"><i class="ti ti-stack-2" style="font-size:13px"></i> ${esc(kit.name)}</div>
         ${kit.components.map((comp,ci) => {
           const key = `${ki}-${ci}`;
           const checked = checkedComponents[key];
           return `<div class="comanda-line">
             <span class="comanda-qty">×${comp.qty}</span>
-            <span class="comanda-item" style="${checked?'text-decoration:line-through;opacity:.5':''}">${comp.name}</span>
+            <span class="comanda-item" style="${checked?'text-decoration:line-through;opacity:.5':''}">${esc(comp.name)}</span>
             <div class="comanda-check ${checked?'checked':''}" onclick="toggleCheck('${key}',this)">
               <i class="ti ti-check"></i>
             </div>
@@ -619,7 +625,7 @@ function renderDeliveryBody() {
   // MENSAJE
   if (s.message) {
     html += `<div class="section-label">Mensaje para el receptor<div></div></div>
-    <div class="msg-box"><i class="ti ti-message-circle"></i><div class="msg-text">${s.message}</div></div>`;
+    <div class="msg-box"><i class="ti ti-message-circle"></i><div class="msg-text">${esc(s.message)}</div></div>`;
   }
 
   // GPS
@@ -726,14 +732,15 @@ function updateGPSUI() {
 function captureGPS() {
   if (!currentStop) return;
   if (currentGPS) {
-    currentStop.gps = { ...currentGPS, captured_at: new Date().toISOString() };
+    currentStop.gps = { ...currentGPS, captured_at: new Date().toISOString(), simulated: false };
     toast('📍 Coordenada grabada: ' + currentGPS.lat.toFixed(5) + ', ' + currentGPS.lng.toFixed(5));
     renderDeliveryBody();
     renderDeliveryFooter();
   } else {
-    // Simular GPS para demo
+    // Simular GPS para demo — se marca simulated:true para que nunca se
+    // muestre ni se registre como si fuera una coordenada real capturada.
     currentGPS = { lat: -33.432 + (Math.random()-.5)*.01, lng: -70.631 + (Math.random()-.5)*.01, acc: 8 };
-    currentStop.gps = { ...currentGPS, captured_at: new Date().toISOString() };
+    currentStop.gps = { ...currentGPS, captured_at: new Date().toISOString(), simulated: true };
     toast('📍 GPS simulado grabado (demo)');
     updateGPSUI();
     renderDeliveryBody();
@@ -749,11 +756,25 @@ function onPhotoSelected(e) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    currentPhotoData = ev.target.result;
-    if (currentStop) currentStop.photo = currentPhotoData;
-    renderDeliveryBody();
-    renderDeliveryFooter();
-    toast('📸 Foto guardada');
+    const img = new Image();
+    img.onload = () => {
+      // Downscala antes de guardar — una foto de cámara sin comprimir puede
+      // pesar varios MB, y esto ahora viaja como parte del PUT de la
+      // entrega (ver confirmDelivered). Se limita el lado más largo a
+      // 1280px y se comprime a JPEG para que el payload quede razonable.
+      const maxSide = 1280;
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      currentPhotoData = canvas.toDataURL('image/jpeg', 0.8);
+      if (currentStop) currentStop.photo = currentPhotoData;
+      renderDeliveryBody();
+      renderDeliveryFooter();
+      toast('📸 Foto guardada');
+    };
+    img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
   e.target.value = '';
@@ -825,24 +846,33 @@ function continueRouteWithFailed() {
 async function confirmDelivered() {
   if (!currentStop) return;
 
-  // Grabar GPS automáticamente si no se grabó
+  // Grabar GPS automáticamente si no se grabó — igual que captureGPS(), se
+  // marca simulated:true cuando no hay geolocalización real disponible, para
+  // no mostrarlo/registrarlo como si fuera una coordenada real capturada.
   if (!currentStop.gps && currentGPS) {
-    currentStop.gps = { ...currentGPS, captured_at: new Date().toISOString() };
+    currentStop.gps = { ...currentGPS, captured_at: new Date().toISOString(), simulated: false };
   } else if (!currentStop.gps) {
-    currentStop.gps = { lat:-33.432+(Math.random()-.5)*.01, lng:-70.631+(Math.random()-.5)*.01, acc:15, captured_at:new Date().toISOString() };
+    currentStop.gps = { lat:-33.432+(Math.random()-.5)*.01, lng:-70.631+(Math.random()-.5)*.01, acc:15, captured_at:new Date().toISOString(), simulated: true };
   }
 
   currentStop.status = 'delivered';
   currentStop.delivered_at = new Date().toISOString();
 
   const hasGPS   = !!currentStop.gps;
+  const isSimGPS = hasGPS && currentStop.gps.simulated;
   const hasPhoto = !!currentStop.photo;
-  const sub = [hasGPS?'📍 Coordenada grabada':'', hasPhoto?'📸 Foto registrada':''].filter(Boolean).join(' · ') || 'Entrega registrada';
+  const sub = [hasGPS?(isSimGPS?'📍 Coordenada simulada (demo)':'📍 Coordenada grabada'):'', hasPhoto?'📸 Foto registrada':''].filter(Boolean).join(' · ') || 'Entrega registrada';
   document.getElementById('success-sub').textContent = sub;
   document.getElementById('success-overlay').classList.remove('hidden');
 
-  // Persist to API
-  await syncShipmentUpdate(currentStop.id, { status: 'delivered', note: 'Entregado por repartidor' }, 'Entrega');
+  // Persist to API — antes esto solo mandaba {status, note}: la foto y la
+  // coordenada GPS que se acababan de capturar (la prueba de entrega en sí)
+  // nunca llegaban al servidor, se quedaban solo en el navegador del
+  // repartidor.
+  const payload = { status: 'delivered', note: 'Entregado por repartidor' };
+  if (hasPhoto) payload.photo_url = currentStop.photo;
+  if (hasGPS) { payload.lat = currentStop.gps.lat; payload.lng = currentStop.gps.lng; }
+  await syncShipmentUpdate(currentStop.id, payload, 'Entrega');
 }
 
 function closeSuccess() {
@@ -874,8 +904,12 @@ async function confirmFail() {
   toast('📋 Registrado: ' + selectedFailReason);
   _checkRouteComplete();
 
-  // Persist to API
-  await syncShipmentUpdate(currentStop.id, { status: 'not_delivered', note: fullNote }, 'No entregado');
+  // Persist to API — incluye GPS si ya se capturó, mismo motivo que en
+  // confirmDelivered: es evidencia del intento de entrega, no solo un dato
+  // decorativo en el navegador del repartidor.
+  const payload = { status: 'not_delivered', note: fullNote };
+  if (currentStop.gps) { payload.lat = currentStop.gps.lat; payload.lng = currentStop.gps.lng; }
+  await syncShipmentUpdate(currentStop.id, payload, 'No entregado');
 }
 
 // ── NAVEGACIÓN ─────────────────────────────────

@@ -528,10 +528,14 @@ async function geocodeStop(stop) {
   const cached = _getCachedCoords(q);
   if (cached) { stop.lat = cached.lat; stop.lng = cached.lng; stop._realCoords = true; return; }
   try {
-    // Nominatim (OpenStreetMap) — gratuito, sin billing
+    // Nominatim (OpenStreetMap) — gratuito, sin billing. Manda la dirección
+    // del cliente a un servicio de terceros (ver aviso en geocodeAllStops).
+    // Nominatim pide identificarse con un User-Agent propio, pero los
+    // navegadores tratan ese header como "forbidden" y lo descartan en
+    // cualquier fetch(), así que no se intenta simularlo.
     const r = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=cl`,
-      { headers: { 'Accept-Language': 'es', 'User-Agent': 'StockFlow-Bichon/1.0' } }
+      { headers: { 'Accept-Language': 'es' } }
     );
     const results = await r.json();
     if (results && results.length > 0) {
@@ -543,12 +547,21 @@ async function geocodeStop(stop) {
   } catch(e) { console.warn('[Geocode]', q, e.message); }
 }
 
+let _geocodeNoticeShown = false;
 async function geocodeAllStops() {
   const all = [
     ...(_originStop && !_originStop._realCoords ? [_originStop] : []),
     ...currentRoute.filter(s => !s._realCoords),
   ];
   if (!all.length) return;
+  // Esto pasa automáticamente por cada parada sin coordenadas cacheadas —
+  // antes no había ningún aviso de que las direcciones de los clientes
+  // salen hacia un servicio de terceros (Nominatim/OpenStreetMap) para
+  // ubicarlas en el mapa. Se avisa una vez por sesión, no en cada llamada.
+  if (!_geocodeNoticeShown) {
+    _geocodeNoticeShown = true;
+    toast('📍 Ubicando direcciones en el mapa vía OpenStreetMap (Nominatim)');
+  }
   // Nominatim: máx 1 req/s — procesamos de uno en uno
   for (let i = 0; i < all.length; i++) {
     await geocodeStop(all[i]);
@@ -592,9 +605,9 @@ function renderGMMap() {
         ? `${stop.delivery_window_from.slice(0,5)}–${(stop.delivery_window_to||'').slice(0,5)}` : '';
       gmInfoWindow.setContent(`
         <div style="font-family:'DM Sans',sans-serif;padding:4px;min-width:200px">
-          <div style="font-size:14px;font-weight:700;margin-bottom:4px">#${stop.seq} · ${stop.recipient_name}</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px">#${stop.seq} · ${esc(stop.recipient_name)}</div>
           <div style="font-size:12px;color:#666;margin-bottom:8px;line-height:1.4">
-            ${stop.address_street}${stop.address_city?' · '+stop.address_city:''}${win?'<br><i class="ti ti-clock" style="font-size:11px"></i> '+win:''}
+            ${esc(stop.address_street)}${stop.address_city?' · '+esc(stop.address_city):''}${win?'<br><i class="ti ti-clock" style="font-size:11px"></i> '+esc(win):''}
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button onclick="openComanda('${stop.id}')" style="padding:5px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit">🧾 Comanda</button>
@@ -641,6 +654,13 @@ function haversine(lat1, lng1, lat2, lng2) {
 }
 
 const ROUTES = {}; // populated by initRoutes()
+// Escapa texto de datos (destinatario, dirección, notas, nombre de ruta,
+// nombre de producto) antes de interpolarlo en HTML armado a mano vía
+// innerHTML.
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
 let currentRoute = [];
 let currentRouteId = null;
 let _originStop = null; // punto de partida del local
@@ -775,8 +795,8 @@ function selectStop(id) {
     const win = stop.delivery_window_from ? `${stop.delivery_window_from.slice(0,5)}–${(stop.delivery_window_to||'').slice(0,5)}` : '';
     popup.style.left = x + 'px'; popup.style.top = y + 'px';
     popup.innerHTML = `
-      <div class="popup-name">#${stop.seq} · ${stop.recipient_name}</div>
-      <div class="popup-addr">${stop.address_street}<br>${stop.address_city}${win?' · '+win:''}</div>
+      <div class="popup-name">#${stop.seq} · ${esc(stop.recipient_name)}</div>
+      <div class="popup-addr">${esc(stop.address_street)}<br>${esc(stop.address_city)}${win?' · '+esc(win):''}</div>
       <div class="popup-actions">
         <button class="act-btn" onclick="openComanda('${stop.id}')"><i class="ti ti-receipt"></i> Comanda</button>
         ${stop.status==='ready'?`<button class="act-btn go" onclick="changeStopStatus('${stop.id}','on_the_way')"><i class="ti ti-truck"></i> En camino</button>`:''}
@@ -818,8 +838,8 @@ function _stopCardHtml(stop) {
           ${isOrigin ? '<i class="ti ti-building-store" style="font-size:13px"></i>' : stop.seq}
         </div>
         <div class="stop-info">
-          <div class="stop-name">${stop.recipient_name}</div>
-          <div class="stop-addr">${stop.address_street}${stop.address_city ? ' · ' + stop.address_city : ''}</div>
+          <div class="stop-name">${esc(stop.recipient_name)}</div>
+          <div class="stop-addr">${esc(stop.address_street)}${stop.address_city ? ' · ' + esc(stop.address_city) : ''}</div>
           <div class="stop-meta">
             ${isOrigin
               ? `<span class="stop-badge" style="background:var(--purple-l);color:var(--purple)"><i class="ti ti-flag" style="font-size:10px"></i> Punto de partida</span>`
@@ -929,10 +949,11 @@ async function confirmFailReason() {
   await applyStopStatus(id, 'not_delivered', note);
 }
 
-async function applyStopStatus(id, newStatus, note) {
+async function applyStopStatus(id, newStatus, note, extra) {
   const stop = currentRoute.find(s => s.id === id);
   if (!stop) return;
   stop.status = newStatus;
+  if (extra) Object.assign(stop, extra);
   selectedStop = null;
   renderStops();
   renderMap();
@@ -943,18 +964,23 @@ async function applyStopStatus(id, newStatus, note) {
       await fetch(`/api/shipments/${id}`, {
         method: 'PUT',
         headers: authHeaders(),
-        body: JSON.stringify({ status: newStatus, note })
+        body: JSON.stringify({ status: newStatus, note, ...extra })
       });
     } catch(e) { console.warn('[Routes] changeStopStatus API error', e); }
   }
 }
 
-function reagendar(id) {
+async function reagendar(id) {
   const date = prompt('Nueva fecha (YYYY-MM-DD):');
-  if (date) {
-    changeStopStatus(id, 'ready');
-    toast('📅 Reagendado para ' + date);
+  if (!date) return;
+  // El prompt es texto libre — antes esto ni siquiera se usaba (el toast
+  // avisaba éxito y ni el estado local ni el servidor se tocaban), así que
+  // como mínimo hay que validar el formato antes de guardarlo como fecha.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(new Date(date + 'T12:00:00'))) {
+    toast('❌ Fecha inválida — usa el formato YYYY-MM-DD');
+    return;
   }
+  await applyStopStatus(id, 'ready', 'Reagendado para ' + date, { scheduled_date: date });
 }
 
 // ── COMANDA ────────────────────────────────────
@@ -973,7 +999,7 @@ async function openComanda(id) {
       if (order?.items?.length) {
         html += `<div style="font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;padding:10px 0 6px">Productos</div>`;
         order.items.forEach(item => {
-          html += `<div class="comanda-line"><span class="comanda-qty">×${item.qty}</span><span class="comanda-item">${item.name}</span></div>`;
+          html += `<div class="comanda-line"><span class="comanda-qty">×${item.qty}</span><span class="comanda-item">${esc(item.name)}</span></div>`;
         });
         if (order.dedicatoria) {
           html += `<div class="comanda-note" style="margin-top:12px"><i class="ti ti-heart" style="font-size:18px;flex-shrink:0;margin-top:1px"></i><div><strong>Dedicatoria:</strong><br>${order.dedicatoria}</div></div>`;
@@ -1146,7 +1172,7 @@ function _refreshRouteSelector() {
     html += '<div class="rd-group"><div class="rd-group-label">Rutas guardadas</div>';
     namedRoutes.forEach(nr => {
       const n = nr.shipment_ids.length;
-      const label = `★ ${nr.name} · ${n} envío${n !== 1 ? 's' : ''}`;
+      const label = `★ ${esc(nr.name)} · ${n} envío${n !== 1 ? 's' : ''}`;
       html += `<div class="rd-item ${currentRouteId===nr.id?'active':''}" onclick="loadRoute('${nr.id}')">
         <span class="rd-item-name">${label}</span>
         <button class="rd-delete" onclick="event.stopPropagation();deleteRouteById('${nr.id}')" title="Eliminar ruta"><i class="ti ti-trash"></i></button>
@@ -1213,7 +1239,7 @@ function _populateNrShipments(checkedIds) {
     <label class="nr-ship-row">
       <input type="checkbox" value="${s.id}" ${checkedSet.has(s.id) ? 'checked' : ''} onchange="_updateNrSelCount()">
       <div>
-        <div class="nr-ship-name">${s.id} · ${s.recipient_name}</div>
+        <div class="nr-ship-name">${s.id} · ${esc(s.recipient_name)}</div>
         <div class="nr-ship-sub">${s.address_street || ''}${s.address_city ? ' · ' + s.address_city : ''}${s.scheduled_date ? ' · ' + s.scheduled_date : ''}</div>
       </div>
     </label>`).join('');
@@ -1298,7 +1324,7 @@ function loadRoute(id) {
   _refreshRouteSelector();
   if (_isNamedRoute(id)) {
     const nr = _loadSavedRoutes().find(r => r.id === id);
-    if (nr) _setRouteLabel(`★ ${nr.name} · ${nr.shipment_ids.length} envío${nr.shipment_ids.length !== 1 ? 's' : ''}`);
+    if (nr) _setRouteLabel(`★ ${esc(nr.name)} · ${nr.shipment_ids.length} envío${nr.shipment_ids.length !== 1 ? 's' : ''}`);
   } else {
     const count = (ROUTES[id] || []).length;
     _setRouteLabel(`${_routeDateLabel(id)} · ${count} envío${count !== 1 ? 's' : ''}`);
@@ -1442,17 +1468,17 @@ function printRoute() {
 
   const dateLabel = _routeDateLabel(currentRouteId || '');
   const originName = _originStop?.recipient_name || '';
-  const originAddr = _originStop ? `${_originStop.address_street}${_originStop.address_city ? ', ' + _originStop.address_city : ''}` : '';
+  const originAddr = _originStop ? `${esc(_originStop.address_street)}${_originStop.address_city ? ', ' + esc(_originStop.address_city) : ''}` : '';
 
   const rows = sorted.map(s => {
     const win = (s.delivery_window_from && s.delivery_window_to)
       ? `${s.delivery_window_from}–${s.delivery_window_to}` : '';
-    const addr = `${s.address_street}${s.address_city ? ', ' + s.address_city : ''}`;
+    const addr = `${esc(s.address_street)}${s.address_city ? ', ' + esc(s.address_city) : ''}`;
     const statusLabel = { ready:'Por enviar', on_the_way:'En camino', delivered:'Entregado', not_delivered:'No entregado' }[s.status] || s.status;
     return `<tr>
       <td class="seq">${s.seq}</td>
       <td class="info">
-        <div class="rname">${s.recipient_name}${s.recipient_phone ? `<span class="rphone"> · ${s.recipient_phone}</span>` : ''}</div>
+        <div class="rname">${esc(s.recipient_name)}${s.recipient_phone ? `<span class="rphone"> · ${esc(s.recipient_phone)}</span>` : ''}</div>
         ${s.receptor ? `<div class="rrec">✓ Recibe: ${s.receptor}${s.receptor_telefono ? ' · ' + s.receptor_telefono : ''}</div>` : ''}
         <div class="raddr">${addr}</div>
         ${s.message ? `<div class="rref">Ref: ${s.message}</div>` : ''}
@@ -1594,7 +1620,7 @@ async function initRoutes() {
     // Populate "agregar parada" modal with all shipments
     const addSel = document.getElementById('add-order-sel');
     addSel.innerHTML = '<option value="">Seleccionar envío...</option>' +
-      shipments.map(s => `<option value="${s.id}">${s.id} · ${s.order_id||''} · ${s.recipient_name} · ${s.address_city||''}</option>`).join('');
+      shipments.map(s => `<option value="${s.id}">${s.id} · ${esc(s.order_id||'')} · ${esc(s.recipient_name)} · ${esc(s.address_city||'')}</option>`).join('');
 
     // Load first available route
     const dateKeys = Object.keys(ROUTES).sort();

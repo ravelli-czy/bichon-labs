@@ -632,6 +632,16 @@ div[role="button"]:focus-visible{outline:2px solid var(--primary);outline-offset
   </button>
 </div>
 
+<div id="offline-demo-banner" style="display:none;background:#fef3c7;border-bottom:1.5px solid #fde68a;padding:8px 16px;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:101">
+  <div style="display:flex;align-items:center;gap:8px;color:#92400e;font-size:12px;font-weight:800">
+    <i class="ti ti-plug-connected-x" style="font-size:16px"></i>
+    Sin conexión con el servidor — estás viendo datos de ejemplo, no tu inventario real
+  </div>
+  <button onclick="location.reload()" style="background:rgba(146,64,14,.12);border:1px solid rgba(146,64,14,.3);color:#92400e;border-radius:8px;padding:4px 12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:5px">
+    <i class="ti ti-refresh" style="font-size:14px"></i> Reintentar
+  </button>
+</div>
+
 <div class="topbar">
   <div class="topbar-logo" onclick="showPage('home')" title="Ir al inicio" style="cursor:pointer">
     <div class="logo-icon"><i class="ti ti-packages"></i></div>
@@ -1876,9 +1886,9 @@ function applyTenantBranding(){
   if (iconEl) {
     iconEl.style.background = color;
     if (logoUrl) {
-      iconEl.innerHTML = `<img src="${logoUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:8px" onerror="this.parentElement.innerHTML='<i class=\\'ti ti-packages\\'></i>'">`;
+      iconEl.innerHTML = `<img src="${esc(logoUrl)}" style="width:100%;height:100%;object-fit:cover;border-radius:8px" onerror="this.parentElement.innerHTML='<i class=\\'ti ti-packages\\'></i>'">`;
     } else if (logoText) {
-      iconEl.innerHTML = `<span style="color:#fff;font-weight:900;font-size:13px">${logoText.slice(0,2)}</span>`;
+      iconEl.innerHTML = `<span style="color:#fff;font-weight:900;font-size:13px">${esc(logoText.slice(0,2))}</span>`;
     }
   }
 }
@@ -2105,10 +2115,7 @@ async function apiFetch(path, opts = {}) {
 }
 
 async function doLogout() {
-  const token = localStorage.getItem('sf_token');
-  if (token) {
-    fetch('/api/auth/logout', { method:'POST', headers:{ 'Authorization':'Bearer '+token } }).catch(()=>{});
-  }
+  try { await apiFetch('/api/auth/logout', { method: 'POST' }); } catch(e) { /* logout local igual, aunque el servidor no responda */ }
   localStorage.clear();
   location.replace('/login');
 }
@@ -2402,6 +2409,12 @@ async function initApp() {
     S._apiReady = true;
   } catch (e) {
     console.warn('[StockFlow] API not available — using local state.', e.message);
+    // Antes esto era invisible para el usuario (solo console.warn): la app
+    // se veía y se comportaba exactamente igual que con datos reales,
+    // arriesgado en un sistema de inventario. Ahora queda un aviso fijo
+    // hasta que se reintente con éxito.
+    const banner = document.getElementById('offline-demo-banner');
+    if (banner) banner.style.display = 'flex';
     // Fall back to demo data so the UI is not empty
     S.products = [
       {sku:'PRD-001',name:'Cámara IP 1080p',brand:'Hikvision',cat:'Seguridad',tipo:'ambos',cost:45000,price:79000,stock:24,threshold:10},
@@ -2813,7 +2826,7 @@ function _renderBrandLogoPreview(url) {
   const el = document.getElementById('brand-logo-preview');
   if (!el) return;
   el.innerHTML = url
-    ? `<img src="${url}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='<i class=&quot;ti ti-photo&quot; style=&quot;color:var(--text3);font-size:22px&quot;></i>'">`
+    ? `<img src="${esc(url)}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='<i class=&quot;ti ti-photo&quot; style=&quot;color:var(--text3);font-size:22px&quot;></i>'">`
     : `<i class="ti ti-photo" style="color:var(--text3);font-size:22px"></i>`;
 }
 
@@ -3021,8 +3034,8 @@ function priceRow(p, isKit) {
   return `<div class="product-item">
     <div class="product-icon" ${isKit ? 'style="background:var(--amber-light)"' : ''}><i class="ti ${isKit ? 'ti-stack-2' : 'ti-box'}" ${isKit ? 'style="color:var(--amber-dark)"' : ''}></i></div>
     <div class="product-info">
-      <div class="product-name">${p.name}</div>
-      <div class="product-meta" style="gap:5px;margin-top:3px">${tipoBadge(isKit ? 'kit' : p.tipo)}<span style="font-size:9px;font-weight:700;color:var(--text3);font-family:monospace;background:var(--bg3);padding:1px 5px;border-radius:5px">${p.sku || 'Sin SKU'}</span></div>
+      <div class="product-name">${esc(p.name)}</div>
+      <div class="product-meta" style="gap:5px;margin-top:3px">${tipoBadge(isKit ? 'kit' : p.tipo)}<span style="font-size:9px;font-weight:700;color:var(--text3);font-family:monospace;background:var(--bg3);padding:1px 5px;border-radius:5px">${esc(p.sku || 'Sin SKU')}</span></div>
     </div>
     <div class="product-right">
       <div class="stock-num">${fmt(amount)}</div>
@@ -3138,6 +3151,8 @@ function exportProductsXlsx() {
 async function importProductsXlsx(file) {
   if (!file) return;
   if (typeof XLSX === 'undefined') { toast('❌ No se pudo cargar el motor de Excel'); return; }
+  if (S._importingProducts) { toast('⏳ Ya hay una importación en curso — espera a que termine'); return; }
+  S._importingProducts = true;
   toast('⏳ Importando...');
 
   try {
@@ -3226,6 +3241,12 @@ async function importProductsXlsx(file) {
       } catch (e) {
         errors.push(`Fila ${rowNum} (${sku || 'nuevo'}): ${e.message}`);
       }
+      // Feedback de progreso — en un archivo grande esto puede tardar varios
+      // minutos; sin esto el único mensaje visible era el "Importando..."
+      // fijo del inicio, sin ninguna señal de que algo seguía avanzando.
+      if ((i + 1) % 10 === 0 || i === rows.length - 1) {
+        toast(`⏳ Importando... ${i + 1}/${rows.length}`);
+      }
     }
 
     renderInventory();
@@ -3236,6 +3257,8 @@ async function importProductsXlsx(file) {
   } catch (e) {
     console.error('[Import Productos]', e);
     toast('❌ Error al importar: ' + e.message);
+  } finally {
+    S._importingProducts = false;
   }
 }
 
@@ -3248,7 +3271,7 @@ function initInvWarehouseBar() {
   bar.innerHTML = `
     <select class="form-input" style="font-size:12px;font-weight:700;padding:8px 30px 8px 12px;width:auto" onchange="setWarehouse(this.value)">
       <option value="">Almacén: Todos</option>
-      ${warehouses.map(wh => `<option value="${wh.id}" ${S.warehouseId===wh.id?'selected':''}>${wh.name}</option>`).join('')}
+      ${warehouses.map(wh => `<option value="${wh.id}" ${S.warehouseId===wh.id?'selected':''}>${esc(wh.name)}</option>`).join('')}
     </select>`;
 }
 
@@ -3497,7 +3520,7 @@ function _kitCardHtml(kit, localId, whs) {
   // Igual que prodRow(): siempre se muestra cuando la fila representa una
   // tienda concreta (filtrada o no) — sólo se omite en el fallback global.
   const loc = localId ? (getLocalesData()||[]).find(l => l.id === localId) : null;
-  const whBadge = loc ? `<span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:rgba(13,148,136,.08);padding:1px 6px;border-radius:8px"><i class="ti ti-building-store" style="font-size:9px"></i> ${loc.prefix || loc.name}</span>` : '';
+  const whBadge = loc ? `<span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:rgba(13,148,136,.08);padding:1px 6px;border-radius:8px"><i class="ti ti-building-store" style="font-size:9px"></i> ${esc(loc.prefix || loc.name)}</span>` : '';
 
   const skuBlock = whs.length > 0 ? `
     <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -3569,8 +3592,8 @@ function viewKitStock(sku, localId, pushURL = true) {
         <i class="ti ti-stack-2" style="font-size:20px;color:var(--amber-dark,#c97316)"></i>
       </div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:15px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${kit.name}${alertBadge}</div>
-        <div style="font-size:11px;color:var(--text3);font-weight:700;margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">${kit.sku} · ${fmt(kit.price)} ${kitTipoBadge(kit.tipo)}${loc ? `<span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:rgba(13,148,136,.08);padding:1px 6px;border-radius:8px"><i class="ti ti-building-store" style="font-size:9px"></i> ${loc.prefix||loc.name}</span>` : ''}</div>
+        <div style="font-size:15px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(kit.name)}${alertBadge}</div>
+        <div style="font-size:11px;color:var(--text3);font-weight:700;margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">${esc(kit.sku)} · ${fmt(kit.price)} ${kitTipoBadge(kit.tipo)}${loc ? `<span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:rgba(13,148,136,.08);padding:1px 6px;border-radius:8px"><i class="ti ti-building-store" style="font-size:9px"></i> ${esc(loc.prefix||loc.name)}</span>` : ''}</div>
       </div>
     </div>
     <div style="text-align:center;padding:18px 0;margin-bottom:14px">
@@ -3800,7 +3823,7 @@ function _populateWarehouseSelect(selectedId, readonly, excludeIds) {
   const available = excludeIds?.length ? warehouses.filter(w => !excludeIds.includes(w.id)) : warehouses;
   if (!available.length) { whGroup.style.display = 'none'; return; }
   whGroup.style.display = '';
-  whSel.innerHTML = available.map(w => `<option value="${w.id}"${w.id===selectedId?' selected':''}>${w.name}</option>`).join('');
+  whSel.innerHTML = available.map(w => `<option value="${w.id}"${w.id===selectedId?' selected':''}>${esc(w.name)}</option>`).join('');
   whSel.disabled = !!readonly;
   if (!readonly && !selectedId) whSel.value = (S.warehouseId && !excludeIds?.includes(S.warehouseId)) ? S.warehouseId : available[0].id;
 }
@@ -3831,7 +3854,7 @@ function _renderProdStockRows() {
   container.innerHTML = S.tempProdStockRows.map((r, idx) => {
     const available = whs.filter(w => w.id === r.warehouse_id || !usedIds.includes(w.id));
     const whOptions = whs.length
-      ? available.map(w => `<option value="${w.id}"${w.id===r.warehouse_id?' selected':''}>${w.name}</option>`).join('')
+      ? available.map(w => `<option value="${w.id}"${w.id===r.warehouse_id?' selected':''}>${esc(w.name)}</option>`).join('')
       : '<option value="">Sin almacenes configurados</option>';
     return `<div class="form-row" style="align-items:flex-end;margin-bottom:8px">
       <div class="form-group"><div class="form-label">Tienda</div><select class="form-input" onchange="updateProdStockRow(${idx},'warehouse_id',this.value)">${whOptions}</select></div>
@@ -3881,7 +3904,7 @@ function openAddInventorySheet() {
   const sel = document.getElementById('add-inv-product');
   sel.innerHTML = '<option value="">Selecciona un producto...</option>' +
     (eligible.length
-      ? eligible.map(p => `<option value="${p.sku}">${p.name} (${p.sku})</option>`).join('')
+      ? eligible.map(p => `<option value="${esc(p.sku)}">${esc(p.name)} (${esc(p.sku)})</option>`).join('')
       : '');
   if (!eligible.length) toast('ℹ️ Todos los productos ya tienen stock en todas las tiendas');
   openSheet('sheet-add-inventory');
@@ -3925,9 +3948,9 @@ function openAddSkuSheet(prodSku, fromInventory = false) {
     sumEl.innerHTML = `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg3);border-radius:var(--radius);margin-bottom:14px;border:1px solid var(--border)">
       <div style="width:40px;height:40px;border-radius:10px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-box" style="font-size:18px;color:var(--primary)"></i></div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${master.name}</div>
+        <div style="font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(master.name)}</div>
         <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:1px">${master.brand||'Sin marca'} · ${master.cat||'—'}</div>
-        <div style="font-size:10px;font-weight:800;color:var(--primary);font-family:monospace;margin-top:2px">${master.sku}</div>
+        <div style="font-size:10px;font-weight:800;color:var(--primary);font-family:monospace;margin-top:2px">${esc(master.sku)}</div>
       </div>
       <span style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);background:var(--teal-light,#ccfbf1);padding:3px 8px;border-radius:10px">${fromInventory ? 'Nueva tienda' : 'Nuevo SKU'}</span>
     </div>`;
@@ -4016,7 +4039,7 @@ function openSheetProdCatalog(pushURL = true) {
   const whs = getWarehouses();
   const skuWh = document.getElementById('p-sku-warehouse');
   if (skuWh) skuWh.innerHTML = whs.length
-    ? whs.map(w => `<option value="${w.id}">${w.name}</option>`).join('')
+    ? whs.map(w => `<option value="${w.id}">${esc(w.name)}</option>`).join('')
     : '<option value="">Sin almacenes configurados</option>';
   document.getElementById('p-sku-threshold').value = '10';
   selectTipo('producto', document.querySelector('.tipo-option:nth-child(2)'));
@@ -4236,9 +4259,9 @@ function editProdStock(sku, warehouseId, pushURL = true) {
     sumEl.innerHTML = `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg3);border-radius:var(--radius);margin-bottom:14px;border:1px solid var(--border)">
       <div style="width:40px;height:40px;border-radius:10px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-box" style="font-size:18px;color:var(--primary)"></i></div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
+        <div style="font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>
         <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:1px">${p.brand||'Sin marca'} · ${p.cat||'—'}</div>
-        <div style="font-size:10px;font-weight:800;color:var(--primary);font-family:monospace;margin-top:2px">${p.sku}</div>
+        <div style="font-size:10px;font-weight:800;color:var(--primary);font-family:monospace;margin-top:2px">${esc(p.sku)}</div>
       </div>
     </div>`;
   }
@@ -4389,7 +4412,18 @@ async function _saveNewProductMultiRow() {
         S.products.push(newProd);
         if (i === 0) createdSku = newProd.sku;
       } catch(e) {
-        toast(`❌ Error al crear stock en fila ${i+1}: ` + (e.message || 'intenta de nuevo'));
+        // Las filas anteriores (0..i-1) ya se crearon en el servidor — no hay
+        // forma de deshacerlas desde acá sin arriesgar borrar algo que el
+        // usuario sí quería, así que se deja el producto parcialmente creado
+        // pero se lo decimos explícitamente en vez de un error genérico, y se
+        // refresca la UI para que el estado mostrado no quede desincronizado
+        // del real mientras el sheet sigue abierto.
+        toast(i === 0
+          ? `❌ Error al crear el producto: ` + (e.message || 'intenta de nuevo')
+          : `⚠️ Producto creado con stock en ${i} de ${rows.length} tiendas — falló la fila ${i+1}: ` + (e.message || 'intenta de nuevo'));
+        renderHome();
+        if (S.currentPage==='inventory') renderInventory();
+        if (S.currentPage==='catalogo')  renderCatalogo();
         return;
       }
     } else {
@@ -4654,13 +4688,13 @@ function _populateKitCompSelect(excludeSku) {
   const masterKits = S.kits.filter(k => (k.warehouse_id||'') === '' && k.sku !== excludeSku);
   const kitOpts = masterKits.length
     ? `<optgroup label="— KITs —">${masterKits.map(k =>
-        `<option value="kit:${k.sku}:">[KIT] ${_truncLabel(k.name)} (${kitStock(k)} disp.)</option>`
+        `<option value="kit:${esc(k.sku)}:">[KIT] ${esc(_truncLabel(k.name))} (${kitStock(k)} disp.)</option>`
       ).join('')}</optgroup>`
     : '';
   const prodOpts = S.products.map(p => {
     const wh = whs.find(w => w.id === p.warehouse_id);
     const wLabel = wh ? ` [${_truncLabel(wh.name, 14)}]` : '';
-    return `<option value="prod:${p.sku}:${p.warehouse_id||''}">${_truncLabel(p.name)}${wLabel} (stock: ${p.stock})</option>`;
+    return `<option value="prod:${esc(p.sku)}:${esc(p.warehouse_id||'')}">${esc(_truncLabel(p.name))}${wLabel} (stock: ${p.stock})</option>`;
   }).join('');
   sel.innerHTML = `<option value="">Seleccionar componente...</option>${kitOpts}<optgroup label="— Productos —">${prodOpts}</optgroup>`;
 }
@@ -4706,7 +4740,7 @@ function renderKitItemsList() {
       const p = S.products.find(x => x.sku === item.sku && (x.warehouse_id||'') === (item.warehouse_id||''))
              || S.products.find(x => x.sku === item.sku);
       const wh = whs.find(w => w.id === (item.warehouse_id || ''));
-      const whLabel = wh ? ` <span style="font-size:10px;color:var(--teal-dark,#0d9488)">[${wh.name}]</span>` : '';
+      const whLabel = wh ? ` <span style="font-size:10px;color:var(--teal-dark,#0d9488)">[${esc(wh.name)}]</span>` : '';
       label = `${p?.name||item.sku}${whLabel}${_groupChipsHtml(p?.groups)}`;
       if (p) openCall = `_openKitComponentEdit('product','${item.sku.replace(/'/g,"\\'")}','${(p.warehouse_id||'').replace(/'/g,"\\'")}')`;
     }
@@ -4812,6 +4846,7 @@ async function _saveKitImpl() {
   if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
   if (!S.tempKitItems.length) { toast('⚠️ Agrega al menos un componente'); return; }
   const price = parseFloat(document.getElementById('kit-price').value)||0;
+  if (price < 0) { toast('⚠️ El precio no puede ser negativo'); return; }
   const items = S.tempKitItems.slice();
   const stock_group_ids = (S.tempKitGroups || []).slice();
   const groups = (S.tempKitOwnGroups || []).slice();
@@ -4871,11 +4906,11 @@ function openAddKitSkuSheet(kitSku) {
   const modeFields = document.getElementById('kit-sku-mode-fields');
   modeFields.style.display = '';
   document.getElementById('kit-sku-summary').innerHTML =
-    `<div style="font-size:13px;font-weight:800">${master.name}</div>
-     <div style="font-size:11px;color:var(--text3);font-family:monospace;margin-top:2px">${master.sku} · ${fmt(master.price)}</div>
+    `<div style="font-size:13px;font-weight:800">${esc(master.name)}</div>
+     <div style="font-size:11px;color:var(--text3);font-family:monospace;margin-top:2px">${esc(master.sku)} · ${fmt(master.price)}</div>
      <div style="font-size:11px;color:var(--text3);margin-top:2px">${master.items.length} componente${master.items.length!==1?'s':''}</div>`;
   const whSel = document.getElementById('kit-sku-warehouse');
-  whSel.innerHTML = available.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+  whSel.innerHTML = available.map(w => `<option value="${w.id}">${esc(w.name)}</option>`).join('');
   document.getElementById('kit-meta').style.display = 'none';
   openSheet('sheet-kit');
 }
@@ -4913,8 +4948,8 @@ function renderMesonCatalog() {
         ondragstart="mesonDragStart(event,'${skuEsc}','','kit')" ondragend="mesonDragEnd(event)">
       <div class="meson-swatch meson-swatch-kit"><i class="ti ti-stack-2"></i></div>
       <div class="meson-item-info">
-        <div class="meson-item-name" title="${nameEsc}"><span class="meson-kit-badge">KIT</span>${k.name}</div>
-        <div class="meson-item-sku">${k.sku}</div>
+        <div class="meson-item-name" title="${nameEsc}"><span class="meson-kit-badge">KIT</span>${esc(k.name)}</div>
+        <div class="meson-item-sku">${esc(k.sku)}</div>
       </div>
       <span class="stock-tag ${inStock ? 'in' : 'out'}">${inStock ? 'En stock' : 'Sin stock'}</span>
       <button class="meson-add-btn" title="Agregar al mesón" onclick="mesonAddToMeson('${skuEsc}','','kit')"><i class="ti ti-plus"></i></button>
@@ -4931,8 +4966,8 @@ function renderMesonCatalog() {
         ondragstart="mesonDragStart(event,'${skuEsc}','${widEsc}','')" ondragend="mesonDragEnd(event)">
       <div class="meson-swatch"><i class="ti ti-box"></i></div>
       <div class="meson-item-info">
-        <div class="meson-item-name" title="${nameEsc}">${p.name}</div>
-        <div class="meson-item-sku">${p.sku}${whLabel}</div>
+        <div class="meson-item-name" title="${nameEsc}">${esc(p.name)}</div>
+        <div class="meson-item-sku">${esc(p.sku)}${whLabel}</div>
       </div>
       <span class="stock-tag ${inStock ? 'in' : 'out'}">${inStock ? 'En stock' : 'Sin stock'}</span>
       <button class="meson-add-btn" title="Agregar al mesón" onclick="mesonAddToMeson('${skuEsc}','${widEsc}','')"><i class="ti ti-plus"></i></button>
@@ -5222,7 +5257,7 @@ function renderProductGroupsView(el) {
     <div class="cat-list-item" id="pgroup-item-${g.id}" style="display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border);gap:8px">
       <i class="ti ti-tags" style="font-size:15px;color:var(--primary);flex-shrink:0"></i>
       <div style="flex:1">
-        <div style="font-size:14px;font-weight:700">${g.name}</div>
+        <div style="font-size:14px;font-weight:700">${esc(g.name)}</div>
         <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:2px">ID #${g.id} · ${g.product_count||0} producto${g.product_count==1?'':'s'}</div>
       </div>
       <button onclick="editProductGroup(${g.id})" style="width:30px;height:30px;border-radius:8px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-pencil" style="font-size:12px"></i></button>
@@ -5247,6 +5282,7 @@ async function createProductGroup() {
   const inp = document.getElementById('pgroup-new-name');
   const name = (inp?.value || '').trim();
   if (!name) { toast('⚠️ Escribe un nombre'); inp?.focus(); return; }
+  if (S.productGroups.some(g => g.name.toLowerCase() === name.toLowerCase())) { toast('⚠️ Ya existe'); return; }
   try {
     const row = await apiFetch('/api/products?groups=1', { method: 'POST', body: JSON.stringify({ name }) });
     S.productGroups.push({ ...row, product_count: 0 });
@@ -5297,7 +5333,7 @@ function renderGroupChips(containerId, selectedIds, toggleFn) {
   if (!wrap) return;
   const groups = S.productGroups || [];
   wrap.innerHTML = groups.length
-    ? groups.map(g => `<div class="chip-group${(selectedIds||[]).includes(g.id) ? ' selected' : ''}" onclick="${toggleFn}(${g.id},this)"><i class="ti ti-tag"></i>${g.name}</div>`).join('')
+    ? groups.map(g => `<div class="chip-group${(selectedIds||[]).includes(g.id) ? ' selected' : ''}" onclick="${toggleFn}(${g.id},this)"><i class="ti ti-tag"></i>${esc(g.name)}</div>`).join('')
     : `<span style="font-size:12px;color:var(--text3);font-weight:600">Sin grupos creados aún. Puedes crearlos en Catálogo → Grupos.</span>`;
 }
 
@@ -5432,7 +5468,7 @@ function renderCategoryTreeView(el) {
 
     let html = `<div style="display:flex;align-items:center;padding:9px 12px 9px ${12+indent}px;border-bottom:1px solid var(--border);gap:7px">
       <i class="ti ${iconClass}" style="font-size:13px;color:${iconColor};flex-shrink:0"></i>
-      <div style="flex:1;font-size:${fontSize}px;font-weight:${fontWeight}">${node.name}</div>
+      <div style="flex:1;font-size:${fontSize}px;font-weight:${fontWeight}">${esc(node.name)}</div>
       <span style="font-size:10px;color:var(--text3);font-weight:600;margin-right:2px">${levelLabel}</span>
       ${canAddChild ? `<button onclick="openCatAdd('${safeId}')" title="Agregar subcategoría" style="width:26px;height:26px;border-radius:6px;border:none;background:var(--primary-light);color:var(--primary);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-plus" style="font-size:11px"></i></button>` : ''}
       <button onclick="editCatNode('${safeId}')" style="width:26px;height:26px;border-radius:6px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-pencil" style="font-size:11px"></i></button>
@@ -5495,11 +5531,13 @@ async function commitCatAdd(parentId) {
   const tree = getCategoryTree();
   const newNode = { id: genCatId(), name, children: [] };
   if (parentId === 'root') {
+    if (tree.some(n => n.name.toLowerCase() === name.toLowerCase())) { toast('⚠️ Ya existe'); return; }
     tree.push(newNode);
   } else {
     const found = findCatInTree(tree, parentId);
     if (found) {
       if (!found.node.children) found.node.children = [];
+      if (found.node.children.some(n => n.name.toLowerCase() === name.toLowerCase())) { toast('⚠️ Ya existe'); return; }
       found.node.children.push(newNode);
     }
   }
@@ -5561,14 +5599,14 @@ function populateCatSelects(catPath) {
   const parts = (catPath || '').split(' > ').filter(Boolean);
 
   const principalOpts = `<option value="">— Principal —</option>` +
-    tree.map(n => `<option value="${n.id}"${parts[0]===n.name?' selected':''}>${n.name}</option>`).join('');
+    tree.map(n => `<option value="${n.id}"${parts[0]===n.name?' selected':''}>${esc(n.name)}</option>`).join('');
 
   const selectedP = tree.find(n => n.name === parts[0]);
   let nivel1Html = '';
   if (selectedP?.children?.length) {
     nivel1Html = `<select class="form-input" id="p-cat-n1" onchange="onCatN1Change()" style="margin-top:6px">
       <option value="">— Nivel 1 —</option>
-      ${selectedP.children.map(n => `<option value="${n.id}"${parts[1]===n.name?' selected':''}>${n.name}</option>`).join('')}
+      ${selectedP.children.map(n => `<option value="${n.id}"${parts[1]===n.name?' selected':''}>${esc(n.name)}</option>`).join('')}
     </select>`;
   }
 
@@ -5577,7 +5615,7 @@ function populateCatSelects(catPath) {
   if (selectedN1?.children?.length) {
     nivel2Html = `<select class="form-input" id="p-cat-n2" style="margin-top:6px">
       <option value="">— Nivel 2 —</option>
-      ${selectedN1.children.map(n => `<option value="${n.id}"${parts[2]===n.name?' selected':''}>${n.name}</option>`).join('')}
+      ${selectedN1.children.map(n => `<option value="${n.id}"${parts[2]===n.name?' selected':''}>${esc(n.name)}</option>`).join('')}
     </select>`;
   }
 
@@ -5599,7 +5637,7 @@ function onCatPChange() {
     sel.style.marginTop = '6px';
     sel.onchange = onCatN1Change;
     sel.innerHTML = `<option value="">— Nivel 1 —</option>` +
-      selectedP.children.map(n => `<option value="${n.id}">${n.name}</option>`).join('');
+      selectedP.children.map(n => `<option value="${n.id}">${esc(n.name)}</option>`).join('');
     group.appendChild(sel);
   }
 }
@@ -5619,7 +5657,7 @@ function onCatN1Change() {
     sel.id = 'p-cat-n2';
     sel.style.marginTop = '6px';
     sel.innerHTML = `<option value="">— Nivel 2 —</option>` +
-      selectedN1.children.map(n => `<option value="${n.id}">${n.name}</option>`).join('');
+      selectedN1.children.map(n => `<option value="${n.id}">${esc(n.name)}</option>`).join('');
     group.appendChild(sel);
   }
 }
@@ -5660,15 +5698,25 @@ async function deleteAllBySku(sku) {
     ? `¿Eliminar "${name}" de los ${warehouseCount} almacenes?\nEsto no puede deshacerse.`
     : `¿Eliminar "${name}"?\nEsto no puede deshacerse.`;
   if (!confirm(msg)) return;
+  const failedWids = [];
   if (S._apiReady) {
     for (const p of instances) {
       const wid = p.warehouse_id || '';
       try { await apiFetch(`/api/products/${sku}?warehouse_id=${encodeURIComponent(wid)}`, { method:'DELETE' }); }
-      catch(e) { console.warn('deleteAllBySku API error', e); }
+      catch(e) { console.warn('deleteAllBySku API error', e); failedWids.push(wid); }
     }
   }
-  S.products = S.products.filter(x => x.sku !== sku);
-  toast('🗑 Producto eliminado');
+  // Solo se saca del estado local lo que realmente se borró en el servidor —
+  // si algún almacén falló, ese SKU sigue existiendo ahí y no corresponde
+  // hacerlo desaparecer de la UI como si se hubiera borrado.
+  S.products = S.products.filter(x => !(x.sku === sku && !failedWids.includes(x.warehouse_id || '')));
+  if (failedWids.length) {
+    toast(failedWids.length === instances.length
+      ? '❌ No se pudo eliminar en ningún almacén'
+      : `⚠️ Eliminado parcialmente — falló en ${failedWids.length} de ${instances.length} almacenes`);
+  } else {
+    toast('🗑 Producto eliminado');
+  }
   renderHome();
   if (S.currentPage==='inventory') renderInventory();
   if (S.currentPage==='catalogo')  renderCatalogo();
@@ -5783,8 +5831,8 @@ function _renderCatalogProductsList() {
             <i class="ti ti-stack-2" style="font-size:17px;color:var(--amber-dark,#c97316)"></i>
           </div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
-            <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:1px"><span style="background:var(--amber-light,#fef3c7);color:var(--amber-dark,#c97316);padding:1px 5px;border-radius:5px;font-size:10px;font-weight:700">KIT</span> <span style="font-family:monospace;color:var(--primary)">${p.sku}</span> · ${fmt(p.price)}</div>
+            <div style="font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>
+            <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:1px"><span style="background:var(--amber-light,#fef3c7);color:var(--amber-dark,#c97316);padding:1px 5px;border-radius:5px;font-size:10px;font-weight:700">KIT</span> <span style="font-family:monospace;color:var(--primary)">${esc(p.sku)}</span> · ${fmt(p.price)}</div>
             <div style="margin-top:3px">${skuInfo}</div>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
@@ -5811,8 +5859,8 @@ function _renderCatalogProductsList() {
           <i class="ti ${skuCount?'ti-box':'ti-package'}" style="font-size:17px;color:${skuCount?'var(--primary)':'var(--text3)'}"></i>
         </div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
-          <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:1px">${p.brand||'—'} · ${p.cat||'—'} <span style="font-family:monospace;color:var(--primary)">${p.sku}</span></div>
+          <div style="font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>
+          <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:1px">${esc(p.brand||'—')} · ${esc(p.cat||'—')} <span style="font-family:monospace;color:var(--primary)">${esc(p.sku)}</span></div>
           <div style="margin-top:3px">${skuInfo}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
@@ -5851,9 +5899,9 @@ function renderCatalogSKUsView(el) {
         const wh     = whs.find(w => w.id === p.warehouse_id);
         if (p._isKit) {
           return `<div style="display:grid;grid-template-columns:68px 1fr auto auto;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);gap:4px">
-            <div style="font-size:11px;font-weight:900;color:var(--amber-dark,#c97316);font-family:monospace">${p.sku}</div>
+            <div style="font-size:11px;font-weight:900;color:var(--amber-dark,#c97316);font-family:monospace">${esc(p.sku)}</div>
             <div style="padding-left:6px;min-width:0">
-              <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:4px"><span style="background:var(--amber-light,#fef3c7);color:var(--amber-dark,#c97316);padding:1px 4px;border-radius:4px;font-size:9px;font-weight:700">KIT</span>${p.name}</div>
+              <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:4px"><span style="background:var(--amber-light,#fef3c7);color:var(--amber-dark,#c97316);padding:1px 4px;border-radius:4px;font-size:9px;font-weight:700">KIT</span>${esc(p.name)}</div>
               <div style="font-size:10px;color:var(--text3);font-weight:600">${fmt(p.price)}</div>
             </div>
             <div style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);text-align:right;white-space:nowrap;padding-right:4px">${wh ? wh.name : (p.warehouse_id || '—')}</div>
@@ -5864,9 +5912,9 @@ function renderCatalogSKUsView(el) {
           </div>`;
         }
         return `<div style="display:grid;grid-template-columns:68px 1fr auto auto;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);gap:4px">
-          <div style="font-size:11px;font-weight:900;color:var(--primary);font-family:monospace">${p.sku}</div>
+          <div style="font-size:11px;font-weight:900;color:var(--primary);font-family:monospace">${esc(p.sku)}</div>
           <div style="padding-left:6px;min-width:0">
-            <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
+            <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>
             <div style="font-size:10px;color:var(--text3);font-weight:600">${p.cat||'—'}</div>
           </div>
           <div style="font-size:10px;font-weight:700;color:var(--teal-dark,#0d9488);text-align:right;white-space:nowrap;padding-right:4px">${wh ? wh.name : (p.warehouse_id || '—')}</div>
@@ -5981,7 +6029,7 @@ function orderLabelsSection(v) {
       ${items.map(t => `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">
         <div style="flex:1;min-width:0">
           <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px">${t.label}</div>
-          <div style="font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.tpl.name}</div>
+          <div style="font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.tpl.name)}</div>
         </div>
         <button onclick="printLabelTemplate('${t.tpl.id}',${orderCtxJson})" title="Imprimir ${t.label.toLowerCase()}" style="width:34px;height:34px;border-radius:9px;border:none;background:var(--primary-light);color:var(--primary);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-printer" style="font-size:15px"></i></button>
       </div>`).join('')}
@@ -6054,6 +6102,7 @@ ${sectionsHtml}
 </body></html>`;
   const win = window.open('', '_blank', 'width=700,height=600');
   if (win) { win.document.write(html); win.document.close(); }
+  else { toast('❌ El navegador bloqueó la ventana de impresión — permite popups para este sitio'); }
   return win;
 }
 
@@ -6088,7 +6137,7 @@ function renderMaterialesOrdersView(el) {
         ${statusBadge(v.status)}
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;padding-left:26px">
-        ${items.map(t => `<span style="font-size:11px;font-weight:700;background:var(--bg3);color:var(--text2);padding:3px 9px;border-radius:20px">${t.label}: ${t.tpl.name}</span>`).join('')}
+        ${items.map(t => `<span style="font-size:11px;font-weight:700;background:var(--bg3);color:var(--text2);padding:3px 9px;border-radius:20px">${esc(t.label)}: ${esc(t.tpl.name)}</span>`).join('')}
       </div>
     </div>`).join('');
   el.innerHTML = `${intro}
@@ -6162,7 +6211,7 @@ function labelTemplateRow(tpl) {
       ${tpl.image_url ? `<img src="${tpl.image_url}" style="width:100%;height:100%;object-fit:cover">` : `<i class="ti ti-photo" style="color:var(--text3)"></i>`}
     </div>
     <div style="flex:1;min-width:0">
-      <div style="font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${tpl.name}${tpl.active===false?' <span style="color:var(--text3);font-weight:700;font-size:11px">(inactivo)</span>':''}</div>
+      <div style="font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(tpl.name)}${tpl.active===false?' <span style="color:var(--text3);font-weight:700;font-size:11px">(inactivo)</span>':''}</div>
       <div style="font-size:11px;color:var(--text3);font-weight:600">${paperLabel} · ${tpl.font||'Nunito'} · ${sizeInfo}</div>
     </div>
     <button onclick="printLabelTemplate('${idEsc}')" title="Imprimir" style="width:30px;height:30px;border-radius:8px;border:none;background:var(--primary-light);color:var(--primary);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-printer" style="font-size:13px"></i></button>
@@ -6476,7 +6525,7 @@ function printLabelTemplate(id, orderCtx) {
   // de un template creado antes del editor con formato, o editado a mano.
   const safeContentText = tpl.content_text ? _sanitizeLtplHtml(tpl.content_text) : '';
 
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${tpl.name}</title>
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${esc(tpl.name)}</title>
 <link rel="stylesheet" href="${googleFontHref}">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -6503,6 +6552,7 @@ ${orderCtx ? `<div class="order-ctx">${orderCtx.prefix ? orderCtx.prefix+'  #'+o
 
   const win = window.open('', '_blank', 'width=420,height=560');
   if (win) { win.document.write(html); win.document.close(); }
+  else { toast('❌ El navegador bloqueó la ventana de impresión — permite popups para este sitio'); }
 }
 
 // Locales/almacenes/formas de entrega — cargados desde la API en initApp()
@@ -6543,7 +6593,7 @@ function renderDeliveryMethods(locale) {
     return `<div class="method-option" data-type="${m.type}" onclick="selectDeliveryMethod('${m.type}',this,'${m.id}','${nm}')">
       <div class="method-option-icon"><i class="ti ${DM_ICONS[m.type]||'ti-truck-delivery'}"></i></div>
       <div class="method-option-body">
-        <div class="method-option-name">${m.name}</div>
+        <div class="method-option-name">${esc(m.name)}</div>
         <div class="method-option-desc">${cost}</div>
       </div>
     </div>`;
@@ -6729,7 +6779,7 @@ function populateVentaLabelSelects() {
     const items = byType(t.key);
     if (!items.length) return null;
     const required = t.key === 'etiqueta' && isEtiquetaObligatoria();
-    const options = items.map(tpl => `<option value="${tpl.id}">${tpl.name}</option>`).join('');
+    const options = items.map(tpl => `<option value="${tpl.id}">${esc(tpl.name)}</option>`).join('');
     return `<div class="form-group">
       <div class="form-label">${t.label} ${required ? '<span style="color:var(--red)">*</span>' : ''}</div>
       <select class="form-input venta-label-select" data-type-key="${t.key}" data-required="${required ? '1' : '0'}">
@@ -6982,7 +7032,7 @@ function renderVentaItemsList() {
     <div class="venta-item-row">
       ${tipoBadge(item.tipo)}
       <div class="venta-item-info">
-        <div class="venta-item-name">${item.name}</div>
+        <div class="venta-item-name">${esc(item.name)}</div>
         <div class="venta-item-price">${fmt(item.price)} c/u</div>
       </div>
       <div class="qty-ctrl">
@@ -7190,17 +7240,24 @@ function processWhatsapp() {
 
   if (data.delivery_type) autoSelectDeliveryMethod(data.delivery_type, data.address_city);
 
-  const warnings = [], ambiguous = [];
+  const warnings = [], ambiguous = [], uncertain = [];
   if (data.products.length) {
     for (const p of data.products) {
       const matches = fuzzyMatchProducts(p.name);
       if (!matches.length) {
-        warnings.push(`No encontré "${p.name}" en el catálogo`);
+        warnings.push(`No encontré "${esc(p.name)}" en el catálogo`);
       } else if (matches[0].similarity >= 0.65 || matches.length === 1) {
         const m = matches[0];
         const ex = S.tempVentaItems.find(i=>i.sku===m.sku&&i.type===m.type&&(i.warehouse_id||'')===m.warehouse_id);
         if (ex) ex.qty+=(p.qty||1);
         else S.tempVentaItems.push({type:m.type,sku:m.sku,name:m.name,price:m.price,qty:p.qty||1,tipo:m.tipo,warehouse_id:m.warehouse_id||''});
+        // Se agregó igual (no bloquea el flujo por un match imperfecto), pero
+        // si la similitud no es alta se avisa para que se revise antes de
+        // cerrar la venta — antes esto entraba al carrito en silencio, y un
+        // texto mal interpretado podía colar el SKU equivocado en una orden real.
+        if (matches.length > 1 && m.similarity < 0.85) {
+          uncertain.push({ query: p.name, matched: m.name });
+        }
       } else {
         ambiguous.push({query:p.name, qty:p.qty||1, candidates:matches.slice(0,3)});
       }
@@ -7211,13 +7268,14 @@ function processWhatsapp() {
   const resultsEl = document.getElementById('venta-wa-results');
   let html = '';
   warnings.forEach(w=>{ html+=`<div class="info-box amber" style="margin-bottom:6px;font-size:12px"><i class="ti ti-alert-triangle"></i> ${w}</div>`; });
+  uncertain.forEach(u=>{ html+=`<div class="info-box amber" style="margin-bottom:6px;font-size:12px"><i class="ti ti-alert-triangle"></i> "${esc(u.query)}" se agregó como <strong>${esc(u.matched)}</strong> — revisa que sea correcto</div>`; });
   ambiguous.forEach(a=>{
     html+=`<div class="info-box amber wa-candidate-box" style="margin-bottom:8px">
-      <div style="font-size:12px;font-weight:700;margin-bottom:6px"><i class="ti ti-help-circle"></i> ¿Cuál es "${a.query}" (×${a.qty})?</div>
-      ${a.candidates.map(c=>`<button class="btn btn-outline" style="margin-bottom:4px;width:100%;justify-content:flex-start;font-size:12px;padding:6px 10px;gap:6px" onclick="addWaCandidateItem('${c.type}','${c.sku}','${c.warehouse_id||''}',${a.qty},this)">${tipoBadge(c.tipo)}<span>${c.name}</span></button>`).join('')}
+      <div style="font-size:12px;font-weight:700;margin-bottom:6px"><i class="ti ti-help-circle"></i> ¿Cuál es "${esc(a.query)}" (×${a.qty})?</div>
+      ${a.candidates.map(c=>`<button class="btn btn-outline" style="margin-bottom:4px;width:100%;justify-content:flex-start;font-size:12px;padding:6px 10px;gap:6px" onclick="addWaCandidateItem('${c.type}','${esc(c.sku).replace(/'/g,"&#39;")}','${(c.warehouse_id||'').replace(/'/g,"&#39;")}',${a.qty},this)">${tipoBadge(c.tipo)}<span>${esc(c.name)}</span></button>`).join('')}
     </div>`;
   });
-  if (data.date_hint) html+=`<div class="info-box" style="margin-bottom:6px;background:#f0fdf4;border-color:#bbf7d0;font-size:12px"><i class="ti ti-calendar" style="color:var(--green-dark)"></i> Fecha solicitada: <strong>${data.date_hint}</strong></div>`;
+  if (data.date_hint) html+=`<div class="info-box" style="margin-bottom:6px;background:#f0fdf4;border-color:#bbf7d0;font-size:12px"><i class="ti ti-calendar" style="color:var(--green-dark)"></i> Fecha solicitada: <strong>${esc(data.date_hint)}</strong></div>`;
   const filled = [data.cliente,data.telefono,data.receptor,data.address_street,data.dedicatoria].filter(Boolean).length;
   if (!warnings.length && !ambiguous.length && filled > 0) html=`<div class="info-box" style="background:#f0fdf4;border-color:#bbf7d0;font-size:12px"><i class="ti ti-check" style="color:var(--green-dark)"></i> <strong>Listo</strong> — revisa los campos destacados en amarillo</div>`;
   if (!html) html=`<div class="info-box amber" style="font-size:12px"><i class="ti ti-alert-triangle"></i> No se detectaron campos. Revisa el formato del mensaje.</div>`;
@@ -7538,7 +7596,7 @@ function openOrderEditSheet(id, pushURL = true) {
   const oeLocationSel = document.getElementById('oe-location');
   const locales = getLocalesData() || [];
   oeLocationSel.innerHTML = '<option value="">Sin especificar</option>' +
-    locales.map(l => `<option value="${l.id}">${l.name}${l.prefix ? ' — ' + l.prefix : ''}</option>`).join('');
+    locales.map(l => `<option value="${l.id}">${esc(l.name)}${l.prefix ? ' — ' + esc(l.prefix) : ''}</option>`).join('');
   oeLocationSel.value = v.location_id || '';
   S._oeCoupon = null;
   S._oeCouponCleared = false;
@@ -7647,7 +7705,7 @@ function oeRenderMethods() {
     return `<div class="method-option${isSel?' selected':''}" onclick="oeSelectMethod('${m.type}',this,'${m.id}','${nm}')">
       <div class="method-option-icon"><i class="ti ${DM_ICONS[m.type]||'ti-truck-delivery'}"></i></div>
       <div class="method-option-body">
-        <div class="method-option-name">${m.name}</div>
+        <div class="method-option-name">${esc(m.name)}</div>
         <div class="method-option-desc">${cost}</div>
       </div>
     </div>`;
@@ -7854,7 +7912,7 @@ function renderOeItemsList() {
     <div class="venta-item-row">
       ${tipoBadge(item.type === 'kit' ? 'kit' : (item.tipo||'producto'))}
       <div class="venta-item-info">
-        <div class="venta-item-name">${item.name}</div>
+        <div class="venta-item-name">${esc(item.name)}</div>
         <div class="venta-item-price">${fmt(item.price)} c/u</div>
       </div>
       <div class="qty-ctrl">
@@ -8136,7 +8194,7 @@ function renderDuplicarItemsList() {
     <div class="venta-item-row">
       ${tipoBadge(item.type === 'kit' ? 'kit' : (item.tipo||'producto'))}
       <div class="venta-item-info">
-        <div class="venta-item-name">${item.name}</div>
+        <div class="venta-item-name">${esc(item.name)}</div>
         <div class="venta-item-price">${fmt(item.price)} c/u</div>
       </div>
       <div class="qty-ctrl">
@@ -8362,6 +8420,7 @@ ${dv.address_notes?`<div class="dl-row"><span class="dl-lbl">Nota</span><span>${
 
   const win = window.open('', '_blank', 'width=420,height=680');
   if (win) { win.document.write(html); win.document.close(); }
+  else { toast('❌ El navegador bloqueó la ventana de impresión — permite popups para este sitio'); }
 }
 
 // ── BATCH COMANDA PRINT ───────────────────────
@@ -8476,6 +8535,7 @@ table{width:100%;border-collapse:collapse}
 
   const win = window.open('', '_blank', 'width=900,height=720');
   if (win) { win.document.write(html); win.document.close(); }
+  else { toast('❌ El navegador bloqueó la ventana de impresión — permite popups para este sitio'); }
 }
 
 function printReceptores() {
@@ -8552,6 +8612,7 @@ ${cards}
 
   const win = window.open('', '_blank', 'width=780,height=900');
   if (win) { win.document.write(html); win.document.close(); }
+  else { toast('❌ El navegador bloqueó la ventana de impresión — permite popups para este sitio'); }
 }
 
 // (iframe sub-page overlays removed — delivery/routes/driver are now real pages)
@@ -8734,6 +8795,12 @@ function _orderDate(v) {
       const d = new Date(parts[2], parts[1]-1, parts[0]);
       if (!isNaN(d)) return d;
     }
+    // Fallback: la heurística de arriba asume DD-MM-YYYY (formato que usa
+    // esta app al crear una orden) y nunca matchea YYYY-MM-DD (ISO) — sin
+    // esto, una orden con fecha en ese formato (ej. importada de un sistema
+    // externo) quedaba silenciosamente fuera de todos los gráficos.
+    const iso = new Date(v.fecha);
+    if (!isNaN(iso)) return iso;
   }
   return null;
 }

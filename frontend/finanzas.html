@@ -687,10 +687,18 @@ async function loadCategoryOptions() {
 let _expSearchTimer;
 function onExpenseSearch() { clearTimeout(_expSearchTimer); _expSearchTimer = setTimeout(() => loadExpenses(true), 400); }
 
+let _expLoading = false;
 async function loadExpenses(reset) {
+  // Sin esto, un doble clic rápido en "Cargar más" disparaba dos requests
+  // superpuestas antes de que ninguna resolviera — ambas incrementaban la
+  // página y volvían a pushear filas, produciendo duplicados o saltos.
+  if (_expLoading) return;
+  _expLoading = true;
   if (reset) { _expState.page = 1; _expState.rows = []; }
   document.getElementById('expenses-loading').style.display = reset ? '' : 'none';
   document.getElementById('expenses-empty').style.display = 'none';
+  const loadMoreBtn = document.getElementById('expenses-load-more');
+  if (loadMoreBtn) loadMoreBtn.disabled = true;
   const f = currentFilters();
   const [sort, order] = document.getElementById('exp-sort').value.split(':');
   const params = {
@@ -702,12 +710,20 @@ async function loadExpenses(reset) {
   };
   let data;
   try { data = await api('/api/orders?' + qs(params)); }
-  catch (e) { toast('⚠️ ' + e.message); document.getElementById('expenses-loading').style.display = 'none'; return; }
+  catch (e) {
+    toast('⚠️ ' + e.message);
+    document.getElementById('expenses-loading').style.display = 'none';
+    _expLoading = false;
+    if (loadMoreBtn) loadMoreBtn.disabled = false;
+    return;
+  }
   document.getElementById('expenses-loading').style.display = 'none';
 
   _expState.rows = reset ? data.rows : [..._expState.rows, ...data.rows];
   _expState.total = data.total;
   renderExpenses();
+  if (loadMoreBtn) loadMoreBtn.disabled = false;
+  _expLoading = false;
 }
 function loadMoreExpenses() { _expState.page++; loadExpenses(false); }
 
@@ -732,7 +748,7 @@ function renderExpenses() {
         <div class="expense-actions">
           <button class="icon-btn" style="width:28px;height:28px;font-size:14px" title="Editar" onclick="openExpenseForm('${e.id}')"><i class="ti ti-pencil"></i></button>
           <button class="icon-btn" style="width:28px;height:28px;font-size:14px" title="Duplicar" onclick="duplicateExpense('${e.id}')"><i class="ti ti-copy"></i></button>
-          ${isAdmin() ? `<button class="icon-btn" style="width:28px;height:28px;font-size:14px;color:var(--red-dark)" title="Anular" onclick="askDeleteExpense('${e.id}','${escHtml(e.description).replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>` : ''}
+          ${isAdmin() ? `<button class="icon-btn" style="width:28px;height:28px;font-size:14px;color:var(--red-dark)" title="Anular" data-expense-name="${escHtml(e.description)}" onclick="askDeleteExpense('${e.id}', this)"><i class="ti ti-trash"></i></button>` : ''}
         </div>
       </div>
     </div>`).join('');
@@ -816,7 +832,12 @@ async function duplicateExpense(id) {
   catch (e) { toast('⚠️ ' + e.message); }
 }
 let _deleteTargetId = null;
-function askDeleteExpense(id, name) { _deleteTargetId = id; document.getElementById('confirm-delete-name').textContent = name; document.getElementById('modal-confirm-delete').classList.remove('hidden'); }
+// `btn` en vez de pasar la descripción como string armado a mano en el
+// onclick — un backslash justo antes de una comilla en la descripción podía
+// romper el escaping (\' encadenado después de escHtml) y quebrar el
+// string del handler inline. Leerla desde data-expense-name evita ese
+// problema por completo: nunca se arma un literal de JS con texto de datos.
+function askDeleteExpense(id, btn) { _deleteTargetId = id; document.getElementById('confirm-delete-name').textContent = btn?.dataset.expenseName || ''; document.getElementById('modal-confirm-delete').classList.remove('hidden'); }
 function closeConfirmDelete() { document.getElementById('modal-confirm-delete').classList.add('hidden'); _deleteTargetId = null; }
 async function confirmDeleteExpense() {
   if (!_deleteTargetId) return;
