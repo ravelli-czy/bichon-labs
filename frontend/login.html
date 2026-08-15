@@ -127,9 +127,8 @@ body{display:flex;align-items:center;justify-content:center;min-height:100vh;pad
       <div class="success-box" id="forgot-success"></div>
 
       <div class="token-box" id="token-display">
-        <div class="token-label">Tu código de recuperación</div>
-        <div class="token-code" id="token-value"></div>
-        <div class="token-note">Cópialo — lo necesitarás en el siguiente paso. Expira en 60 min.</div>
+        <div class="token-label"><i class="ti ti-mail"></i> Revisa tu email</div>
+        <div class="token-note" style="font-size:13px;margin-top:4px">Te enviamos un código de recuperación. Ingrésalo en el siguiente paso — expira en 60 min.</div>
       </div>
 
       <div id="forgot-form-section">
@@ -312,11 +311,10 @@ async function doRequestReset() {
     const data = await r.json();
     if (!r.ok) { showError('forgot-error', data.error || 'Error al generar código'); return; }
 
-    // Show token on screen
-    document.getElementById('token-value').textContent = data.reset_token;
+    // El código ya no viaja en la respuesta — se envía por email.
     document.getElementById('token-display').style.display = 'block';
     document.getElementById('forgot-form-section').style.display = 'none';
-    showSuccess('forgot-success', '¡Código generado! Cópialo antes de continuar.');
+    showSuccess('forgot-success', '¡Listo! Revisa tu email.');
 
     // Pre-fill reset form
     document.getElementById('reset-user').value = username;

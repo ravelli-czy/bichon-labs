@@ -1327,14 +1327,21 @@ function confirmOrder() {
     shipping_cost:  (s.method.base_cost || 0) + (s.slot.extra_cost || 0),
   };
 
-  closeSheet('sheet-order');
-  toast(`✅ Orden creada · ${s.method.name} · ${s.date} · ${s.slot.time_from.slice(0,5)}–${s.slot.time_to.slice(0,5)}`);
+  // Esta pantalla no crea la orden — solo arma los datos de entrega y se los
+  // pasa a la app principal (index.html), que es quien realmente crea la
+  // orden. Si no hay ventana padre (esta página se abrió suelta, sin el
+  // iframe embed=1), no hay a quién avisarle: no existe forma de crear la
+  // orden desde acá, así que no corresponde festejar un éxito.
+  let target = null;
+  try { target = window.parent !== window ? window.parent : null; } catch(e) {}
+  if (!target) {
+    toast('❌ No se pudo crear la orden: abre esta pantalla desde StockFlow, no de forma independiente');
+    return;
+  }
 
-  // Notify parent frame to open venta sheet pre-filled with delivery info
-  try {
-    const target = window.parent !== window ? window.parent : null;
-    if (target) target.postMessage({ type: 'sf_create_order', payload: orderPayload }, '*');
-  } catch(e) {}
+  closeSheet('sheet-order');
+  toast(`✅ Datos de entrega listos · ${s.method.name} · ${s.date} · ${s.slot.time_from.slice(0,5)}–${s.slot.time_to.slice(0,5)}`);
+  target.postMessage({ type: 'sf_create_order', payload: orderPayload }, '*');
 }
 
 // ── SHEETS ────────────────────────────────────

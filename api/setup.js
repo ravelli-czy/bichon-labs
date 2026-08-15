@@ -42,6 +42,21 @@ module.exports = async (req, res) => {
     return res.status(503).json({ error: err.message });
   }
 
+  // ── AUTENTICACIÓN ──────────────────────────────────────────────────────
+  // Este endpoint crea/migra el schema completo (y puede sembrar datos demo),
+  // así que en una base ya inicializada solo un admin puede invocarlo — antes
+  // era invocable por cualquiera sin sesión. La única excepción es la primera
+  // vez: en un deploy nuevo la tabla `users` todavía no existe, por lo que
+  // ningún admin puede haber iniciado sesión aún; en ese caso (nada que
+  // proteger todavía) se deja pasar para poder hacer el bootstrap inicial.
+  const [{ exists: schemaAlreadyExists }] = await sql`SELECT to_regclass('public.users') IS NOT NULL AS exists`;
+  if (schemaAlreadyExists) {
+    const session = await getSession(req);
+    if (!session || !['admin', 'superadmin', 'master'].includes(session.role)) {
+      return res.status(403).json({ error: 'Solo administradores pueden ejecutar /api/setup' });
+    }
+  }
+
   // ── CLEAR DATA — borrar todos los datos del tenant (admin+) ──────────────
   if (req.query?.clear === '1') {
     const session  = await getSession(req);
