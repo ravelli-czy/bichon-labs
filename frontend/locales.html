@@ -351,7 +351,7 @@ body.embedded .embed-page-header{display:block}
           <input class="form-input" type="number" min="0" step="1" id="wh-reorder-threshold" placeholder="Sin configurar">
         </div>
       </div>
-      <p style="font-size:12px;color:var(--text3);margin:-6px 0 0">Si un sku tiene stock en 2+ almacenes de venta de esta tienda, se descuenta primero del de mayor número de prioridad. El umbral de reposición dispara una alerta cuando el stock de cualquier producto de este almacén cae a ese número o menos — déjalo vacío para usar el umbral propio de cada producto.</p>
+      <p style="font-size:12px;color:var(--text3);margin:-6px 0 0">Si un sku tiene stock en 2+ almacenes de venta de esta tienda, se descuenta primero del de menor número de prioridad (0 = el más prioritario, como un ranking: 1º, 2º, 3º...). El umbral de reposición dispara una alerta cuando el stock de cualquier producto de este almacén cae a ese número o menos — déjalo vacío para usar el umbral propio de cada producto.</p>
       <input type="hidden" id="wh-local-id">
     </div>
     <div class="sheet-footer">
