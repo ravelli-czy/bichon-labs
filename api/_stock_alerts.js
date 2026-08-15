@@ -27,7 +27,9 @@ async function fetchAlertProducts(sql, tenantId) {
   // último lote registrado si no queda ninguno activo).
   return sql`
     SELECT p.sku, p.name, p.tipo, p.warehouse_id, w.name AS warehouse_name,
-           w.local_id, l.name AS local_name, p.stock, p.threshold,
+           w.local_id, l.name AS local_name, p.stock,
+           COALESCE(w.reorder_threshold, p.threshold) AS threshold,
+           (w.reorder_threshold IS NOT NULL) AS threshold_from_warehouse,
            COALESCE(
              (SELECT sr.unit_cost FROM stock_receipts sr
               WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id AND sr.remaining_qty > 0
@@ -56,7 +58,7 @@ async function fetchAlertProducts(sql, tenantId) {
     FROM products p
     LEFT JOIN warehouses w ON w.id = p.warehouse_id AND w.tenant_id = p.tenant_id
     LEFT JOIN locales l ON l.id = w.local_id AND l.tenant_id = p.tenant_id
-    WHERE p.tenant_id = ${tenantId} AND p.warehouse_id != '' AND p.stock < p.threshold
+    WHERE p.tenant_id = ${tenantId} AND p.warehouse_id != '' AND p.stock < COALESCE(w.reorder_threshold, p.threshold)
     ORDER BY l.name NULLS LAST, w.name NULLS LAST, p.name
   `;
 }
@@ -113,6 +115,7 @@ async function generateRun(sql, tenantId) {
     warehouse_id: p.warehouse_id, warehouse_name: p.warehouse_name || '',
     local_id: p.local_id || '', local_name: p.local_name || '',
     stock: p.stock, threshold: p.threshold, cost: Number(p.cost) || 0,
+    threshold_from_warehouse: !!p.threshold_from_warehouse,
   }));
   const value = estimatedValue(items);
   const id = await nextAlertRunId(sql);

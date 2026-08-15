@@ -471,7 +471,13 @@ module.exports = async (req, res) => {
         }
       } catch (finalInsertErr) {
         try {
-          await restoreStockForItems(sql, rawItems, tenantId, orderWarehouseId, locationId);
+          // `items` (el snapshot de buildSaleSnapshot), no `rawItems` — trae
+          // warehouseSplits/componentBreakdown con el reparto REAL que
+          // deductStockForItems acaba de aplicar más arriba; rawItems no
+          // los tiene (los productos individuales llegan con warehouse_id
+          // vacío desde el selector de Ventas) y la restitución iría al
+          // almacén equivocado.
+          await restoreStockForItems(sql, items, tenantId, orderWarehouseId, locationId);
         } catch (compErr) {
           console.error('[orders] compensating stock restore failed after order insert error:', compErr.message);
         }

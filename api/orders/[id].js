@@ -5,7 +5,31 @@ const { writeLog } = require('../_log');
 const { getSession, resolveTenantId } = require('../_tenant');
 const { claimCoupon, releaseCoupon, computeDiscountAmount, normalizeCode } = require('../_coupons');
 const { loadCostMaps, withFinancialSnapshot } = require('../_finance');
-const { deductStockForItems, restoreStockForItems } = require('../_stock');
+const { deductStockForItems, restoreStockForItems, partialRestoreSplits } = require('../_stock');
+
+// Combina 2 arreglos de warehouseSplits sumando qty por almacén — usado al
+// reconciliar items tras una edición (ver action='items' abajo): el split
+// final de una línea tiene que sumar su qty TOTAL, no sólo la porción que
+// cambió en esta edición puntual.
+function _mergeWarehouseSplits(a, b) {
+  const merged = new Map();
+  for (const s of [...(a || []), ...(b || [])]) {
+    const k = s.warehouseId || '';
+    merged.set(k, (merged.get(k) || 0) + (s.qty || 0));
+  }
+  return [...merged.entries()].map(([warehouseId, qty]) => ({ warehouseId, qty }));
+}
+// Inversa de _mergeWarehouseSplits — resta lo restituido (`restored`, el
+// resultado de partialRestoreSplits) del split original, para que la línea
+// que quedó con menos cantidad refleje de dónde sigue saliendo su stock.
+function _subtractWarehouseSplits(original, restored) {
+  const remaining = new Map((original || []).map(s => [s.warehouseId || '', s.qty || 0]));
+  for (const r of (restored || [])) {
+    const k = r.warehouseId || '';
+    remaining.set(k, Math.max(0, (remaining.get(k) || 0) - (r.qty || 0)));
+  }
+  return [...remaining.entries()].filter(([, qty]) => qty > 0).map(([warehouseId, qty]) => ({ warehouseId, qty }));
+}
 
 module.exports = async (req, res) => {
   if (cors(req, res)) return;
@@ -64,14 +88,55 @@ module.exports = async (req, res) => {
         const newMap = new Map(items.map(i => [keyOf(i), i]));
         const toDeduct = [], toRestore = [];
         for (const [key, item] of newMap) {
-          const delta = (item.qty || 0) - (oldMap.get(key)?.qty || 0);
+          const oldItem = oldMap.get(key);
+          const delta = (item.qty || 0) - (oldItem?.qty || 0);
           if (delta > 0) toDeduct.push({ ...item, qty: delta });
-          else if (delta < 0) toRestore.push({ ...item, qty: -delta });
+          else if (delta < 0) {
+            // Restaurar contra el item VIEJO (el que realmente se descontó),
+            // no el nuevo recién armado por withFinancialSnapshot — este
+            // último trae un componentBreakdown re-estimado con el costo/
+            // stock ACTUAL, no el reparto real entre almacenes de la venta
+            // original (ver warehouseSplits/componentBreakdown en
+            // restoreStockForItems, api/_stock.js). Para KITs, componentBreakdown
+            // ya está normalizado "por 1 unidad" y escala solo al pasar
+            // qty=-delta. Para productos individuales, se deshace en orden
+            // inverso al que se tomó (partialRestoreSplits) para no
+            // restaurar cantidades a un almacén equivocado.
+            if (item.type === 'kit') {
+              toRestore.push({ ...oldItem, qty: -delta });
+            } else {
+              const splits = partialRestoreSplits(oldItem?.warehouseSplits, -delta);
+              toRestore.push({ ...oldItem, qty: -delta, warehouseSplits: splits });
+            }
+          }
         }
         for (const [key, item] of oldMap) {
           if (!newMap.has(key)) toRestore.push(item);
         }
         const locationId = before.location_id || '';
+
+        // withFinancialSnapshot (arriba) recompone `items` desde cero a
+        // partir de lo que mandó el frontend — para productos individuales
+        // no trae warehouseSplits (no es una consumición real, es sólo una
+        // estimación de costo). Sin esto, CUALQUIER edición de la orden
+        // (aunque sea a una sola línea) le borraría el reparto real a TODAS
+        // las demás líneas que no cambiaron de cantidad, y una restauración
+        // futura (eliminar la orden, u otra edición) no sabría de qué
+        // almacén devolver su stock. Se reconstruye acá para las líneas sin
+        // cambio de qty (copia el split viejo tal cual) y las que se
+        // redujeron (le resta lo ya devuelto, ver partialRestoreSplits
+        // arriba) — las que aumentaron (delta>0) se completan más abajo, una
+        // vez que deductStockForItems informa contra qué almacén(es)
+        // resolvió la porción nueva.
+        for (const item of items) {
+          if (item.type === 'kit') continue;
+          const key = keyOf(item);
+          const oldItem = oldMap.get(key);
+          const delta = (item.qty || 0) - (oldItem?.qty || 0);
+          if (delta === 0) item.warehouseSplits = oldItem?.warehouseSplits || [];
+          else if (delta < 0) item.warehouseSplits = _subtractWarehouseSplits(oldItem?.warehouseSplits, partialRestoreSplits(oldItem?.warehouseSplits, -delta));
+        }
+
         // Los ítems recién deducidos acá (delta positivo) reciben el costo
         // REAL de los lotes FIFO que se acaban de consumir — más preciso que
         // el "costo actual" que traían del snapshot de arriba. Los que no
@@ -91,7 +156,15 @@ module.exports = async (req, res) => {
             target.unitCostAtSale  = result.unitCost;
             target.cost            = result.unitCost;
             target.totalCostAtSale = Math.round((result.unitCost || 0) * (target.qty || 0) * 100) / 100;
-            if (target.type === 'kit' && result.components) target.componentBreakdown = result.components;
+            if (target.type === 'kit' && result.components) {
+              target.componentBreakdown = result.components;
+            } else if (target.type !== 'kit') {
+              // Suma el split viejo (lo que ya había antes de esta edición)
+              // con el de la porción recién deducida — el total tiene que
+              // seguir sumando target.qty completo, no sólo el delta.
+              const oldItem = oldMap.get(keyOf(deductedItem));
+              target.warehouseSplits = _mergeWarehouseSplits(oldItem?.warehouseSplits, result.warehouseSplits);
+            }
           });
         }
         if (toRestore.length) await restoreStockForItems(sql, toRestore, tenantId, '', locationId, movementMeta);

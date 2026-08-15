@@ -128,6 +128,7 @@ body.embedded .embed-page-header{display:block}
   <div class="tabs">
     <button class="tab-btn active" id="tab-btn-ingresar" onclick="switchTab('ingresar')"><i class="ti ti-package-import"></i> Registrar Inventario</button>
     <button class="tab-btn" id="tab-btn-historial" onclick="switchTab('historial')"><i class="ti ti-history"></i> Historial</button>
+    <button class="tab-btn" id="tab-btn-traslados" onclick="switchTab('traslados')"><i class="ti ti-arrows-exchange"></i> Movimientos de Inventario</button>
     <button class="tab-btn" id="tab-btn-formatos" onclick="switchTab('formatos')"><i class="ti ti-ruler-2"></i> Formatos</button>
   </div>
 
@@ -163,6 +164,49 @@ body.embedded .embed-page-header{display:block}
         <i class="ti ti-clipboard-off"></i>
         <p>Todavía no se registró ninguna recepción de inventario.</p>
       </div>
+    </div>
+  </div>
+
+  <!-- MOVIMIENTOS DE INVENTARIO (traslados entre almacenes de una tienda) -->
+  <div id="panel-traslados" style="display:none">
+    <div class="ir-layout">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-arrows-exchange"></i> Mover stock entre almacenes</div>
+        <p style="font-size:13px;color:var(--text2);margin:-6px 0 14px">Mueve stock de un producto de un almacén a otro DE LA MISMA TIENDA — por ejemplo, de un almacén de abastecimiento a uno de venta antes de que se agote.</p>
+        <div class="form-group">
+          <div class="form-label">Tienda</div>
+          <select class="form-input" id="tr-local" onchange="onTransferLocalChange()"></select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <div class="form-label">Almacén de origen</div>
+            <select class="form-input" id="tr-from" onchange="onTransferWarehouseChange()"></select>
+          </div>
+          <div class="form-group">
+            <div class="form-label">Almacén de destino</div>
+            <select class="form-input" id="tr-to"></select>
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Producto</div>
+          <input class="form-input" id="tr-prod-search" placeholder="Busca por nombre o SKU..." autocomplete="off"
+            oninput="_filterTransferProductSuggestions(this.value)"
+            onfocus="_filterTransferProductSuggestions(this.value)"
+            onblur="setTimeout(_hideTransferProductSuggestions,200)">
+          <div id="tr-prod-suggest" style="display:none;margin-top:2px;background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;overflow:hidden"></div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Cantidad</div>
+          <input class="form-input" type="number" min="1" step="1" id="tr-qty" placeholder="0">
+          <div class="form-hint" id="tr-stock-hint"></div>
+        </div>
+        <div class="form-error" id="tr-error" style="display:none"></div>
+        <button class="btn btn-primary" id="btn-confirm-transfer" onclick="confirmTransfer()" style="margin-top:6px"><i class="ti ti-check"></i> Confirmar traslado</button>
+      </div>
+      <aside class="card ir-recent-card">
+        <div class="card-title"><i class="ti ti-history"></i> Últimos traslados</div>
+        <div id="tr-recent-list"><div class="skeleton"></div><div class="skeleton" style="opacity:.6"></div></div>
+      </aside>
     </div>
   </div>
 
@@ -247,16 +291,20 @@ function switchTab(tab) {
   document.getElementById('panel-formatos').style.display  = tab === 'formatos'  ? '' : 'none';
   document.getElementById('panel-ingresar').style.display  = tab === 'ingresar'  ? '' : 'none';
   document.getElementById('panel-historial').style.display = tab === 'historial' ? '' : 'none';
+  document.getElementById('panel-traslados').style.display = tab === 'traslados' ? '' : 'none';
   document.getElementById('tab-btn-formatos').classList.toggle('active', tab === 'formatos');
   document.getElementById('tab-btn-ingresar').classList.toggle('active', tab === 'ingresar');
   document.getElementById('tab-btn-historial').classList.toggle('active', tab === 'historial');
+  document.getElementById('tab-btn-traslados').classList.toggle('active', tab === 'traslados');
   if (tab === 'historial') loadReceipts();
+  if (tab === 'traslados') initTransferTab();
 }
 
 // ── Auth guard ───────────────────────────────────────────────────────────
 let PRODUCTS = [];
 let PURCHASE_FORMATS = [];
 let WAREHOUSE_NAMES = {}; // warehouse_id -> "Tienda — Almacén"
+let LOCALES = [];
 (async () => {
   if (!token) { location.href = '/login'; return; }
   try {
@@ -269,8 +317,9 @@ let WAREHOUSE_NAMES = {}; // warehouse_id -> "Tienda — Almacén"
 
   try {
     const locales = await api('/api/locales');
-    (locales || []).forEach(loc => (loc.warehouses || []).forEach(w => {
-      WAREHOUSE_NAMES[w.id] = (loc.warehouses.length > 1 || locales.length > 1) ? `${loc.name} — ${w.name}` : loc.name;
+    LOCALES = locales || [];
+    LOCALES.forEach(loc => (loc.warehouses || []).forEach(w => {
+      WAREHOUSE_NAMES[w.id] = (loc.warehouses.length > 1 || LOCALES.length > 1) ? `${loc.name} — ${w.name}` : loc.name;
     }));
   } catch (e) { toast('⚠️ ' + e.message); }
 
@@ -593,6 +642,135 @@ async function loadReceipts() {
       <td>${money(r.new_avg_cost)}</td>
       <td style="color:var(--text3)">${escHtml(r.created_by)}</td>
     </tr>`).join('');
+}
+
+// ── MOVIMIENTOS DE INVENTARIO (traslados entre almacenes de una tienda) ──
+let _trSelectedSku = '';
+let _trInitDone = false;
+function initTransferTab() {
+  const localSel = document.getElementById('tr-local');
+  if (!_trInitDone) {
+    localSel.innerHTML = LOCALES.map(l => `<option value="${l.id}">${escHtml(l.name)}</option>`).join('');
+    _trInitDone = true;
+    onTransferLocalChange();
+  }
+  loadRecentTransfers();
+}
+function _transferLocal() {
+  return LOCALES.find(l => l.id === document.getElementById('tr-local').value) || null;
+}
+function onTransferLocalChange() {
+  const loc = _transferLocal();
+  const whs = loc?.warehouses || [];
+  const fromSel = document.getElementById('tr-from');
+  fromSel.innerHTML = whs.map(w => `<option value="${w.id}">${escHtml(w.name)}${w.type ? ` (${w.type === 'abastecimiento' ? 'Abastecimiento' : 'Venta'})` : ''}</option>`).join('');
+  onTransferWarehouseChange();
+}
+function onTransferWarehouseChange() {
+  const loc = _transferLocal();
+  const whs = loc?.warehouses || [];
+  const fromId = document.getElementById('tr-from').value;
+  const toSel = document.getElementById('tr-to');
+  const candidates = whs.filter(w => w.id !== fromId);
+  const errEl = document.getElementById('tr-error');
+  if (!candidates.length) {
+    toSel.innerHTML = '';
+    errEl.textContent = 'Esta tienda no tiene otro almacén al cual trasladar — agrega uno en Configuración → Locales.';
+    errEl.style.display = '';
+    document.getElementById('btn-confirm-transfer').disabled = true;
+  } else {
+    toSel.innerHTML = candidates.map(w => `<option value="${w.id}">${escHtml(w.name)}${w.type ? ` (${w.type === 'abastecimiento' ? 'Abastecimiento' : 'Venta'})` : ''}</option>`).join('');
+    errEl.style.display = 'none';
+    document.getElementById('btn-confirm-transfer').disabled = false;
+  }
+  _trSelectedSku = '';
+  document.getElementById('tr-prod-search').value = '';
+  document.getElementById('tr-stock-hint').textContent = '';
+}
+function _filterTransferProductSuggestions(value) {
+  const box = document.getElementById('tr-prod-suggest');
+  const fromId = document.getElementById('tr-from').value;
+  const q = (value || '').trim().toLowerCase();
+  const matches = PRODUCTS
+    .filter(p => (p.warehouse_id || '') === fromId && (!q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)))
+    .sort((a,b) => a.name.localeCompare(b.name))
+    .slice(0, 20);
+  if (!matches.length) {
+    box.innerHTML = `<div style="padding:10px 12px;font-size:12.5px;font-weight:600;color:var(--text3)">Sin productos con stock en este almacén${q ? ' para "' + escHtml(value) + '"' : ''}</div>`;
+    box.style.display = '';
+    return;
+  }
+  box.innerHTML = matches.map(p => `
+    <div onmousedown="_pickTransferProductSuggestion('${p.sku.replace(/'/g,"\\'")}')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:700">${escHtml(p.name)} <span style="font-weight:600;color:var(--text3)">(${escHtml(p.sku)})</span></div>
+      <div style="font-size:11px;color:var(--text3);font-weight:600">Stock disponible: ${p.stock} ${escHtml(p.stock_unit || 'unidad')}</div>
+    </div>`).join('');
+  box.style.display = '';
+}
+function _pickTransferProductSuggestion(sku) {
+  _trSelectedSku = sku;
+  const fromId = document.getElementById('tr-from').value;
+  const p = PRODUCTS.find(x => x.sku === sku && (x.warehouse_id||'') === fromId);
+  document.getElementById('tr-prod-search').value = p ? `${p.name} (${p.sku})` : sku;
+  document.getElementById('tr-stock-hint').textContent = p ? `Stock disponible en origen: ${p.stock} ${p.stock_unit || 'unidad'}` : '';
+}
+function _hideTransferProductSuggestions() {
+  const box = document.getElementById('tr-prod-suggest');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  if (!_trSelectedSku) document.getElementById('tr-prod-search').value = '';
+}
+async function confirmTransfer() {
+  const errEl = document.getElementById('tr-error');
+  errEl.style.display = 'none';
+  const warehouse_id_from = document.getElementById('tr-from').value;
+  const warehouse_id_to = document.getElementById('tr-to').value;
+  const qty = parseInt(document.getElementById('tr-qty').value, 10);
+  if (!_trSelectedSku) { errEl.textContent = 'Selecciona un producto'; errEl.style.display = ''; return; }
+  if (!warehouse_id_from || !warehouse_id_to) { errEl.textContent = 'Selecciona almacén de origen y destino'; errEl.style.display = ''; return; }
+  if (!(qty > 0)) { errEl.textContent = 'Ingresa una cantidad mayor a 0'; errEl.style.display = ''; return; }
+
+  const btn = document.getElementById('btn-confirm-transfer');
+  btn.disabled = true;
+  try {
+    const { origin_stock, dest_stock } = await api('/api/products?resource=stock-transfers', {
+      method: 'POST', body: JSON.stringify({ sku: _trSelectedSku, warehouse_id_from, warehouse_id_to, qty }),
+    });
+    const origin = PRODUCTS.find(p => p.sku === _trSelectedSku && (p.warehouse_id||'') === warehouse_id_from);
+    if (origin) origin.stock = origin_stock;
+    let dest = PRODUCTS.find(p => p.sku === _trSelectedSku && (p.warehouse_id||'') === warehouse_id_to);
+    if (dest) dest.stock = dest_stock;
+    else if (origin) PRODUCTS.push({ ...origin, warehouse_id: warehouse_id_to, stock: dest_stock });
+    toast(`✅ ${qty} unidades trasladadas`);
+    document.getElementById('tr-qty').value = '';
+    _trSelectedSku = '';
+    document.getElementById('tr-prod-search').value = '';
+    document.getElementById('tr-stock-hint').textContent = '';
+    loadRecentTransfers();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = '';
+  }
+  btn.disabled = false;
+}
+async function loadRecentTransfers() {
+  try { renderRecentTransfers(await api('/api/products?resource=stock-transfers')); }
+  catch (e) { /* panel secundario — falla en silencio */ }
+}
+function renderRecentTransfers(transfers) {
+  const wrap = document.getElementById('tr-recent-list');
+  if (!wrap) return;
+  if (!transfers.length) {
+    wrap.innerHTML = '<div class="empty-state" style="padding:24px 10px"><i class="ti ti-arrows-exchange"></i><p>Todavía no hay traslados registrados.</p></div>';
+    return;
+  }
+  wrap.innerHTML = transfers.slice(0, 8).map(t => `
+    <div class="ir-recent-item">
+      <div class="ir-recent-icon"><i class="ti ti-arrows-exchange"></i></div>
+      <div style="flex:1;min-width:0">
+        <div class="ir-recent-name">${escHtml(t.product_name)}</div>
+        <div class="ir-recent-meta">${fmtDateTime(t.created_at)} · ${t.qty} · ${escHtml(t.warehouse_from_name)} → ${escHtml(t.warehouse_to_name)}</div>
+      </div>
+    </div>`).join('');
 }
 
 // ── Utils ────────────────────────────────────────────────────────────────

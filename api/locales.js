@@ -76,8 +76,14 @@ function mapLocale(l) {
     lng: l.lng !== null && l.lng !== undefined ? Number(l.lng) : null,
   };
 }
+const WAREHOUSE_TYPES = ['venta', 'abastecimiento'];
 function mapWarehouse(w) {
-  return { id: w.id, name: w.name, description: w.description };
+  return {
+    id: w.id, name: w.name, description: w.description,
+    type: w.type || 'venta',
+    sale_priority: w.sale_priority || 0,
+    reorder_threshold: w.reorder_threshold === null || w.reorder_threshold === undefined ? null : Number(w.reorder_threshold),
+  };
 }
 function mapMethod(m) {
   return {
@@ -189,12 +195,19 @@ module.exports = async (req, res) => {
     // ── /api/locales?id=:id&resource=warehouses ──────────────────────────
     if (resource === 'warehouses' && !whId) {
       if (req.method === 'POST') {
-        const { name, description = '' } = req.body || {};
+        const { name, description = '', type = 'venta', sale_priority = 0, reorder_threshold = null } = req.body || {};
         if (!name) return res.status(400).json({ error: 'name is required' });
+        if (!WAREHOUSE_TYPES.includes(type)) return res.status(400).json({ error: `type debe ser uno de: ${WAREHOUSE_TYPES.join(', ')}` });
+        const priority = Math.trunc(Number(sale_priority)) || 0;
+        let threshold = null;
+        if (reorder_threshold !== null && reorder_threshold !== '' && reorder_threshold !== undefined) {
+          threshold = Math.trunc(Number(reorder_threshold));
+          if (!Number.isFinite(threshold) || threshold < 0) return res.status(400).json({ error: 'reorder_threshold debe ser un número mayor o igual a 0' });
+        }
         const id = await nextWarehouseId(sql, tenantId);
         const [row] = await sql`
-          INSERT INTO warehouses (id, tenant_id, local_id, name, description)
-          VALUES (${id}, ${tenantId}, ${localId}, ${name}, ${description})
+          INSERT INTO warehouses (id, tenant_id, local_id, name, description, type, sale_priority, reorder_threshold)
+          VALUES (${id}, ${tenantId}, ${localId}, ${name}, ${description}, ${type}, ${priority}, ${threshold})
           RETURNING *
         `;
         await writeLog(sql, {
@@ -210,14 +223,43 @@ module.exports = async (req, res) => {
     // ── /api/locales?id=:id&resource=warehouses&whId=:whId ───────────────
     if (resource === 'warehouses' && whId) {
       if (req.method === 'PUT') {
-        const { name, description } = req.body || {};
-        const [row] = await sql`
-          UPDATE warehouses SET
-            name        = COALESCE(${name        ?? null}, name),
-            description = COALESCE(${description ?? null}, description)
-          WHERE id = ${whId} AND local_id = ${localId} AND tenant_id = ${tenantId}
-          RETURNING *
-        `;
+        const { name, description, type, sale_priority, reorder_threshold } = req.body || {};
+        if (type !== undefined && !WAREHOUSE_TYPES.includes(type)) {
+          return res.status(400).json({ error: `type debe ser uno de: ${WAREHOUSE_TYPES.join(', ')}` });
+        }
+        const priority = sale_priority === undefined ? null : Math.trunc(Number(sale_priority));
+        if (priority !== null && !Number.isFinite(priority)) return res.status(400).json({ error: 'sale_priority inválido' });
+        // reorder_threshold es tri-estado: undefined = no tocar, null/'' =
+        // limpiar (vuelve a "sin configurar"), número = fijar — por eso no
+        // se puede resolver con un solo COALESCE como los demás campos.
+        let threshold;
+        if (reorder_threshold !== undefined) {
+          if (reorder_threshold === null || reorder_threshold === '') threshold = null;
+          else {
+            threshold = Math.trunc(Number(reorder_threshold));
+            if (!Number.isFinite(threshold) || threshold < 0) return res.status(400).json({ error: 'reorder_threshold debe ser un número mayor o igual a 0' });
+          }
+        }
+        const row = threshold === undefined
+          ? (await sql`
+              UPDATE warehouses SET
+                name          = COALESCE(${name        ?? null}, name),
+                description   = COALESCE(${description ?? null}, description),
+                type          = COALESCE(${type        ?? null}, type),
+                sale_priority = COALESCE(${priority}, sale_priority)
+              WHERE id = ${whId} AND local_id = ${localId} AND tenant_id = ${tenantId}
+              RETURNING *
+            `)[0]
+          : (await sql`
+              UPDATE warehouses SET
+                name              = COALESCE(${name        ?? null}, name),
+                description       = COALESCE(${description ?? null}, description),
+                type              = COALESCE(${type        ?? null}, type),
+                sale_priority     = COALESCE(${priority}, sale_priority),
+                reorder_threshold = ${threshold}
+              WHERE id = ${whId} AND local_id = ${localId} AND tenant_id = ${tenantId}
+              RETURNING *
+            `)[0];
         if (!row) return res.status(404).json({ error: 'Warehouse not found' });
         await writeLog(sql, {
           tenant_id: tenantId, actor, action: 'almacen.editado',

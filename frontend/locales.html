@@ -334,6 +334,24 @@ body.embedded .embed-page-header{display:block}
     <div class="sheet-content">
       <div class="form-group"><div class="form-label">Nombre *</div><input class="form-input" id="wh-name" placeholder="Ej: Bodega Principal"></div>
       <div class="form-group"><div class="form-label">Descripción</div><input class="form-input" id="wh-desc" placeholder="Ej: Productos secos y electrónica"></div>
+      <div class="form-group">
+        <div class="form-label">Tipo</div>
+        <select class="form-input" id="wh-type" onchange="_toggleWhPriorityField()">
+          <option value="venta">De venta — aparece en el selector de Ventas</option>
+          <option value="abastecimiento">De abastecimiento — solo alimenta a los de venta vía traslado</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group" id="wh-priority-group">
+          <div class="form-label">Prioridad de venta</div>
+          <input class="form-input" type="number" step="1" id="wh-priority" placeholder="0" value="0">
+        </div>
+        <div class="form-group">
+          <div class="form-label">Umbral de reposición</div>
+          <input class="form-input" type="number" min="0" step="1" id="wh-reorder-threshold" placeholder="Sin configurar">
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin:-6px 0 0">Si un sku tiene stock en 2+ almacenes de venta de esta tienda, se descuenta primero del de mayor número de prioridad. El umbral de reposición dispara una alerta cuando el stock de cualquier producto de este almacén cae a ese número o menos — déjalo vacío para usar el umbral propio de cada producto.</p>
       <input type="hidden" id="wh-local-id">
     </div>
     <div class="sheet-footer">
@@ -614,8 +632,8 @@ function renderConfig() {
         <div class="wh-item">
           <div class="wh-icon"><i class="ti ti-box"></i></div>
           <div class="wh-info">
-            <div class="wh-name">${w.name}</div>
-            <div class="wh-desc">${w.description||'Sin descripción'}</div>
+            <div class="wh-name">${w.name} <span class="badge ${w.type==='abastecimiento'?'badge-amber':'badge-green'}">${w.type==='abastecimiento'?'Abastecimiento':'Venta'}</span></div>
+            <div class="wh-desc">${w.description||'Sin descripción'}${w.type==='venta'?` · Prioridad ${w.sale_priority||0}`:''}${w.reorder_threshold!==null&&w.reorder_threshold!==undefined?` · Alerta ≤ ${w.reorder_threshold}`:''}</div>
           </div>
           <button class="btn btn-sm" style="background:var(--bg3);color:var(--text2);border:none;width:auto;flex-shrink:0"
             onclick="editWarehouse('${loc.id}','${w.id}')" title="Editar almacén">
@@ -856,6 +874,10 @@ async function saveLocal() {
   }
 }
 
+function _toggleWhPriorityField() {
+  const isVenta = document.getElementById('wh-type').value === 'venta';
+  document.getElementById('wh-priority-group').style.display = isVenta ? '' : 'none';
+}
 function openWHSheet(localId) {
   S.editingWhLocalId = null;
   S.editingWhId = null;
@@ -863,6 +885,10 @@ function openWHSheet(localId) {
   document.getElementById('wh-local-id').value = localId;
   document.getElementById('wh-name').value = '';
   document.getElementById('wh-desc').value = '';
+  document.getElementById('wh-type').value = 'venta';
+  document.getElementById('wh-priority').value = '0';
+  document.getElementById('wh-reorder-threshold').value = '';
+  _toggleWhPriorityField();
   openSheet('sheet-wh');
 }
 function editWarehouse(localId, whId) {
@@ -876,6 +902,10 @@ function editWarehouse(localId, whId) {
   document.getElementById('wh-local-id').value = localId;
   document.getElementById('wh-name').value = w.name;
   document.getElementById('wh-desc').value = w.description || '';
+  document.getElementById('wh-type').value = w.type || 'venta';
+  document.getElementById('wh-priority').value = w.sale_priority || 0;
+  document.getElementById('wh-reorder-threshold').value = w.reorder_threshold === null || w.reorder_threshold === undefined ? '' : w.reorder_threshold;
+  _toggleWhPriorityField();
   openSheet('sheet-wh');
 }
 async function saveWarehouse() {
@@ -885,10 +915,14 @@ async function saveWarehouse() {
   const loc = S.locales.find(l => l.id === localId);
   if (!loc) return;
   const description = document.getElementById('wh-desc').value;
+  const type = document.getElementById('wh-type').value;
+  const sale_priority = parseInt(document.getElementById('wh-priority').value, 10) || 0;
+  const thresholdRaw = document.getElementById('wh-reorder-threshold').value.trim();
+  const reorder_threshold = thresholdRaw === '' ? null : parseInt(thresholdRaw, 10);
   if (S.editingWhId) {
     try {
       const updated = await apiFetch(`/api/locales?id=${encodeURIComponent(localId)}&resource=warehouses&whId=${encodeURIComponent(S.editingWhId)}`, {
-        method:'PUT', body: JSON.stringify({ name, description }),
+        method:'PUT', body: JSON.stringify({ name, description, type, sale_priority, reorder_threshold }),
       });
       const idx = loc.warehouses.findIndex(w => w.id === S.editingWhId);
       if (idx >= 0) loc.warehouses[idx] = updated;
@@ -905,7 +939,7 @@ async function saveWarehouse() {
   try {
     const wh = await apiFetch(`/api/locales?id=${encodeURIComponent(localId)}&resource=warehouses`, {
       method:'POST',
-      body: JSON.stringify({ name, description }),
+      body: JSON.stringify({ name, description, type, sale_priority, reorder_threshold }),
     });
     loc.warehouses.push(wh);
     if (S.currentLocal?.id === localId) S.currentLocal = loc;

@@ -211,6 +211,11 @@ function buildSaleSnapshot(items, consumption) {
       snapshot.componentBreakdown = c.components || [];
     } else {
       snapshot.skuId = item.sku;
+      // Reparto real entre almacenes 'venta' de la tienda cuando el sku
+      // tenía stock en más de uno (ver _resolveSaleWarehouses en
+      // api/_stock.js) — restoreStockForItems lo usa para devolver el stock
+      // exactamente a donde salió, no a donde la prioridad actual diría hoy.
+      snapshot.warehouseSplits = c.warehouseSplits || [];
     }
     return snapshot;
   });
