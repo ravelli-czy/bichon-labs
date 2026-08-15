@@ -8,11 +8,11 @@ const { getSession, resolveTenantId } = require('./_tenant');
 const { loadCostMaps, withFinancialSnapshot, buildSaleSnapshot } = require('./_finance');
 const { handleFinanceResource, FINANCE_RESOURCES } = require('./_finance_routes');
 const { handleCouponsResource, COUPON_RESOURCES } = require('./_coupons_routes');
-const { claimCoupon, computeDiscountAmount } = require('./_coupons');
+const { claimCoupon, releaseCoupon, computeDiscountAmount } = require('./_coupons');
 const { handleStockAlertsResource, STOCK_ALERT_RESOURCES, handleStockAlertsCron } = require('./_stock_alerts_routes');
 const { handleKitShortageAlertsResource, KIT_SHORTAGE_ALERT_RESOURCES, handleKitShortageAlertsCron } = require('./_kit_shortage_alerts_routes');
 const { handlePriceAlertsResource, PRICE_ALERT_RESOURCES, runPriceAlertsCronCore } = require('./_price_alerts_routes');
-const { deductStockForItems } = require('./_stock');
+const { deductStockForItems, restoreStockForItems } = require('./_stock');
 
 // Resolves which specific warehouse row to decrement a KIT component's
 // stock from. A KIT's components can live in DIFFERENT almacenes of the
@@ -388,75 +388,101 @@ module.exports = async (req, res) => {
       // later (edit/delete) — if that migration is pending, the use stays
       // claimed (used_count already incremented above) even though the order
       // itself won't record which cupón claimed it.
+      // El INSERT de la orden puede fallar (choque de id por la carrera de
+      // MAX()+1 de arriba, columna de una migración pendiente que ninguno de
+      // los 4 niveles de fallback cubre, etc.) DESPUÉS de que el stock ya se
+      // descontó y el cupón ya se reclamó. Sin esto, esa falla dejaba stock
+      // decrementado y un uso de cupón quemado sin ninguna orden que lo
+      // explique — el driver HTTP de Neon no permite envolver todo esto (loop
+      // FIFO + recursión de KITs incluidos) en una transacción real de
+      // Postgres, así que se compensa manualmente: si el INSERT no prospera
+      // en ningún nivel, se restituye el stock y se libera el cupón antes de
+      // relanzar el error.
       let order;
       try {
-        [order] = await sql`
-          INSERT INTO orders (
-            id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
-            created_by, tenant_id, payment_method, sales_channel,
-            coupon_id, coupon_code, discount_amount, refund_amount, location_id, label_selections, order_type
-          )
-          VALUES (
-            ${id}, ${cliente}, ${telefono}, ${total},
-            ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
-            ${dedicatoria}, ${fecha}, ${initialStatus}, ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
-            ${couponId}, ${couponCode}, ${discountAmount}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}, ${orderType}
-          )
-          RETURNING *
-        `;
-      } catch (insertErr) {
-        if (insertErr.code !== '42703') throw insertErr; // no es "columna no existe" — error real, no lo ocultamos
-        console.warn('[orders] label_selections and/or coupon_id/coupon_code and/or order_type column not migrated yet, retrying without them');
         try {
           [order] = await sql`
             INSERT INTO orders (
               id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
               created_by, tenant_id, payment_method, sales_channel,
-              discount_amount, refund_amount, location_id, label_selections, order_type
+              coupon_id, coupon_code, discount_amount, refund_amount, location_id, label_selections, order_type
             )
             VALUES (
               ${id}, ${cliente}, ${telefono}, ${total},
               ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
               ${dedicatoria}, ${fecha}, ${initialStatus}, ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
-              ${discountAmount}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}, ${orderType}
+              ${couponId}, ${couponCode}, ${discountAmount}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}, ${orderType}
             )
             RETURNING *
           `;
-        } catch (insertErr2) {
-          if (insertErr2.code !== '42703') throw insertErr2;
+        } catch (insertErr) {
+          if (insertErr.code !== '42703') throw insertErr; // no es "columna no existe" — error real, no lo ocultamos
+          console.warn('[orders] label_selections and/or coupon_id/coupon_code and/or order_type column not migrated yet, retrying without them');
           try {
             [order] = await sql`
               INSERT INTO orders (
                 id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
                 created_by, tenant_id, payment_method, sales_channel,
-                discount_amount, refund_amount, location_id, order_type
+                discount_amount, refund_amount, location_id, label_selections, order_type
               )
               VALUES (
                 ${id}, ${cliente}, ${telefono}, ${total},
                 ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
                 ${dedicatoria}, ${fecha}, ${initialStatus}, ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
-                ${discountAmount}, ${refund_amount || 0}, ${locationId}, ${orderType}
+                ${discountAmount}, ${refund_amount || 0}, ${locationId}, ${JSON.stringify(label_selections || {})}, ${orderType}
               )
               RETURNING *
             `;
-          } catch (insertErr3) {
-            if (insertErr3.code !== '42703') throw insertErr3;
-            [order] = await sql`
-              INSERT INTO orders (
-                id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
-                created_by, tenant_id, payment_method, sales_channel,
-                discount_amount, refund_amount, location_id
-              )
-              VALUES (
-                ${id}, ${cliente}, ${telefono}, ${total},
-                ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
-                ${dedicatoria}, ${fecha}, ${initialStatus}, ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
-                ${discountAmount}, ${refund_amount || 0}, ${locationId}
-              )
-              RETURNING *
-            `;
+          } catch (insertErr2) {
+            if (insertErr2.code !== '42703') throw insertErr2;
+            try {
+              [order] = await sql`
+                INSERT INTO orders (
+                  id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
+                  created_by, tenant_id, payment_method, sales_channel,
+                  discount_amount, refund_amount, location_id, order_type
+                )
+                VALUES (
+                  ${id}, ${cliente}, ${telefono}, ${total},
+                  ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
+                  ${dedicatoria}, ${fecha}, ${initialStatus}, ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
+                  ${discountAmount}, ${refund_amount || 0}, ${locationId}, ${orderType}
+                )
+                RETURNING *
+              `;
+            } catch (insertErr3) {
+              if (insertErr3.code !== '42703') throw insertErr3;
+              [order] = await sql`
+                INSERT INTO orders (
+                  id, cliente, telefono, total, items, delivery, dedicatoria, fecha, status,
+                  created_by, tenant_id, payment_method, sales_channel,
+                  discount_amount, refund_amount, location_id
+                )
+                VALUES (
+                  ${id}, ${cliente}, ${telefono}, ${total},
+                  ${JSON.stringify(items)}, ${JSON.stringify(delivery)},
+                  ${dedicatoria}, ${fecha}, ${initialStatus}, ${actor}, ${tenantId}, ${payment_method}, ${sales_channel},
+                  ${discountAmount}, ${refund_amount || 0}, ${locationId}
+                )
+                RETURNING *
+              `;
+            }
           }
         }
+      } catch (finalInsertErr) {
+        try {
+          await restoreStockForItems(sql, rawItems, tenantId, orderWarehouseId, locationId);
+        } catch (compErr) {
+          console.error('[orders] compensating stock restore failed after order insert error:', compErr.message);
+        }
+        if (couponId) {
+          try {
+            await releaseCoupon(sql, tenantId, couponId);
+          } catch (compErr) {
+            console.error('[orders] compensating coupon release failed after order insert error:', compErr.message);
+          }
+        }
+        throw finalInsertErr;
       }
 
       // Stock ya se descontó más arriba (antes de armar el snapshot de costo).

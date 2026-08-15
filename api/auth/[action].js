@@ -18,7 +18,7 @@ const { getDb } = require('../_db');
 const cors = require('../_cors');
 const crypto = require('crypto');
 const { getSession } = require('../_tenant');
-const { sendEmail, inviteEmailHtml } = require('../_email');
+const { sendEmail, inviteEmailHtml, resetEmailHtml } = require('../_email');
 const { seedDefaultCategories } = require('../_finance');
 
 const APP_URL = process.env.APP_URL || 'https://bichon-labs.vercel.app';
@@ -110,8 +110,9 @@ module.exports = async (req, res) => {
       const { username } = req.body || {};
       if (!username) return res.status(400).json({ error: 'username requerido' });
 
-      const [user] = await sql`SELECT id FROM users WHERE username = ${username}`;
+      const [user] = await sql`SELECT id, email FROM users WHERE username = ${username}`;
       if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+      if (!user.email) return res.status(400).json({ error: 'Este usuario no tiene email registrado — contacta a un administrador' });
 
       const token = crypto.randomBytes(4).toString('hex').toUpperCase();
       const expires = new Date(Date.now() + 60 * 60 * 1000);
@@ -120,7 +121,15 @@ module.exports = async (req, res) => {
         SET reset_token = ${token}, reset_token_expires = ${expires.toISOString()}
         WHERE id = ${user.id}
       `;
-      return res.json({ reset_token: token, message: 'Código generado. Válido por 60 minutos.' });
+      // El código se manda por email — nunca al cliente que hizo el request,
+      // porque cualquiera que sepa un username sería capaz de tomar la cuenta.
+      await sendEmail({
+        to: user.email,
+        subject: 'Código de recuperación — StockFlow',
+        html: resetEmailHtml({ username, token }),
+        text: `Tu código de recuperación de StockFlow es: ${token} (válido 60 minutos). Si no solicitaste este cambio, ignora este correo.`,
+      });
+      return res.json({ ok: true, message: 'Código enviado a tu email. Válido por 60 minutos.' });
     }
 
     // ── POST /api/auth/reset ──────────────────────────────────────────────

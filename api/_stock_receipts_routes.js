@@ -96,7 +96,6 @@ async function handleStockReceiptsResource(req, res, sql, session, tenantId, act
         if (!product) return res.status(404).json({ error: `Producto no encontrado: ${line.sku}` });
 
         const unitsAdded = Math.floor(line.qty_purchased * factor);
-        const newStock = product.stock + unitsAdded;
         const unitCost = unitsAdded > 0 ? Math.round(totalCost / unitsAdded) : 0;
         // "Costo del producto" tras esta recepción, sólo para el historial
         // (columna new_avg_cost/"Costo producto") — no se guarda en
@@ -115,8 +114,12 @@ async function handleStockReceiptsResource(req, res, sql, session, tenantId, act
           newCost = oldestLot ? oldestLot.unit_cost : unitCost;
         }
 
+        // Incremento relativo (stock = stock + x), no una escritura del valor
+        // absoluto calculado en JS — dos recepciones concurrentes del mismo
+        // SKU/almacén ya no se pisan (lost update): cada UPDATE parte del
+        // valor que Postgres tiene en ese instante, no de la lectura de arriba.
         const [updated] = await sql`
-          UPDATE products SET stock = ${newStock}, updated_by = ${actor}, updated_at = NOW()
+          UPDATE products SET stock = stock + ${unitsAdded}, updated_by = ${actor}, updated_at = NOW()
           WHERE sku = ${line.sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
           RETURNING *
         `;

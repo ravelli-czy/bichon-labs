@@ -80,7 +80,12 @@ async function _consumeLotsFifo(sql, tenantId, sku, wid, qty) {
     if (remaining <= 0) break;
     const take = Math.min(lot.remaining_qty, remaining);
     if (take <= 0) continue;
-    await sql`UPDATE stock_receipts SET remaining_qty = remaining_qty - ${take} WHERE id = ${lot.id}`;
+    // Igual que el stock de producto (GREATEST(0, stock - qty) en
+    // deductStockForItems/_deductKit): el UPDATE relativo ya es atómico en sí
+    // mismo, pero `take` se calculó a partir de una lectura que puede haber
+    // quedado vieja si otra venta concurrente ya consumió parte de este
+    // mismo lote — clampear en 0 evita que remaining_qty quede negativo.
+    await sql`UPDATE stock_receipts SET remaining_qty = GREATEST(0, remaining_qty - ${take}) WHERE id = ${lot.id}`;
     remaining -= take;
     consumed.push({ unitCost: lot.unit_cost, qty: take });
   }
