@@ -793,8 +793,9 @@ module.exports = async (req, res) => {
     // stock_transfers). Default 'venta' para que ningún almacén existente
     // deje de venderse el día de este deploy. sale_priority desempata entre
     // 2+ almacenes 'venta' de la misma tienda con el mismo sku al vender
-    // (mayor número = mayor prioridad, ver _resolveSaleWarehouses en
-    // api/_stock.js) — 0 = sin configurar, todos empatan por created_at.
+    // (menor número = mayor prioridad, como un ranking — 0 es 1º lugar; ver
+    // _resolveSaleWarehouses en api/_stock.js) — todos comparten el default
+    // 0 hasta que se configure, así que empatan por created_at.
     // reorder_threshold es NULLABLE a propósito (no DEFAULT 0): 0 es un
     // umbral válido ("alertar al llegar a cero"), tiene que poder
     // distinguirse de "sin configurar" (ver api/_stock_alerts.js).
