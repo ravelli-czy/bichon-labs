@@ -72,6 +72,9 @@ async function handleStockReceiptsResource(req, res, sql, session, tenantId, act
         if (!isPlainNumber(line.qty_purchased) || line.qty_purchased <= 0) {
           return res.status(400).json({ error: `Cantidad inválida para ${line.sku}` });
         }
+        if (line.total_cost !== undefined && (!isPlainNumber(line.total_cost) || line.total_cost < 0)) {
+          return res.status(400).json({ error: `Costo total inválido para ${line.sku}` });
+        }
       }
 
       const formats = await sql`SELECT id, label, factor FROM purchase_formats WHERE tenant_id = ${tenantId}`;

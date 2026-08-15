@@ -539,6 +539,10 @@ async function confirmReceipt() {
     if (!line.sku) { errEl.textContent = 'Selecciona un producto en cada línea'; errEl.style.display = ''; return; }
     const qty = parseFloat(line.qty_purchased);
     if (!(qty > 0)) { errEl.textContent = `Ingresa una cantidad válida para ${_lineProduct(line)?.name || line.sku}`; errEl.style.display = ''; return; }
+    // total_cost solo se clampeaba con "|| 0" (NaN/vacío → 0), pero un valor
+    // negativo tipeado a mano pasaba tal cual y corrompía el costo unitario/
+    // promedio que Finanzas usa para calcular márgenes.
+    if (parseFloat(line.total_cost) < 0) { errEl.textContent = `El costo total no puede ser negativo (${_lineProduct(line)?.name || line.sku})`; errEl.style.display = ''; return; }
     payloadLines.push({
       sku: line.sku,
       warehouse_id: line.warehouse_id || '',

@@ -44,7 +44,9 @@ module.exports = async (req, res) => {
     // ── PUT — update status, courier, notes, or address ──────────────────
     if (req.method === 'PUT') {
       const { action, status, courier_id, notes, note,
-              address_street, address_city, address_region, address_notes } = req.body || {};
+              address_street, address_city, address_region, address_notes,
+              photo_url, lat, lng,
+              scheduled_date, delivery_window_from, delivery_window_to } = req.body || {};
 
       // Geo coordinates update
       if (action === 'geo') {
@@ -132,13 +134,31 @@ module.exports = async (req, res) => {
         ? (current.attempts || 0) + 1
         : current.attempts;
 
+      // La foto de entrega y la coordenada GPS que el repartidor captura al
+      // marcar "Entregado" antes no viajaban en este PUT — se quedaban solo
+      // en el estado local del navegador, así que la prueba de entrega nunca
+      // llegaba al servidor. Las columnas se aseguran de forma idempotente
+      // ACÁ (igual que hace `action: 'geo'` más arriba) porque el UPDATE de
+      // abajo siempre las referencia, tenga o no photo_url/lat/lng este PUT
+      // en particular — sin esto, cualquier cambio de estado fallaría en una
+      // base donde nunca antes se hubiera llamado con esos campos.
+      await sql`ALTER TABLE shipments ADD COLUMN IF NOT EXISTS photo_url TEXT`.catch(() => {});
+      await sql`ALTER TABLE shipments ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION`.catch(() => {});
+      await sql`ALTER TABLE shipments ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION`.catch(() => {});
+
       const [row] = await sql`
         UPDATE shipments SET
-          status     = COALESCE(${newStatus  ?? null}, status),
-          courier_id = COALESCE(${courier_id ?? null}, courier_id),
-          notes      = COALESCE(${notes      ?? null}, notes),
-          attempts   = ${attempts},
-          history    = ${JSON.stringify(history)}::jsonb,
+          status               = COALESCE(${newStatus  ?? null}, status),
+          courier_id           = COALESCE(${courier_id ?? null}, courier_id),
+          notes                = COALESCE(${notes      ?? null}, notes),
+          attempts             = ${attempts},
+          history              = ${JSON.stringify(history)}::jsonb,
+          photo_url            = COALESCE(${photo_url ?? null}, photo_url),
+          lat                  = COALESCE(${lat ?? null}, lat),
+          lng                  = COALESCE(${lng ?? null}, lng),
+          scheduled_date       = COALESCE(${scheduled_date       ?? null}, scheduled_date),
+          delivery_window_from = COALESCE(${delivery_window_from ?? null}, delivery_window_from),
+          delivery_window_to   = COALESCE(${delivery_window_to   ?? null}, delivery_window_to),
           updated_by = ${actor},
           updated_at = NOW()
         WHERE id = ${id} AND tenant_id = ${tenantId}

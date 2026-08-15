@@ -31,6 +31,24 @@ module.exports = async (req, res) => {
       }
     }
 
+    // ── Couriers stored in tenant settings (mismo patrón que ?action=routes
+    // arriba) — antes delivery.html los guardaba solo en localStorage, así
+    // que un courier creado en un dispositivo era invisible en cualquier
+    // otro (o para el repartidor viendo su propio perfil desde otra sesión).
+    if (req.query?.action === 'couriers') {
+      if (req.method === 'GET') {
+        const rows = await sql`SELECT settings FROM tenants WHERE id = ${tenantId}`;
+        const couriers = rows[0]?.settings?.couriers || [];
+        return res.json(couriers);
+      }
+      if (req.method === 'POST') {
+        const { couriers } = req.body || {};
+        if (!Array.isArray(couriers)) return res.status(400).json({ error: 'couriers array required' });
+        await sql`UPDATE tenants SET settings = jsonb_set(COALESCE(settings,'{}'), '{couriers}', ${JSON.stringify(couriers)}::jsonb) WHERE id = ${tenantId}`;
+        return res.json({ ok: true });
+      }
+    }
+
     // ── GET — list shipments (optionally filtered by ?order_id=) ─────────
     if (req.method === 'GET') {
       const { order_id } = req.query || {};

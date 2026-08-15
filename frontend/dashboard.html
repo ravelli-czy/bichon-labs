@@ -220,6 +220,11 @@ body.embedded #modules-section,body.embedded .footer{display:none}
 
 <div class="content">
 
+  <div id="offline-banner" style="display:none;align-items:center;gap:10px;justify-content:space-between;background:#fef3c7;border:1.5px solid #fde68a;border-radius:var(--r-lg);padding:10px 14px;margin-bottom:10px;font-size:12.5px;font-weight:700;color:#92400e">
+    <span style="display:flex;align-items:center;gap:8px"><i class="ti ti-plug-connected-x"></i>Sin conexión con el servidor — estos números no son de tu negocio real</span>
+    <button onclick="location.reload()" style="background:rgba(146,64,14,.12);border:1px solid rgba(146,64,14,.3);color:#92400e;border-radius:8px;padding:4px 10px;font-family:inherit;font-weight:800;font-size:11px;cursor:pointer;white-space:nowrap">Reintentar</button>
+  </div>
+
   <a href="#" id="stock-alert-banner" class="stock-alert-banner" style="display:none">
     <span class="dot"></span>
     <i class="ti ti-alert-triangle"></i>
@@ -402,6 +407,13 @@ function viewSalesKPIs() {
   } else {
     _navigateTop('/reportes');
   }
+}
+
+// Escapa texto de datos (cliente, nombre/sku de producto) antes de
+// interpolarlo en HTML armado a mano vía innerHTML — este archivo no tenía
+// ninguna función de escape, y es la primera pantalla que ve cada usuario.
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 }
 
 // Data is loaded from the API — see init() at bottom of script
@@ -670,17 +682,17 @@ function renderSparkline(range) {
 function renderOrders() {
   if (!VENTAS.length) { document.getElementById('recent-orders-section').innerHTML = ''; return; }
   const rows = VENTAS.slice(0,5).map(v => {
-    const initials = (v.cliente||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    const itemsStr = Array.isArray(v.items) ? v.items.map(i=>`${i.name||i.sku} ×${i.qty}`).join(' · ') : (v.items||'');
+    const initials = esc((v.cliente||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase());
+    const itemsStr = Array.isArray(v.items) ? v.items.map(i=>`${esc(i.name||i.sku)} ×${i.qty}`).join(' · ') : esc(v.items||'');
     return `<div class="order-row" onclick="goToOrder('${v.id}')" style="cursor:pointer">
       <div class="order-avatar">${initials}</div>
-      <div class="order-info"><div class="order-name">${v.cliente||'Cliente'}</div><div class="order-items">${itemsStr}</div></div>
+      <div class="order-info"><div class="order-name">${esc(v.cliente||'Cliente')}</div><div class="order-items">${itemsStr}</div></div>
       <div class="order-right"><div class="order-total">${fmt(v.total||0)}</div><div class="order-date">${v.fecha||''}</div></div>
     </div>`;
   }).join('');
   document.getElementById('recent-orders-section').innerHTML = `
     <div class="card">
-      <div class="card-header"><div class="card-title"><i class="ti ti-shopping-bag" style="color:var(--green-dark)"></i>Últimas ventas</div><div style="display:flex;align-items:center;gap:10px"><button onclick="newVentaFromDash()" style="background:var(--red,#ef4444);color:#fff;font-size:12px;font-weight:800;padding:6px 13px;border-radius:10px;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-shopping-bag" style="font-size:13px"></i>Nueva venta</button><a href="javascript:void(0)" onclick="navTo('ventas')" class="card-link">Ver todas →</a></div></div>
+      <div class="card-header"><div class="card-title"><i class="ti ti-shopping-bag" style="color:var(--green-dark)"></i>Últimas ventas</div><div style="display:flex;align-items:center;gap:10px"><button onclick="newVentaFromDash()" style="background:var(--primary,#5b4fff);color:#fff;font-size:12px;font-weight:800;padding:6px 13px;border-radius:10px;border:none;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-shopping-bag" style="font-size:13px"></i>Nueva venta</button><a href="javascript:void(0)" onclick="navTo('ventas')" class="card-link">Ver todas →</a></div></div>
       ${rows}
     </div>`;
 }
@@ -729,24 +741,30 @@ function renderModules() {
   let stockAlertPending = null;
   let kitShortagePending = null;
   let priceAlertPending = null;
-  try {
-    const [products, kits, orders, pending, kitPending, pricePending] = await Promise.all([
-      fetch('/api/products', { headers: authHeaders }).then(r => r.ok ? r.json() : []),
-      fetch('/api/kits', { headers: authHeaders }).then(r => r.ok ? r.json() : []),
-      fetch('/api/orders', { headers: authHeaders }).then(r => r.ok ? r.json() : []),
-      fetch('/api/orders?resource=stock-alerts&scope=pending', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch('/api/orders?resource=kit-shortage-alerts&scope=pending', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch('/api/orders?resource=price-alerts&scope=pending', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
-    ]);
-    PRODUCTS  = Array.isArray(products) ? products : [];
-    KITS_LIST = Array.isArray(kits)     ? kits     : [];
-    VENTAS    = Array.isArray(orders)   ? orders   : [];
-    stockAlertPending  = pending;
-    kitShortagePending = kitPending;
-    priceAlertPending  = pricePending;
-  } catch(e) {
-    console.warn('[Dashboard] API unavailable:', e.message);
+  // Cada llamada tiene su propio .catch(), igual que ya hacían las 3 de
+  // alertas — antes products/kits/orders no lo tenían, así que un solo
+  // fallo de red ahí (no HTTP, ej. sin conexión) tumbaba todo el
+  // Promise.all y dejaba silenciosamente los tres arrays vacíos, sin avisar
+  // que la razón era "no hay conexión" y no "el negocio no tiene datos".
+  const [products, kits, orders, pending, kitPending, pricePending] = await Promise.all([
+    fetch('/api/products', { headers: authHeaders }).then(r => r.ok ? r.json() : []).catch(() => null),
+    fetch('/api/kits', { headers: authHeaders }).then(r => r.ok ? r.json() : []).catch(() => null),
+    fetch('/api/orders', { headers: authHeaders }).then(r => r.ok ? r.json() : []).catch(() => null),
+    fetch('/api/orders?resource=stock-alerts&scope=pending', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch('/api/orders?resource=kit-shortage-alerts&scope=pending', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch('/api/orders?resource=price-alerts&scope=pending', { headers: authHeaders }).then(r => r.ok ? r.json() : null).catch(() => null),
+  ]);
+  if (products === null || kits === null || orders === null) {
+    console.warn('[Dashboard] API unavailable — mostrando estado vacío');
+    const banner = document.getElementById('offline-banner');
+    if (banner) banner.style.display = 'flex';
   }
+  PRODUCTS  = Array.isArray(products) ? products : [];
+  KITS_LIST = Array.isArray(kits)     ? kits     : [];
+  VENTAS    = Array.isArray(orders)   ? orders   : [];
+  stockAlertPending  = pending;
+  kitShortagePending = kitPending;
+  priceAlertPending  = pricePending;
   renderStockAlertBanner(stockAlertPending);
   renderKitShortageBanner(kitShortagePending);
   renderPriceAlertBanner(priceAlertPending);

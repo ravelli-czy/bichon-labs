@@ -617,6 +617,12 @@ function loadCouriersFromStorage() {
   return DEFAULT_COURIERS.slice();
 }
 
+// Escapa texto de datos (destinatario, dirección, notas, nombre de
+// courier) antes de interpolarlo en HTML armado a mano vía innerHTML.
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
 const S = {
   couriers: loadCouriersFromStorage(),
   shipments: [], // loaded from API
@@ -688,12 +694,12 @@ function renderShipments() {
       <div class="sh-header">
         <div>
           <div class="sh-id">${s.id} · ${s.order_id}</div>
-          <div class="sh-name">${s.recipient_name}</div>
+          <div class="sh-name">${esc(s.recipient_name)}</div>
           <div class="sh-date"><i class="ti ti-calendar" style="font-size:12px"></i> ${s.scheduled_date}${win}</div>
         </div>
         ${statusBadge(s.status)}
       </div>
-      <div class="sh-addr"><i class="ti ti-map-pin" style="font-size:13px;color:var(--text3)"></i>${s.address_street}, ${s.address_city}</div>
+      <div class="sh-addr"><i class="ti ti-map-pin" style="font-size:13px;color:var(--text3)"></i>${esc(s.address_street)}, ${esc(s.address_city)}</div>
       <div class="sh-footer">
         <div class="sh-courier"><i class="ti ti-truck" style="font-size:14px"></i>${cou?.name||'Sin courier'}</div>
         <div class="sh-actions">
@@ -763,10 +769,14 @@ async function getGeoForShipment(id) {
 
   const q = [s.address_street, s.address_city, s.address_region, 'Chile'].filter(Boolean).join(', ');
   try {
-    // Nominatim (OpenStreetMap) — gratuito, sin API key ni billing
+    // Nominatim (OpenStreetMap) — gratuito, sin API key ni billing. Esto
+    // manda la dirección del cliente a un servicio de terceros (ver el
+    // title del botón) — Nominatim pide identificarse con un User-Agent
+    // propio, pero los navegadores tratan ese header como "forbidden" y lo
+    // descartan en cualquier fetch(), así que no se intenta simularlo.
     const r = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=cl`,
-      { headers: { 'Accept-Language': 'es', 'User-Agent': 'StockFlow-Bichon/1.0' } }
+      { headers: { 'Accept-Language': 'es' } }
     );
     const results = await r.json();
 
@@ -812,7 +822,7 @@ function openDetail(id, pushURL = true) {
 
     <div style="background:var(--bg3);border-radius:var(--radius);padding:12px;margin-bottom:14px">
       <div style="font-size:13px;font-weight:800;margin-bottom:8px"><i class="ti ti-user"></i> Destinatario</div>
-      <div style="font-size:14px;font-weight:800">${s.recipient_name}</div>
+      <div style="font-size:14px;font-weight:800">${esc(s.recipient_name)}</div>
       ${s.recipient_phone?`<div style="font-size:12px;color:var(--text3);font-weight:600;margin-top:2px"><i class="ti ti-phone" style="font-size:12px"></i> ${s.recipient_phone}</div>`:''}
     </div>
 
@@ -821,15 +831,15 @@ function openDetail(id, pushURL = true) {
         <span><i class="ti ti-map-pin"></i> Dirección</span>
         <button onclick="openAddressEdit('${s.id}')" style="background:none;border:none;cursor:pointer;padding:4px 6px;color:var(--text3);font-size:15px;line-height:1;border-radius:6px" title="Editar dirección"><i class="ti ti-pencil"></i></button>
       </div>
-      <div style="font-size:14px;font-weight:700">${s.address_street}</div>
-      <div style="font-size:12px;color:var(--text3);font-weight:600">${s.address_city}${s.address_region?', '+s.address_region:''}</div>
-      ${s.address_notes?`<div style="font-size:12px;color:var(--amber-dark);font-weight:700;margin-top:4px"><i class="ti ti-info-circle" style="font-size:12px"></i> ${s.address_notes}</div>`:''}
+      <div style="font-size:14px;font-weight:700">${esc(s.address_street)}</div>
+      <div style="font-size:12px;color:var(--text3);font-weight:600">${esc(s.address_city)}${s.address_region?', '+esc(s.address_region):''}</div>
+      ${s.address_notes?`<div style="font-size:12px;color:var(--amber-dark);font-weight:700;margin-top:4px"><i class="ti ti-info-circle" style="font-size:12px"></i> ${esc(s.address_notes)}</div>`:''}
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
         ${s.lat && s.lng
           ? `<span style="font-size:11px;color:var(--green);font-weight:700"><i class="ti ti-map-check"></i> Geo asignada · ${Number(s.lat).toFixed(5)}, ${Number(s.lng).toFixed(5)}</span>`
           : `<span style="font-size:11px;color:var(--amber-dark);font-weight:700"><i class="ti ti-alert-triangle"></i> Sin geocoordenadas</span>`
         }
-        <button id="btn-get-geo-${s.id}" onclick="getGeoForShipment('${s.id}')"
+        <button id="btn-get-geo-${s.id}" onclick="getGeoForShipment('${s.id}')" title="Envía esta dirección a Nominatim (OpenStreetMap) para buscar sus coordenadas"
           style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;color:var(--accent)">
           <i class="ti ti-map-search"></i> ${s.lat && s.lng ? 'Actualizar Geo' : 'Obtener Geo'}
         </button>
@@ -942,7 +952,7 @@ function openReschedule(id) {
   document.getElementById('rs-date').value = '';
   const sel = document.getElementById('rs-courier');
   sel.innerHTML = '<option value="">Mantener mismo courier</option>' +
-    S.couriers.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    S.couriers.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
   openSheet('sheet-reschedule');
 }
 async function doReschedule() {
@@ -1053,8 +1063,8 @@ body{font-family:Arial,sans-serif;font-size:${fs};padding:12mm;background:#fff;c
 @media print{.no-print{display:none}}
 </style></head><body>
 <div class="hdr"><div class="brand">StockFlow</div><div>${cou?cou.name:''}</div><div class="badge">${statusLabel}</div></div>
-<div class="row"><span class="lbl">Destinatario</span><span class="val">${s.recipient_name}</span>${s.recipient_phone?`<span style="font-size:12px;color:#666">${s.recipient_phone}</span>`:''}</div>
-<div class="row"><span class="lbl">Dirección</span><span class="val">${s.address_street}</span><span style="font-size:12px;color:#666">${s.address_city}${s.address_region?', '+s.address_region:''}</span>${s.address_notes?`<span style="font-size:11px;color:#d97706">⚠ ${s.address_notes}</span>`:''}</div>
+<div class="row"><span class="lbl">Destinatario</span><span class="val">${esc(s.recipient_name)}</span>${s.recipient_phone?`<span style="font-size:12px;color:#666">${esc(s.recipient_phone)}</span>`:''}</div>
+<div class="row"><span class="lbl">Dirección</span><span class="val">${esc(s.address_street)}</span><span style="font-size:12px;color:#666">${esc(s.address_city)}${s.address_region?', '+esc(s.address_region):''}</span>${s.address_notes?`<span style="font-size:11px;color:#d97706">⚠ ${esc(s.address_notes)}</span>`:''}</div>
 <div class="row"><span class="lbl">Fecha de entrega</span><span class="val">${s.scheduled_date}${win?' · '+win:''}</span></div>
 <div class="row"><span class="lbl">N° Seguimiento</span><span class="val tracking">${s.tracking_code}</span></div>
 <div class="row"><span class="lbl">Orden</span><span class="val">${s.order_id}</span></div>
@@ -1075,7 +1085,7 @@ function renderCouriers() {
       <div class="courier-header">
         <div class="courier-avatar">${c.name.charAt(0)}</div>
         <div style="flex:1">
-          <div class="courier-name">${c.name}</div>
+          <div class="courier-name">${esc(c.name)}</div>
           <div class="courier-contact">${c.contact||''} · ${c.phone||''}</div>
         </div>
         <div style="text-align:right">
@@ -1123,6 +1133,14 @@ function saveCourier() {
   closeSheet('sheet-courier');
   toast('✅ Courier guardado');
   renderCouriers();
+  // Sync a la API — antes esto solo quedaba en localStorage de este
+  // dispositivo. Fire-and-forget: si falla, el courier sigue disponible
+  // localmente y se reintentará sincronizar la próxima vez que se guarde
+  // cualquier courier (se manda el arreglo completo, no un delta).
+  fetch('/api/shipments?action=couriers', {
+    method: 'POST', headers: authHeaders(),
+    body: JSON.stringify({ couriers: S.couriers }),
+  }).catch(e => console.warn('[Delivery] courier sync error', e));
 }
 
 // ── TRACKING ──────────────────────────────────
@@ -1143,8 +1161,8 @@ function doTracking() {
       <div class="track-status-big">${STATUS_META[s.status].label}</div>
       ${statusBadge(s.status)}
       <div class="divider"></div>
-      <div style="font-size:14px;font-weight:800;margin-bottom:4px">${s.recipient_name}</div>
-      <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:10px"><i class="ti ti-map-pin" style="font-size:12px"></i> ${s.address_street}, ${s.address_city}</div>
+      <div style="font-size:14px;font-weight:800;margin-bottom:4px">${esc(s.recipient_name)}</div>
+      <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:10px"><i class="ti ti-map-pin" style="font-size:12px"></i> ${esc(s.address_street)}, ${esc(s.address_city)}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
         <div style="background:var(--bg3);border-radius:10px;padding:10px">
           <div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase">Fecha estimada</div>
@@ -1155,7 +1173,7 @@ function doTracking() {
           <div style="font-size:14px;font-weight:800;margin-top:2px">${win}</div>
         </div>
       </div>
-      ${cou?`<div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:12px"><i class="ti ti-truck"></i> ${cou.name} · ${cou.phone}</div>`:''}
+      ${cou?`<div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:12px"><i class="ti ti-truck"></i> ${esc(cou.name)} · ${esc(cou.phone)}</div>`:''}
     </div>
     <div class="track-card">
       <div style="font-size:14px;font-weight:800;margin-bottom:12px">Seguimiento del envío</div>
@@ -1180,7 +1198,7 @@ document.querySelectorAll('.sheet-overlay').forEach(o => o.addEventListener('cli
 
 function openShipmentSheet() {
   const sel = document.getElementById('sh-courier');
-  sel.innerHTML = '<option value="">Sin asignar</option>' + S.couriers.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  sel.innerHTML = '<option value="">Sin asignar</option>' + S.couriers.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
   document.getElementById('sh-date').value = today();
   openSheet('sheet-shipment');
 }
@@ -1270,6 +1288,17 @@ async function initDelivery() {
     console.warn('[Delivery] API unavailable:', e.message);
     S.shipments = [];
   }
+  // Los couriers vivían solo en localStorage — un courier creado en un
+  // dispositivo era invisible en cualquier otro. Se sincronizan contra el
+  // servidor al cargar; si la API no responde, se sigue con la copia local
+  // (localStorage) para no dejar la pantalla vacía sin conexión.
+  try {
+    const remoteCouriers = await fetch('/api/shipments?action=couriers', { headers: authHeaders() }).then(r => r.ok ? r.json() : null);
+    if (Array.isArray(remoteCouriers) && remoteCouriers.length) {
+      S.couriers = remoteCouriers;
+      saveCouriers();
+    }
+  } catch(e) { console.warn('[Delivery] couriers sync error', e); }
   updateMetrics();
   renderShipments();
 

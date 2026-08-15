@@ -546,6 +546,15 @@ function switchTab(tab, el) {
   }
 }
 
+// Escapa texto que viene de datos (nombre/dirección de local, almacén,
+// forma de entrega, etiqueta de horario) antes de interpolarlo en HTML
+// armado a mano vía innerHTML — este archivo no tenía ninguna función de
+// escape, así que todo lo que un admin tipea al configurar un local quedaba
+// expuesto a XSS almacenado para cualquiera que abriera esta pantalla.
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
 // ── LOCALES LIST ──────────────────────────────
 function renderLocales() {
   const el = document.getElementById('locales-list');
@@ -553,8 +562,8 @@ function renderLocales() {
     <div class="local-card">
       <div class="lc-header" onclick="selectLocal('${loc.id}')" style="cursor:pointer">
         <div style="flex:1">
-          <div class="lc-name">${loc.name}${loc.prefix?` <span style="font-size:11px;font-weight:800;color:var(--primary);background:var(--primary-light);padding:2px 7px;border-radius:20px;letter-spacing:.3px">${loc.prefix}</span>`:''}</div>
-          <div class="lc-addr"><i class="ti ti-map-pin" style="font-size:12px"></i>${loc.address_street}, ${loc.address_city}</div>
+          <div class="lc-name">${esc(loc.name)}${loc.prefix?` <span style="font-size:11px;font-weight:800;color:var(--primary);background:var(--primary-light);padding:2px 7px;border-radius:20px;letter-spacing:.3px">${esc(loc.prefix)}</span>`:''}</div>
+          <div class="lc-addr"><i class="ti ti-map-pin" style="font-size:12px"></i>${esc(loc.address_street)}, ${esc(loc.address_city)}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center">
           <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();editLocal('${loc.id}')" title="Editar">
@@ -597,9 +606,9 @@ function renderConfig() {
     <div class="card" style="border-left:4px solid var(--primary)">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
         <div>
-          <div class="card-title" style="margin-bottom:4px"><i class="ti ti-building-store" style="color:var(--primary)"></i>${loc.name}${loc.prefix?` <span style="font-size:11px;font-weight:800;color:var(--primary);background:var(--primary-light);padding:2px 7px;border-radius:20px;letter-spacing:.3px">${loc.prefix}</span>`:''}</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:4px"><i class="ti ti-map-pin" style="font-size:14px"></i> ${loc.address_street}, ${loc.address_city}</div>
-          ${loc.phone?`<div style="font-size:12px;color:var(--text3);font-weight:600"><i class="ti ti-phone" style="font-size:12px"></i> ${loc.phone}</div>`:''}
+          <div class="card-title" style="margin-bottom:4px"><i class="ti ti-building-store" style="color:var(--primary)"></i>${esc(loc.name)}${loc.prefix?` <span style="font-size:11px;font-weight:800;color:var(--primary);background:var(--primary-light);padding:2px 7px;border-radius:20px;letter-spacing:.3px">${esc(loc.prefix)}</span>`:''}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:4px"><i class="ti ti-map-pin" style="font-size:14px"></i> ${esc(loc.address_street)}, ${esc(loc.address_city)}</div>
+          ${loc.phone?`<div style="font-size:12px;color:var(--text3);font-weight:600"><i class="ti ti-phone" style="font-size:12px"></i> ${esc(loc.phone)}</div>`:''}
         </div>
         <button class="btn btn-sm btn-outline" onclick="editLocal('${loc.id}')" style="flex-shrink:0;width:auto;padding:6px 10px" title="Editar local">
           <i class="ti ti-pencil"></i> Editar
@@ -614,8 +623,8 @@ function renderConfig() {
         <div class="wh-item">
           <div class="wh-icon"><i class="ti ti-box"></i></div>
           <div class="wh-info">
-            <div class="wh-name">${w.name}</div>
-            <div class="wh-desc">${w.description||'Sin descripción'}</div>
+            <div class="wh-name">${esc(w.name)}</div>
+            <div class="wh-desc">${esc(w.description||'Sin descripción')}</div>
           </div>
           <button class="btn btn-sm" style="background:var(--bg3);color:var(--text2);border:none;width:auto;flex-shrink:0"
             onclick="editWarehouse('${loc.id}','${w.id}')" title="Editar almacén">
@@ -660,7 +669,7 @@ function renderMethodCard(m, localId) {
         ${slots.map(s => `
           <div class="slot-item">
             <span class="slot-time">${s.time_from.slice(0,5)} – ${s.time_to.slice(0,5)}</span>
-            <span class="slot-label">${s.label}</span>
+            <span class="slot-label">${esc(s.label)}</span>
             ${s.extra_cost>0?`<span class="slot-cost">+${fmt(s.extra_cost)}</span>`:''}
             <span style="font-size:10px;color:var(--text3);font-weight:600">${s.max_orders} máx</span>
             <button class="slot-edit" onclick="editSlot('${m.id}',${s.id})"><i class="ti ti-pencil" style="font-size:13px"></i></button>
@@ -674,7 +683,7 @@ function renderMethodCard(m, localId) {
       <div>
         <div class="dm-name">
           <i class="ti ${typeIcons[m.type]||'ti-truck'}" style="font-size:16px;color:var(--primary)"></i>
-          ${m.name}
+          ${esc(m.name)}
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:5px">
           <span class="dm-type-badge ${typeCss[m.type]||'dm-home'}">${typeLabels[m.type]||m.type}</span>
@@ -733,9 +742,13 @@ async function getGeoForLocal() {
 
   const q = [street, city, region, 'Chile'].filter(Boolean).join(', ');
   try {
+    // Nominatim pide identificarse con un User-Agent propio, pero los
+    // navegadores tratan ese header como "forbidden" y lo descartan en
+    // cualquier fetch() — no hay forma de setearlo desde el cliente, así que
+    // no se intenta simularlo acá (evita el falso código muerto anterior).
     const r = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=cl`,
-      { headers: { 'Accept-Language': 'es', 'User-Agent': 'StockFlow-Bichon/1.0' } }
+      { headers: { 'Accept-Language': 'es' } }
     );
     const results = await r.json();
     if (results && results.length > 0) {
@@ -1148,8 +1161,8 @@ function renderOrderStep() {
       <div class="method-option ${s.local?.id===loc.id?'selected':''}" onclick="selectOrderLocal('${loc.id}')">
         <div class="method-option-icon"><i class="ti ti-building-store"></i></div>
         <div class="method-option-body">
-          <div class="method-option-name">${loc.name}</div>
-          <div class="method-option-desc">${loc.address_street}, ${loc.address_city}</div>
+          <div class="method-option-name">${esc(loc.name)}</div>
+          <div class="method-option-desc">${esc(loc.address_street)}, ${esc(loc.address_city)}</div>
         </div>
       </div>`).join('');
     if (s.local) {
@@ -1159,8 +1172,8 @@ function renderOrderStep() {
         <div class="method-option ${s.warehouse?.id===w.id?'selected':''}" onclick="selectOrderWarehouse('${w.id}')">
           <div class="method-option-icon"><i class="ti ti-box"></i></div>
           <div class="method-option-body">
-            <div class="method-option-name">${w.name}</div>
-            <div class="method-option-desc">${w.description||''}</div>
+            <div class="method-option-name">${esc(w.name)}</div>
+            <div class="method-option-desc">${esc(w.description||'')}</div>
           </div>
         </div>`).join('');
     }
@@ -1176,7 +1189,7 @@ function renderOrderStep() {
       return `<div class="method-option ${s.method?.id===m.id?'selected':''}" onclick="selectOrderMethod('${m.id}')">
         <div class="method-option-icon"><i class="ti ${icons[m.type]||'ti-truck'}"></i></div>
         <div class="method-option-body">
-          <div class="method-option-name">${m.name}</div>
+          <div class="method-option-name">${esc(m.name)}</div>
           <div class="method-option-desc">${m.base_cost>0?fmt(m.base_cost)+' de envío':'Gratis'}${m.free_above?' · Gratis sobre '+fmt(m.free_above):''}</div>
         </div>
       </div>`;
@@ -1210,7 +1223,7 @@ function renderOrderStep() {
           <div class="slot-option ${s.slot?.id===sl.id?'selected':''}" onclick="selectOrderSlot(${sl.id})">
             <div>
               <div class="slot-time-range">${sl.time_from.slice(0,5)} – ${sl.time_to.slice(0,5)}</div>
-              <div class="slot-label-text">${sl.label}</div>
+              <div class="slot-label-text">${esc(sl.label)}</div>
             </div>
             <div class="slot-info-right">
               ${sl.extra_cost>0?`<div class="slot-cost-text">+${fmt(sl.extra_cost)}</div>`:`<div class="slot-cost-text" style="color:var(--green-dark)">Sin costo extra</div>`}
@@ -1242,15 +1255,15 @@ function renderOrderStep() {
       <div style="display:flex;flex-direction:column;gap:7px">
         <div style="display:flex;justify-content:space-between;font-size:13px">
           <span style="color:var(--text2);font-weight:600">Local</span>
-          <span style="font-weight:800">${s.local.name}</span>
+          <span style="font-weight:800">${esc(s.local.name)}</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:13px">
           <span style="color:var(--text2);font-weight:600">Almacén</span>
-          <span style="font-weight:800">${s.warehouse.name}</span>
+          <span style="font-weight:800">${esc(s.warehouse.name)}</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:13px">
           <span style="color:var(--text2);font-weight:600">Entrega</span>
-          <span style="font-weight:800">${s.method.name}</span>
+          <span style="font-weight:800">${esc(s.method.name)}</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:13px">
           <span style="color:var(--text2);font-weight:600">Fecha</span>
@@ -1258,7 +1271,7 @@ function renderOrderStep() {
         </div>
         <div style="display:flex;justify-content:space-between;font-size:13px">
           <span style="color:var(--text2);font-weight:600">Horario</span>
-          <span style="font-weight:800">${s.slot.time_from.slice(0,5)} – ${s.slot.time_to.slice(0,5)} · ${s.slot.label}</span>
+          <span style="font-weight:800">${s.slot.time_from.slice(0,5)} – ${s.slot.time_to.slice(0,5)} · ${esc(s.slot.label)}</span>
         </div>
         ${s.method.base_cost+s.slot.extra_cost > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--text2);font-weight:600">Costo envío</span><span style="font-weight:900;color:var(--primary)">${fmt(s.method.base_cost+s.slot.extra_cost)}</span></div>` : ''}
       </div>

@@ -517,6 +517,9 @@ async function doCreate() {
   document.getElementById('create-error').style.display = 'none';
 
   if (!username) { showCreateError('El nombre de usuario es requerido'); return; }
+  // Mismo patrón que valida api/users.js — antes esto solo se descubría
+  // después de un viaje completo al servidor.
+  if (!/^[a-zA-Z0-9_]{3,32}$/.test(username)) { showCreateError('El usuario debe tener 3–32 caracteres: solo letras, números y guión bajo'); return; }
   if (!email)    { showCreateError('El correo electrónico es requerido'); return; }
 
   const btn = document.getElementById('create-btn');
