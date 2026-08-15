@@ -307,6 +307,30 @@ module.exports = async (req, res) => {
     await sql`CREATE INDEX IF NOT EXISTS stock_receipts_tenant_idx ON stock_receipts (tenant_id, created_at DESC)`;
     await sql`CREATE INDEX IF NOT EXISTS stock_receipts_fifo_idx ON stock_receipts (tenant_id, sku, warehouse_id, created_at) WHERE remaining_qty > 0`;
 
+    // Movimientos de Inventario (tab dentro de Ingreso de Mercadería) —
+    // mueve stock de un sku entre 2 almacenes de la MISMA tienda. Tabla
+    // dedicada con la data rica del evento (mismo patrón que
+    // stock_receipts), más 2 filas en stock_movements (salida/entrada) para
+    // que el historial por producto de Inventario las muestre en el timeline.
+    await sql`
+      CREATE TABLE IF NOT EXISTS stock_transfers (
+        id                   TEXT PRIMARY KEY,
+        tenant_id            TEXT NOT NULL DEFAULT 'TEN-001',
+        sku                  TEXT NOT NULL,
+        product_name         TEXT NOT NULL DEFAULT '',
+        local_id             TEXT NOT NULL DEFAULT '',
+        warehouse_id_from    TEXT NOT NULL,
+        warehouse_from_name  TEXT NOT NULL DEFAULT '',
+        warehouse_id_to      TEXT NOT NULL,
+        warehouse_to_name    TEXT NOT NULL DEFAULT '',
+        qty                  INTEGER NOT NULL,
+        unit_cost            INTEGER NOT NULL DEFAULT 0,
+        created_by           TEXT DEFAULT '',
+        created_at           TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS stock_transfers_tenant_idx ON stock_transfers (tenant_id, created_at DESC)`;
+
     // Los dos backfills que vivían acá (lote "legacy" por stock previo al
     // sistema de lotes, y el de "brecha" para stock sin lote de respaldo)
     // ya cumplieron su función — la última corrida confirmó 0 lotes
@@ -764,6 +788,19 @@ module.exports = async (req, res) => {
     `;
     await sql`CREATE INDEX IF NOT EXISTS warehouses_local_idx ON warehouses (local_id)`;
     await sql`CREATE INDEX IF NOT EXISTS warehouses_tenant_idx ON warehouses (tenant_id)`;
+    // Tipo de almacén — 'venta' (se puede vender/descontar desde ahí) o
+    // 'abastecimiento' (solo alimenta a los de venta vía traslado, ver
+    // stock_transfers). Default 'venta' para que ningún almacén existente
+    // deje de venderse el día de este deploy. sale_priority desempata entre
+    // 2+ almacenes 'venta' de la misma tienda con el mismo sku al vender
+    // (mayor número = mayor prioridad, ver _resolveSaleWarehouses en
+    // api/_stock.js) — 0 = sin configurar, todos empatan por created_at.
+    // reorder_threshold es NULLABLE a propósito (no DEFAULT 0): 0 es un
+    // umbral válido ("alertar al llegar a cero"), tiene que poder
+    // distinguirse de "sin configurar" (ver api/_stock_alerts.js).
+    await sql`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'venta'`;
+    await sql`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS sale_priority INTEGER NOT NULL DEFAULT 0`;
+    await sql`ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS reorder_threshold INTEGER`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS delivery_methods (

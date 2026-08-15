@@ -627,7 +627,7 @@ function renderRunDetail(run) {
                 <td style="font-weight:700">${escHtml(it.name)}</td>
                 <td style="color:var(--text3)">${escHtml(it.sku)}</td>
                 <td class="tipo-tag">${TIPO_INVENTARIO_LABEL[it.tipo] || '—'}</td>
-                <td>${it.threshold}</td>
+                <td>${it.threshold}${it.threshold_from_warehouse ? ' <i class="ti ti-building-warehouse" style="font-size:11px;color:var(--text3)" title="Umbral configurado en el almacén, no en el producto"></i>' : ''}</td>
                 <td class="${it.stock === 0 ? 'stock-crit' : ''}">${it.stock}</td>
                 <td>${money(it.cost)}</td>
               </tr>`).join('')}

@@ -2549,18 +2549,31 @@ function warehouseLocaleId(warehouseId) {
   const loc = (getLocalesData() || []).find(l => (l.warehouses||[]).some(w => w.id === warehouseId));
   return loc ? loc.id : '';
 }
+// 'venta' (aparece en Ventas/se puede descontar de ahí) o 'abastecimiento'
+// (solo alimenta a los de venta vía Movimientos de Inventario) — ver
+// warehouses.type. Almacenes preexistentes sin tipo configurado son 'venta'
+// (mismo default que el backend, api/setup.js).
+function warehouseType(warehouseId) {
+  if (!warehouseId) return '';
+  for (const l of (getLocalesData() || [])) {
+    const w = (l.warehouses || []).find(x => x.id === warehouseId);
+    if (w) return w.type || 'venta';
+  }
+  return '';
+}
 
 // El KIT no es de un almacén (existe una sola receta maestra), pero SÍ
 // existe como stock vendible en una TIENDA (local) cuando todos sus
 // componentes (recursivamente, incluidos los de sub-KITs) tienen fila de
-// producto en ALGÚN almacén de esa tienda — los componentes pueden estar en
-// almacenes distintos dentro del mismo local (ej. uno en "Clóset Oficina",
-// otro en "Closet pasillo", ambos bajo "Tienda Principal"); no necesitan
-// compartir el mismo almacén literal. Mismo criterio que api/orders.js
-// (_resolveLocalIdFromItems) usa para el backfill de location_id.
-// kitStockForLocale calcula el mínimo igual que kitStock, pero resolviendo
-// cada componente contra la suma de stock de ESA tienda (todos sus
-// almacenes), en vez de contra el warehouse_id fijado en la receta.
+// producto en ALGÚN almacén DE VENTA de esa tienda — los almacenes de tipo
+// 'abastecimiento' no cuentan para esto (ver warehouseType arriba), aunque
+// tengan el sku. Los componentes pueden estar en almacenes de venta
+// distintos dentro del mismo local (ej. uno en "Mostrador A", otro en
+// "Mostrador B", ambos bajo "Tienda Principal"); no necesitan compartir el
+// mismo almacén literal. kitStockForLocale calcula el mínimo igual que
+// kitStock, pero resolviendo cada componente contra la suma de stock de
+// TODOS los almacenes de venta de ESA tienda, en vez de contra el
+// warehouse_id fijado en la receta.
 function kitStockForLocale(kit, localId) {
   const items = kitStockItems(kit);
   if (!items.length) return 0;
@@ -2571,7 +2584,7 @@ function kitStockForLocale(kit, localId) {
       if (!sub) return 0;
       min = Math.min(min, Math.floor(kitStockForLocale(sub, localId) / i.qty));
     } else {
-      const rows = S.products.filter(x => x.sku === i.sku && x.warehouse_id && warehouseLocaleId(x.warehouse_id) === localId);
+      const rows = S.products.filter(x => x.sku === i.sku && x.warehouse_id && warehouseLocaleId(x.warehouse_id) === localId && warehouseType(x.warehouse_id) === 'venta');
       if (!rows.length) return 0;
       const total = rows.reduce((s, p) => s + (p.stock||0), 0);
       min = Math.min(min, Math.floor(total / i.qty));
@@ -2606,7 +2619,7 @@ function kitQualifyingLocales(kit) {
   let common = null;
   for (const sku of skus) {
     const locales = new Set(
-      S.products.filter(p => p.sku === sku && p.warehouse_id)
+      S.products.filter(p => p.sku === sku && p.warehouse_id && warehouseType(p.warehouse_id) === 'venta')
         .map(p => warehouseLocaleId(p.warehouse_id))
         .filter(Boolean)
     );
@@ -3093,7 +3106,10 @@ function getWarehouses() {
   locales.forEach(loc => {
     (loc.warehouses || []).forEach(wh => {
       if (!result.find(x => x.id === wh.id))
-        result.push({ id: wh.id, name: wh.name, localeName: loc.name });
+        result.push({
+          id: wh.id, name: wh.name, localeName: loc.name, localeId: loc.id,
+          type: wh.type || 'venta', sale_priority: wh.sale_priority || 0,
+        });
     });
   });
   return result;
@@ -4087,6 +4103,8 @@ const MOVEMENT_TYPE_META = {
   restitucion:   { label: 'Orden eliminada (restitución)',   icon: 'ti-rotate',         positive: true  },
   edicion_orden: { label: 'Edición de venta',                icon: 'ti-edit',           positive: null  },
   ingreso:       { label: 'Ingreso de mercadería',           icon: 'ti-truck-delivery', positive: true  },
+  traslado_salida:  { label: 'Traslado (salida)',            icon: 'ti-arrow-bar-right', positive: false },
+  traslado_entrada: { label: 'Traslado (entrada)',           icon: 'ti-arrow-bar-left',  positive: true  },
 };
 function _movTypeMeta(type, delta) {
   const base = MOVEMENT_TYPE_META[type] || { label: type, icon: 'ti-arrows-exchange', positive: null };
@@ -6652,13 +6670,42 @@ const DELIVERY_SLOTS = {
   ],
 };
 
+// Agrupa las filas (sku, warehouse_id) de un producto en UNA fila por sku
+// para la tienda dada — suma el stock de todos sus almacenes DE VENTA
+// (ignora los de abastecimiento por completo) y toma nombre/precio/tipo del
+// almacén de mayor sale_priority (desempate: el primero que aparezca). El
+// precio ya debería ser el mismo en todos los almacenes de venta de una
+// misma tienda (se valida al guardar el producto, ver api/_warehouse_price.js),
+// así que esto normalmente no elige entre precios distintos.
+function _ventaProductRowsByLocale(localeId) {
+  const whs = getWarehouses();
+  const bySku = new Map();
+  S.products
+    .filter(p => (p.tipo === 'producto' || p.tipo === 'ambos') && p.warehouse_id)
+    .forEach(p => {
+      const wh = whs.find(w => w.id === p.warehouse_id);
+      if (!wh || wh.type !== 'venta') return;
+      if (localeId && wh.localeId !== localeId) return;
+      const g = bySku.get(p.sku);
+      if (!g) {
+        bySku.set(p.sku, { sku: p.sku, name: p.name, price: p.price, tipo: p.tipo, stock: p.stock || 0, bestPriority: wh.sale_priority || 0 });
+      } else {
+        g.stock += p.stock || 0;
+        if ((wh.sale_priority || 0) > g.bestPriority) { g.bestPriority = wh.sale_priority || 0; g.name = p.name; g.price = p.price; g.tipo = p.tipo; }
+      }
+    });
+  return [...bySku.values()];
+}
 // Puebla "Agregar producto o KIT" según la tienda elegida arriba (ver
 // venta-locale-group, ahora antes de Productos en el form) — un producto
-// sólo puede venderse desde ahí si su almacén pertenece a esa tienda
-// (warehouseLocaleId), y un KIT sólo si TODOS sus componentes calzan en esa
-// misma tienda (kitQualifyingLocales/kitStockForLocale, ver Inventario).
-// Con un solo local (auto-seleccionado en initVentaLocales) esto no filtra
-// nada extra; con varios, obliga a elegir tienda antes de poder agregar.
+// individual sólo puede venderse desde ahí si tiene stock en algún almacén
+// DE VENTA de esa tienda (_ventaProductRowsByLocale, suma todos los que
+// tenga — de cuál se descuenta realmente lo resuelve el backend por
+// prioridad, ver _resolveSaleWarehouses en api/_stock.js), y un KIT sólo si
+// TODOS sus componentes calzan en algún almacén de venta de esa misma
+// tienda (kitQualifyingLocales/kitStockForLocale, ver Inventario). Con un
+// solo local (auto-seleccionado en initVentaLocales) esto no filtra nada
+// extra; con varios, obliga a elegir tienda antes de poder agregar.
 function _populateVentaAddItemSelect() {
   const sel = document.getElementById('venta-add-item');
   if (!sel) return;
@@ -6680,17 +6727,12 @@ function _populateVentaAddItemSelect() {
     o.textContent = `[KIT] ${_truncLabel(k.name)} — ${fmt(k.price)} (${stk} disp.)`;
     sel.appendChild(o);
   });
-  const whs = getWarehouses();
-  S.products
-    .filter(p => (p.tipo==='producto'||p.tipo==='ambos') && (!localeId || warehouseLocaleId(p.warehouse_id||'') === localeId))
-    .forEach(p => {
-      const wh = whs.find(w => w.id === p.warehouse_id);
-      const wLabel = wh ? ` [${_truncLabel(wh.name, 14)}]` : '';
-      const o = document.createElement('option');
-      o.value = `prod:${p.sku}:${p.warehouse_id||''}`;
-      o.textContent = `[${tipoMeta[p.tipo].label}] ${_truncLabel(p.name)}${wLabel} — ${fmt(p.price)} (${p.stock} stk)`;
-      sel.appendChild(o);
-    });
+  _ventaProductRowsByLocale(localeId).forEach(p => {
+    const o = document.createElement('option');
+    o.value = `prod:${p.sku}:`;
+    o.textContent = `[${tipoMeta[p.tipo].label}] ${_truncLabel(p.name)} — ${fmt(p.price)} (${p.stock} stk)`;
+    sel.appendChild(o);
+  });
 }
 function openSheetVenta(pushURL = true) {
   S.tempVentaItems = [];
@@ -6911,22 +6953,26 @@ function selectSlot(id, from, to, label) {
 function addVentaItem() {
   const val = document.getElementById('venta-add-item').value;
   if (!val) { toast('⚠️ Selecciona un ítem'); return; }
-  // format: "type:sku:warehouse_id"
+  // format: "type:sku:" — warehouse_id siempre vacío: el backend resuelve
+  // automáticamente de qué almacén de venta descontar por prioridad (ver
+  // _resolveSaleWarehouses en api/_stock.js). Mismo formato que ya usaban
+  // los KITs (nunca tienen almacén propio).
   const parts = val.split(':');
   const type = parts[0];
   const sku  = parts[1];
-  const warehouse_id = parts[2] || '';
+  const warehouse_id = '';
   let name, price, tipo;
   if (type === 'kit') {
     const k = S.kits.find(x => x.sku === sku && (x.warehouse_id||'') === '');
     if (!k) return;
     name = k.name; price = k.price; tipo = 'kit';
   } else {
-    const p = S.products.find(x => x.sku === sku && (x.warehouse_id || '') === warehouse_id);
+    const localeId = S._ventaSelectedLocale?.id || '';
+    const p = _ventaProductRowsByLocale(localeId).find(x => x.sku === sku);
     if (!p) return;
     name = p.name; price = p.price; tipo = p.tipo;
   }
-  const ex = S.tempVentaItems.find(i => i.sku === sku && i.type === type && (i.warehouse_id || '') === warehouse_id);
+  const ex = S.tempVentaItems.find(i => i.sku === sku && i.type === type);
   if (ex) ex.qty++;
   else S.tempVentaItems.push({type, sku, name, price, qty:1, tipo, warehouse_id});
   renderVentaItemsList();

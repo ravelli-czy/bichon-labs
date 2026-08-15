@@ -45,21 +45,45 @@ async function _recordMovement(sql, movement, { sku, warehouseId, productName, d
   `;
 }
 
-// A KIT's components can live in DIFFERENT warehouses of the SAME store
-// (distinct almacenes/closets), so the right warehouse for a component is
-// resolved by store (locationId), not by the order's blanket warehouse_id —
-// only falls back to that blanket id when the store lookup is ambiguous.
-async function _componentWarehouseId(sql, tenantId, sku, locationId, fallbackWid) {
-  if (locationId) {
-    const rows = await sql`
-      SELECT p.warehouse_id
-      FROM products p
-      JOIN warehouses w ON w.id = p.warehouse_id AND w.tenant_id = p.tenant_id
-      WHERE p.sku = ${sku} AND p.tenant_id = ${tenantId} AND w.local_id = ${locationId}
-    `;
-    if (rows.length === 1) return rows[0].warehouse_id;
+// Un sku puede tener stock en varios almacenes de tipo 'venta' de la misma
+// tienda (KIT component o producto individual, mismo criterio para ambos —
+// ver definición de "almacén de venta" en warehouses.type). Resuelve de
+// cuál(es) descontar `qty`: ordena los candidatos por sale_priority
+// descendente (empate por created_at, determinístico) y va tomando de cada
+// uno lo que tenga, en orden, hasta cubrir `qty` o agotar candidatos —
+// reparte entre 2+ almacenes si el de mayor prioridad no alcanza. Si no hay
+// NINGÚN almacén 'venta' con este sku en esa tienda (o no hay locationId),
+// cae a `fallbackWid` (comportamiento histórico — el warehouse_id del
+// pedido/ítem) para no dejar sin resolver una venta con datos incompletos.
+// Nunca bloquea por falta de stock (mismo criterio que el resto del
+// archivo): lo que sobra tras agotar candidatos se apila sobre el de mayor
+// prioridad, para que la sobreventa quede trazada contra un único almacén.
+async function _resolveSaleWarehouses(sql, tenantId, sku, locationId, qty, fallbackWid) {
+  if (!(qty > 0)) return [];
+  if (!locationId) return fallbackWid ? [{ warehouseId: fallbackWid, qtyToTake: qty }] : [];
+
+  const rows = await sql`
+    SELECT p.warehouse_id, p.stock
+    FROM products p
+    JOIN warehouses w ON w.id = p.warehouse_id AND w.tenant_id = p.tenant_id
+    WHERE p.sku = ${sku} AND p.tenant_id = ${tenantId} AND w.local_id = ${locationId} AND w.type = 'venta'
+    ORDER BY w.sale_priority DESC, w.created_at ASC
+  `;
+  if (!rows.length) return fallbackWid ? [{ warehouseId: fallbackWid, qtyToTake: qty }] : [];
+
+  const splits = [];
+  let remaining = qty;
+  for (const row of rows) {
+    if (remaining <= 0) break;
+    const take = Math.min(Math.max(row.stock, 0), remaining);
+    if (take > 0) { splits.push({ warehouseId: row.warehouse_id, qtyToTake: take }); remaining -= take; }
   }
-  return fallbackWid;
+  if (remaining > 0) {
+    const top = splits.find(s => s.warehouseId === rows[0].warehouse_id);
+    if (top) top.qtyToTake += remaining;
+    else splits.push({ warehouseId: rows[0].warehouse_id, qtyToTake: remaining });
+  }
+  return splits;
 }
 
 // Consume `qty` de stock_receipts para (sku, wid), lote por lote del más
@@ -167,20 +191,22 @@ async function _deductKit(sql, kitSku, qty, wid, tenantId, locationId, movement,
       totalCost += nested.totalCost;
       components.push(...nested.components);
     } else {
-      const compWid = await _componentWarehouseId(sql, tenantId, comp.sku, locationId, wid);
       const compQty = comp.qty * qty;
-      const [row] = await sql`UPDATE products SET stock = GREATEST(0, stock - ${compQty}), updated_at = NOW()
-        WHERE sku = ${comp.sku} AND warehouse_id = ${compWid} AND tenant_id = ${tenantId}
-        RETURNING stock, name`;
-      const consumed = await _consumeLotsFifo(sql, tenantId, comp.sku, compWid, compQty);
-      const { unitCost, totalCost: lineCost } = _weightedCost(consumed, compQty);
-      totalCost += lineCost;
-      components.push({ sku: comp.sku, warehouseId: compWid || '', quantity: compQty, unitCost, totalCost: lineCost });
-      if (row) {
-        await _recordMovement(sql, movement, {
-          sku: comp.sku, warehouseId: compWid, productName: row.name,
-          delta: -compQty, unitCost, stockAfter: row.stock,
-        });
+      const splits = await _resolveSaleWarehouses(sql, tenantId, comp.sku, locationId, compQty, wid);
+      for (const split of splits) {
+        const [row] = await sql`UPDATE products SET stock = GREATEST(0, stock - ${split.qtyToTake}), updated_at = NOW()
+          WHERE sku = ${comp.sku} AND warehouse_id = ${split.warehouseId} AND tenant_id = ${tenantId}
+          RETURNING stock, name`;
+        const consumed = await _consumeLotsFifo(sql, tenantId, comp.sku, split.warehouseId, split.qtyToTake);
+        const { unitCost, totalCost: lineCost } = _weightedCost(consumed, split.qtyToTake);
+        totalCost += lineCost;
+        components.push({ sku: comp.sku, warehouseId: split.warehouseId || '', quantity: split.qtyToTake, unitCost, totalCost: lineCost });
+        if (row) {
+          await _recordMovement(sql, movement, {
+            sku: comp.sku, warehouseId: split.warehouseId, productName: row.name,
+            delta: -split.qtyToTake, unitCost, stockAfter: row.stock,
+          });
+        }
       }
     }
   }
@@ -188,6 +214,11 @@ async function _deductKit(sql, kitSku, qty, wid, tenantId, locationId, movement,
 }
 
 // `depth` — mismo tope que _deductKit arriba (misma razón: cortar un ciclo).
+// Fallback SOLO para órdenes anteriores a warehouseSplits/componentBreakdown
+// persistido (no debería alcanzarse para órdenes nuevas, ver _restoreKitFromBreakdown
+// abajo) — recompone contra la receta ACTUAL del KIT y vuelve a resolver
+// almacén por prioridad, que puede no coincidir con el almacén real de
+// donde salió el stock en su momento si la prioridad cambió desde entonces.
 async function _restoreKit(sql, kitSku, qty, wid, tenantId, locationId, movement, depth = 0) {
   if (depth > 6) return;
   const [kit] = await sql`SELECT items FROM kits WHERE sku = ${kitSku} AND warehouse_id = '' AND tenant_id = ${tenantId}`;
@@ -196,18 +227,43 @@ async function _restoreKit(sql, kitSku, qty, wid, tenantId, locationId, movement
     if (comp.type === 'kit') {
       await _restoreKit(sql, comp.sku, comp.qty * qty, wid, tenantId, locationId, movement, depth + 1);
     } else {
-      const compWid = await _componentWarehouseId(sql, tenantId, comp.sku, locationId, wid);
       const compQty = comp.qty * qty;
-      const [row] = await sql`UPDATE products SET stock = stock + ${compQty}, updated_at = NOW()
-        WHERE sku = ${comp.sku} AND warehouse_id = ${compWid} AND tenant_id = ${tenantId}
-        RETURNING stock, name`;
-      const unitCost = await _restoreLotsFifo(sql, tenantId, comp.sku, compWid, compQty);
-      if (row) {
-        await _recordMovement(sql, movement, {
-          sku: comp.sku, warehouseId: compWid, productName: row.name,
-          delta: compQty, unitCost, stockAfter: row.stock,
-        });
+      const splits = await _resolveSaleWarehouses(sql, tenantId, comp.sku, locationId, compQty, wid);
+      for (const split of splits) {
+        const [row] = await sql`UPDATE products SET stock = stock + ${split.qtyToTake}, updated_at = NOW()
+          WHERE sku = ${comp.sku} AND warehouse_id = ${split.warehouseId} AND tenant_id = ${tenantId}
+          RETURNING stock, name`;
+        const unitCost = await _restoreLotsFifo(sql, tenantId, comp.sku, split.warehouseId, split.qtyToTake);
+        if (row) {
+          await _recordMovement(sql, movement, {
+            sku: comp.sku, warehouseId: split.warehouseId, productName: row.name,
+            delta: split.qtyToTake, unitCost, stockAfter: row.stock,
+          });
+        }
       }
+    }
+  }
+}
+
+// Restaura contra el reparto REAL persistido en la orden (item.componentBreakdown,
+// normalizado "por 1 unidad de KIT" — ver deductStockForItems/buildSaleSnapshot),
+// no contra una re-resolución por prioridad — la prioridad configurada hoy
+// puede ya no ser la que estaba vigente cuando se hizo la venta original, y
+// restaurar al almacén equivocado rompería la trazabilidad de stock/costos.
+async function _restoreKitFromBreakdown(sql, tenantId, componentBreakdown, qty, movement) {
+  for (const comp of componentBreakdown) {
+    const compQty = (comp.quantity || 0) * qty;
+    if (!(compQty > 0)) continue;
+    const wid = comp.warehouseId || '';
+    const [row] = await sql`UPDATE products SET stock = stock + ${compQty}, updated_at = NOW()
+      WHERE sku = ${comp.sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
+      RETURNING stock, name`;
+    const unitCost = await _restoreLotsFifo(sql, tenantId, comp.sku, wid, compQty);
+    if (row) {
+      await _recordMovement(sql, movement, {
+        sku: comp.sku, warehouseId: wid, productName: row.name,
+        delta: compQty, unitCost, stockAfter: row.stock,
+      });
     }
   }
 }
@@ -240,20 +296,35 @@ async function deductStockForItems(sql, items, tenantId, orderWarehouseId, locat
         })),
       });
     } else {
-      const [row] = await sql`
-        UPDATE products SET stock = GREATEST(0, stock - ${qty}), updated_at = NOW()
-        WHERE sku = ${item.sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
-        RETURNING stock, name
-      `;
-      const consumed = await _consumeLotsFifo(sql, tenantId, item.sku, wid, qty);
-      const costInfo = _weightedCost(consumed, qty);
-      results.push(costInfo);
-      if (row) {
-        await _recordMovement(sql, movement, {
-          sku: item.sku, warehouseId: wid, productName: row.name,
-          delta: -qty, unitCost: costInfo.unitCost, stockAfter: row.stock,
-        });
+      // item.warehouse_id explícito = override manual (compatibilidad con
+      // integraciones/órdenes que todavía lo mandan resuelto) — se respeta
+      // tal cual, sin pasar por la resolución por prioridad. Si viene vacío
+      // (selector de Ventas actual), se resuelve automáticamente entre los
+      // almacenes 'venta' de la tienda, repartiendo si uno solo no alcanza.
+      const splits = item.warehouse_id
+        ? [{ warehouseId: item.warehouse_id, qtyToTake: qty }]
+        : await _resolveSaleWarehouses(sql, tenantId, item.sku, locationId, qty, orderWarehouseId || '');
+      let consumedAll = [];
+      const warehouseSplits = [];
+      for (const split of splits) {
+        const [row] = await sql`
+          UPDATE products SET stock = GREATEST(0, stock - ${split.qtyToTake}), updated_at = NOW()
+          WHERE sku = ${item.sku} AND warehouse_id = ${split.warehouseId} AND tenant_id = ${tenantId}
+          RETURNING stock, name
+        `;
+        const consumed = await _consumeLotsFifo(sql, tenantId, item.sku, split.warehouseId, split.qtyToTake);
+        consumedAll = consumedAll.concat(consumed);
+        const { unitCost: splitUnitCost } = _weightedCost(consumed, split.qtyToTake);
+        warehouseSplits.push({ warehouseId: split.warehouseId || '', qty: split.qtyToTake, unitCost: splitUnitCost });
+        if (row) {
+          await _recordMovement(sql, movement, {
+            sku: item.sku, warehouseId: split.warehouseId, productName: row.name,
+            delta: -split.qtyToTake, unitCost: splitUnitCost, stockAfter: row.stock,
+          });
+        }
       }
+      const costInfo = _weightedCost(consumedAll, qty);
+      results.push({ ...costInfo, warehouseSplits });
     }
   }
   return results;
@@ -268,7 +339,32 @@ async function restoreStockForItems(sql, items, tenantId, orderWarehouseId, loca
   for (const item of items) {
     const wid = item.warehouse_id || orderWarehouseId || '';
     if (item.type === 'kit') {
-      await _restoreKit(sql, item.sku, item.qty, wid, tenantId, locationId, movement);
+      // componentBreakdown persistido = restaura contra el reparto real de
+      // ESTA venta (ver _restoreKitFromBreakdown). Solo cae al recompute por
+      // receta (_restoreKit) para órdenes viejas que nunca lo guardaron.
+      if (Array.isArray(item.componentBreakdown) && item.componentBreakdown.length) {
+        await _restoreKitFromBreakdown(sql, tenantId, item.componentBreakdown, item.qty, movement);
+      } else {
+        await _restoreKit(sql, item.sku, item.qty, wid, tenantId, locationId, movement);
+      }
+    } else if (Array.isArray(item.warehouseSplits) && item.warehouseSplits.length) {
+      // Mismo criterio: restaurar exactamente donde se descontó, no
+      // re-resolver por prioridad (que pudo cambiar desde la venta).
+      for (const split of item.warehouseSplits) {
+        const splitWid = split.warehouseId || '';
+        const [row] = await sql`
+          UPDATE products SET stock = stock + ${split.qty}, updated_at = NOW()
+          WHERE sku = ${item.sku} AND warehouse_id = ${splitWid} AND tenant_id = ${tenantId}
+          RETURNING stock, name
+        `;
+        const unitCost = await _restoreLotsFifo(sql, tenantId, item.sku, splitWid, split.qty);
+        if (row) {
+          await _recordMovement(sql, movement, {
+            sku: item.sku, warehouseId: splitWid, productName: row.name,
+            delta: split.qty, unitCost, stockAfter: row.stock,
+          });
+        }
+      }
     } else {
       const [row] = await sql`
         UPDATE products SET stock = stock + ${item.qty}, updated_at = NOW()
@@ -286,4 +382,32 @@ async function restoreStockForItems(sql, items, tenantId, orderWarehouseId, loca
   }
 }
 
-module.exports = { deductStockForItems, restoreStockForItems, recordStockMovement: _recordMovement };
+// Al REDUCIR (no eliminar) la cantidad de una línea de producto individual
+// ya deducida — ver PUT /api/orders/:id action=items — sólo hay que
+// restaurar una PARTE de lo que se descontó en su momento. Se deshace en
+// orden inverso al que se tomó (LIFO: lo último tomado es lo primero en
+// devolverse) contra el warehouseSplits histórico REAL de la línea (no una
+// re-resolución por prioridad) — evita cantidades fraccionarias y hace que
+// el almacén de mayor prioridad, que normalmente cubrió la mayor parte,
+// sea el último en tocarse. Si `historicalSplits` no alcanza a cubrir
+// `qtyToRestore` (no debería pasar si qty nunca superó lo ya deducido), lo
+// que sobra se apila sobre el primer split como mejor aproximación.
+function partialRestoreSplits(historicalSplits, qtyToRestore) {
+  const splits = Array.isArray(historicalSplits) ? historicalSplits : [];
+  const result = [];
+  let remaining = qtyToRestore;
+  for (let i = splits.length - 1; i >= 0 && remaining > 0; i--) {
+    const take = Math.min(splits[i].qty || 0, remaining);
+    if (take > 0) { result.push({ warehouseId: splits[i].warehouseId || '', qty: take }); remaining -= take; }
+  }
+  if (remaining > 0 && splits.length) result.push({ warehouseId: splits[0].warehouseId || '', qty: remaining });
+  return result;
+}
+
+module.exports = {
+  deductStockForItems, restoreStockForItems, recordStockMovement: _recordMovement, partialRestoreSplits,
+  // Expuestas para api/_stock_transfers_routes.js — un traslado entre
+  // almacenes consume FIFO en origen igual que una venta, sin duplicar la
+  // lógica de lotes.
+  consumeLotsFifo: _consumeLotsFifo, weightedCost: _weightedCost,
+};

@@ -5,6 +5,9 @@
 // vive en api/_stock_receipts_routes.js.
 // /api/products?resource=purchase-formats — Mantenedor de Formatos de compra,
 // mismo motivo, vive en api/_purchase_formats_routes.js.
+// /api/products?resource=stock-transfers — Movimientos de Inventario (mover
+// stock entre almacenes de una tienda), mismo motivo, vive en
+// api/_stock_transfers_routes.js.
 const { getDb } = require('./_db');
 const cors = require('./_cors');
 const { writeLog } = require('./_log');
@@ -12,6 +15,8 @@ const { getSession, resolveTenantId } = require('./_tenant');
 const { handleStockReceiptsResource, STOCK_RECEIPT_RESOURCES } = require('./_stock_receipts_routes');
 const { handlePurchaseFormatsResource, PURCHASE_FORMAT_RESOURCES } = require('./_purchase_formats_routes');
 const { handleStockMovementsResource, STOCK_MOVEMENT_RESOURCES } = require('./_stock_movements_routes');
+const { handleStockTransfersResource, STOCK_TRANSFER_RESOURCES } = require('./_stock_transfers_routes');
+const { checkSalePriceMatch } = require('./_warehouse_price');
 
 module.exports = async (req, res) => {
   if (cors(req, res)) return;
@@ -36,6 +41,10 @@ module.exports = async (req, res) => {
   // ── Historial de movimientos de stock (tab Historial en Inventario) ─────
   if (STOCK_MOVEMENT_RESOURCES.includes(req.query?.resource)) {
     return handleStockMovementsResource(req, res, sql, session, tenantId, actor);
+  }
+  // ── Movimientos de Inventario: traslados entre almacenes de una tienda ──
+  if (STOCK_TRANSFER_RESOURCES.includes(req.query?.resource)) {
+    return handleStockTransfersResource(req, res, sql, session, tenantId, actor);
   }
 
   try {
@@ -179,6 +188,16 @@ module.exports = async (req, res) => {
 
       if (!name) return res.status(400).json({ error: 'name is required' });
       if (!Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
+
+      // Precio único por tienda: si este almacén es de tipo 'venta', el
+      // precio de un sku tiene que ser el mismo en todos los almacenes
+      // 'venta' de esa misma tienda — si no, el selector de Ventas (que
+      // colapsa el stock de todos los almacenes 'venta' en una sola fila
+      // por sku) no tendría un precio único que mostrar/cobrar.
+      if (warehouse_id && explicitSku) {
+        const priceMismatch = await checkSalePriceMatch(sql, tenantId, explicitSku, warehouse_id, price);
+        if (priceMismatch) return res.status(400).json(priceMismatch);
+      }
 
       let sku;
       if (explicitSku) {
