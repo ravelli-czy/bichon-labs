@@ -5,6 +5,7 @@ const { getDb } = require('../_db');
 const cors = require('../_cors');
 const { writeLog } = require('../_log');
 const { getSession, resolveTenantId } = require('../_tenant');
+const { checkSalePriceMatch } = require('../_warehouse_price');
 
 module.exports = async (req, res) => {
   if (cors(req, res)) return;
@@ -197,6 +198,12 @@ module.exports = async (req, res) => {
       } = req.body || {};
       if (groups !== undefined && !Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
       const groupsJson = groups !== undefined ? JSON.stringify(groups) : null;
+
+      if (price !== undefined && price !== null) {
+        const priceMismatch = await checkSalePriceMatch(sql, tenantId, sku, new_warehouse_id || warehouse_id, price);
+        if (priceMismatch) return res.status(400).json(priceMismatch);
+      }
+
       await sql`
         UPDATE products SET
           name            = COALESCE(${name            ?? null}, name),
