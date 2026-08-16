@@ -773,6 +773,7 @@ function renderRecentTransfers(transfers) {
       <div style="flex:1;min-width:0">
         <div class="ir-recent-name">${escHtml(t.product_name)}</div>
         <div class="ir-recent-meta">${fmtDateTime(t.created_at)} · ${t.qty} · ${escHtml(t.warehouse_from_name)} → ${escHtml(t.warehouse_to_name)}</div>
+        ${t.stock_from_after != null && t.stock_to_after != null ? `<div class="ir-recent-meta">Quedó: ${escHtml(t.warehouse_from_name)} ${t.stock_from_after} · ${escHtml(t.warehouse_to_name)} ${t.stock_to_after}</div>` : ''}
       </div>
     </div>`).join('');
 }

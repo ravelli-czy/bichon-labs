@@ -330,6 +330,14 @@ module.exports = async (req, res) => {
       )
     `;
     await sql`CREATE INDEX IF NOT EXISTS stock_transfers_tenant_idx ON stock_transfers (tenant_id, created_at DESC)`;
+    // Saldo resultante en cada almacén tras el traslado — se guarda al
+    // momento del movimiento (no se recalcula después) para que el
+    // historial siga siendo fiel aunque el stock actual del producto
+    // cambie por movimientos posteriores. Sin default: los traslados
+    // previos a esta columna quedan en NULL (dato que nunca se registró)
+    // en vez de mostrar un falso 0.
+    await sql`ALTER TABLE stock_transfers ADD COLUMN IF NOT EXISTS stock_from_after INTEGER`;
+    await sql`ALTER TABLE stock_transfers ADD COLUMN IF NOT EXISTS stock_to_after INTEGER`;
 
     // Los dos backfills que vivían acá (lote "legacy" por stock previo al
     // sistema de lotes, y el de "brecha" para stock sin lote de respaldo)

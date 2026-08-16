@@ -117,9 +117,9 @@ async function handleStockTransfersResource(req, res, sql, session, tenantId, ac
       const id = await nextTransferId(sql, tenantId);
       const [transfer] = await sql`
         INSERT INTO stock_transfers
-          (id, tenant_id, sku, product_name, local_id, warehouse_id_from, warehouse_from_name, warehouse_id_to, warehouse_to_name, qty, unit_cost, created_by)
+          (id, tenant_id, sku, product_name, local_id, warehouse_id_from, warehouse_from_name, warehouse_id_to, warehouse_to_name, qty, unit_cost, stock_from_after, stock_to_after, created_by)
         VALUES
-          (${id}, ${tenantId}, ${sku}, ${originProduct.name}, ${from.local_id}, ${warehouse_id_from}, ${from.name}, ${warehouse_id_to}, ${to.name}, ${qtyInt}, ${unitCost}, ${actor})
+          (${id}, ${tenantId}, ${sku}, ${originProduct.name}, ${from.local_id}, ${warehouse_id_from}, ${from.name}, ${warehouse_id_to}, ${to.name}, ${qtyInt}, ${unitCost}, ${originAfter.stock}, ${destAfter.stock}, ${actor})
         RETURNING *
       `;
 
