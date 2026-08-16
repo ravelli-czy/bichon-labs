@@ -978,6 +978,14 @@ div[role="button"]:focus-visible{outline:2px solid var(--primary);outline-offset
 
     <div id="prefs-tab-datos" style="display:none">
       <div class="pref-group" style="margin-top:16px">
+        <div class="pref-group-title">Base de datos</div>
+        <div class="pref-label">Sincronizar estructura de la base de datos</div>
+        <div class="pref-hint" style="margin-bottom:10px">Aplica cambios de estructura pendientes (tablas y columnas nuevas de la última actualización). No borra ni modifica datos existentes — es seguro correrlo aunque no haya nada pendiente.</div>
+        <button class="btn btn-primary" id="btn-sync-db-schema" onclick="syncDatabaseSchema()" style="width:100%;justify-content:center">
+          <i class="ti ti-refresh"></i> Sincronizar
+        </button>
+      </div>
+      <div class="pref-group" style="margin-top:18px">
         <div class="pref-group-title">Datos</div>
         <div class="pref-label">Borrar toda la información del cliente activo</div>
         <div class="pref-hint" style="margin-bottom:10px">Elimina productos, KITs, órdenes y envíos. Esta acción <strong>no puede deshacerse</strong>.</div>
@@ -3280,6 +3288,20 @@ function setWarehouse(id) {
   initInvWarehouseBar();
   renderInventory();
   renderKits(); // KITs también se filtran/dividen por tienda (ver kitQualifyingLocales)
+}
+
+async function syncDatabaseSchema() {
+  const btn = document.getElementById('btn-sync-db-schema');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Sincronizando...';
+  try {
+    await apiFetch('/api/setup', { method: 'POST' });
+    toast('✅ Base de datos sincronizada');
+  } catch (e) {
+    toast('❌ Error: ' + (e.message || 'No se pudo sincronizar'));
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="ti ti-refresh"></i> Sincronizar';
 }
 
 function _clearTenantDataPhrase() {
