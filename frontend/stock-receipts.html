@@ -156,7 +156,7 @@ body.embedded .embed-page-header{display:block}
       <div id="receipts-loading"><div class="skeleton"></div><div class="skeleton" style="opacity:.6"></div></div>
       <div style="overflow-x:auto">
         <table class="wh-table" id="receipts-table" style="display:none">
-          <thead><tr><th>Fecha</th><th>Producto</th><th>Forma de compra</th><th>Cantidad</th><th>Costo total</th><th>+ Stock</th><th>Costo unit.</th><th>Costo producto</th><th>Usuario</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Producto</th><th>Forma de compra</th><th>Cantidad</th><th>Costo total</th><th>+ Stock</th><th>Costo unit.</th><th>Costo producto</th><th>Usuario</th><th></th></tr></thead>
           <tbody id="receipts-tbody"></tbody>
         </table>
       </div>
@@ -624,17 +624,20 @@ async function confirmReceipt() {
 }
 
 // ── HISTORIAL ────────────────────────────────────────────────────────────
+let RECEIPTS = [];
 async function loadReceipts() {
   document.getElementById('receipts-loading').style.display = '';
   document.getElementById('receipts-table').style.display = 'none';
   document.getElementById('receipts-empty').style.display = 'none';
-  let receipts = [];
-  try { receipts = await api('/api/products?resource=stock-receipts'); }
-  catch (e) { toast('⚠️ ' + e.message); }
+  try { RECEIPTS = await api('/api/products?resource=stock-receipts'); }
+  catch (e) { toast('⚠️ ' + e.message); RECEIPTS = []; }
   document.getElementById('receipts-loading').style.display = 'none';
-  if (!receipts.length) { document.getElementById('receipts-empty').style.display = ''; return; }
+  if (!RECEIPTS.length) { document.getElementById('receipts-empty').style.display = ''; return; }
   document.getElementById('receipts-table').style.display = '';
-  document.getElementById('receipts-tbody').innerHTML = receipts.map(r => `
+  renderReceiptsTable();
+}
+function renderReceiptsTable() {
+  document.getElementById('receipts-tbody').innerHTML = RECEIPTS.map(r => `
     <tr>
       <td>${fmtDateTime(r.created_at)}</td>
       <td style="font-weight:700">${escHtml(r.product_name)}${WAREHOUSE_NAMES[r.warehouse_id] ? `<br><span style="color:var(--text3);font-weight:600;font-size:11px">${escHtml(WAREHOUSE_NAMES[r.warehouse_id])}</span>` : ''}</td>
@@ -644,8 +647,29 @@ async function loadReceipts() {
       <td style="color:var(--green-dark);font-weight:800">+${r.units_added}</td>
       <td>${money(r.unit_cost)}</td>
       <td>${money(r.new_avg_cost)}</td>
-      <td style="color:var(--text3)">${escHtml(r.created_by)}</td>
+      <td style="color:var(--text3)">${escHtml(r.created_by)}${r.updated_by ? `<br><span style="font-size:10px">✎ ${escHtml(r.updated_by)}</span>` : ''}</td>
+      <td><button class="btn-icon-sm" onclick="editReceipt('${r.id}')" title="Editar cantidad/costo"><i class="ti ti-pencil"></i></button></td>
     </tr>`).join('');
+}
+async function editReceipt(id) {
+  const r = RECEIPTS.find(x => x.id === id);
+  if (!r) return;
+  const qtyStr = prompt(`Cantidad comprada de "${r.product_name}":`, r.qty_purchased);
+  if (qtyStr === null) return;
+  const qty_purchased = parseFloat(qtyStr);
+  if (!(qty_purchased > 0)) { toast('⚠️ Ingresa una cantidad mayor a 0'); return; }
+  const costStr = prompt('Costo total pagado:', r.total_cost);
+  if (costStr === null) return;
+  const total_cost = parseFloat(costStr);
+  if (!(total_cost >= 0)) { toast('⚠️ Ingresa un costo válido'); return; }
+  try {
+    const { receipt } = await api(`/api/products?resource=stock-receipts&id=${encodeURIComponent(id)}`, {
+      method: 'PUT', body: JSON.stringify({ qty_purchased, total_cost }),
+    });
+    Object.assign(r, receipt);
+    renderReceiptsTable();
+    toast('✅ Ingreso actualizado');
+  } catch (e) { toast('❌ ' + e.message); }
 }
 
 // ── MOVIMIENTOS DE INVENTARIO (traslados entre almacenes de una tienda) ──

@@ -157,6 +157,82 @@ async function handleStockReceiptsResource(req, res, sql, session, tenantId, act
       return res.status(201).json({ receipts });
     }
 
+    // ── PUT — corrige cantidad/costo de una recepción ya registrada ────────
+    // No se puede editar sku/almacén/formato (eso obligaría a deshacer y
+    // rehacer el lote) — sólo qty_purchased/total_cost, los datos que se
+    // escriben a mano al registrar y donde es fácil equivocarse. factor
+    // queda igual que al crear el lote; units_added/unit_cost se recalculan
+    // igual que en el POST. El ajuste de stock/remaining_qty es SOLO la
+    // diferencia (delta) contra lo que había antes — si el lote ya se
+    // consumió parcial o totalmente por ventas, esas unidades vendidas no se
+    // tocan (no hay forma de deshacer una venta ya despachada desde acá);
+    // sólo se puede bajar la cantidad hasta lo que ya se vendió de este lote,
+    // nunca menos.
+    if (req.method === 'PUT') {
+      const id = req.query?.id;
+      if (!id) return res.status(400).json({ error: 'id is required' });
+      const { qty_purchased, total_cost } = req.body || {};
+      if (qty_purchased !== undefined && (!isPlainNumber(qty_purchased) || qty_purchased <= 0)) {
+        return res.status(400).json({ error: 'Cantidad inválida' });
+      }
+      if (total_cost !== undefined && (!isPlainNumber(total_cost) || total_cost < 0)) {
+        return res.status(400).json({ error: 'Costo total inválido' });
+      }
+
+      const [existing] = await sql`SELECT * FROM stock_receipts WHERE id = ${id} AND tenant_id = ${tenantId}`;
+      if (!existing) return res.status(404).json({ error: 'Ingreso no encontrado' });
+
+      const newQtyPurchased = qty_purchased !== undefined ? qty_purchased : Number(existing.qty_purchased);
+      const newTotalCost    = total_cost    !== undefined ? Math.round(total_cost) : existing.total_cost;
+      const newUnitsAdded   = Math.floor(newQtyPurchased * Number(existing.factor));
+      const newUnitCost     = newUnitsAdded > 0 ? Math.round(newTotalCost / newUnitsAdded) : 0;
+
+      const alreadySold = existing.units_added - existing.remaining_qty;
+      if (newUnitsAdded < alreadySold) {
+        return res.status(400).json({ error: `No puedes bajar la cantidad por debajo de lo ya vendido de este ingreso (${alreadySold} unidades).` });
+      }
+      const delta = newUnitsAdded - existing.units_added;
+      const newRemainingQty = existing.remaining_qty + delta;
+
+      const [receipt] = await sql`
+        UPDATE stock_receipts SET
+          qty_purchased = ${newQtyPurchased},
+          total_cost    = ${newTotalCost},
+          units_added   = ${newUnitsAdded},
+          unit_cost     = ${newUnitCost},
+          remaining_qty = ${newRemainingQty},
+          updated_by    = ${actor},
+          updated_at    = NOW()
+        WHERE id = ${id} AND tenant_id = ${tenantId}
+        RETURNING *
+      `;
+      const [product] = await sql`
+        UPDATE products SET stock = GREATEST(0, stock + ${delta}), updated_by = ${actor}, updated_at = NOW()
+        WHERE sku = ${existing.sku} AND warehouse_id = ${existing.warehouse_id} AND tenant_id = ${tenantId}
+        RETURNING *
+      `;
+
+      await writeLog(sql, {
+        tenant_id:   tenantId,
+        actor,
+        action:      'stock_receipt.editado',
+        entity_type: 'producto',
+        entity_id:   existing.sku,
+        entity_name: `${id} — ${existing.product_name}`,
+        details: {
+          id,
+          before: { qty_purchased: existing.qty_purchased, total_cost: existing.total_cost, units_added: existing.units_added },
+          after:  { qty_purchased: newQtyPurchased, total_cost: newTotalCost, units_added: newUnitsAdded },
+        },
+      });
+      if (delta && product) {
+        await recordStockMovement(sql, { tenantId, type: 'edicion_ingreso', refType: 'stock_receipt', refId: id, actor },
+          { sku: existing.sku, warehouseId: existing.warehouse_id, productName: existing.product_name, delta, unitCost: newUnitCost, stockAfter: product.stock });
+      }
+
+      return res.json({ receipt, product });
+    }
+
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
     console.error('stock-receipts error:', err);

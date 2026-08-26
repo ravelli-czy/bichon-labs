@@ -304,6 +304,11 @@ module.exports = async (req, res) => {
     // porque son sólo historial, no lotes vivos. Ver el backfill de "lote
     // legacy" más abajo, que es lo que sí deja stock consumible por FIFO.
     await sql`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS remaining_qty INTEGER NOT NULL DEFAULT 0`;
+    // Auditoría de ediciones (ver PUT en api/_stock_receipts_routes.js) — un
+    // ingreso mal tipeado (cantidad o costo) ahora se puede corregir en vez
+    // de quedar mal para siempre.
+    await sql`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS updated_by TEXT DEFAULT ''`;
+    await sql`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ`;
     await sql`CREATE INDEX IF NOT EXISTS stock_receipts_tenant_idx ON stock_receipts (tenant_id, created_at DESC)`;
     await sql`CREATE INDEX IF NOT EXISTS stock_receipts_fifo_idx ON stock_receipts (tenant_id, sku, warehouse_id, created_at) WHERE remaining_qty > 0`;
 
