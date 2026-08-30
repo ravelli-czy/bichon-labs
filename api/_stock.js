@@ -49,15 +49,16 @@ async function _recordMovement(sql, movement, { sku, warehouseId, productName, d
 // tienda (KIT component o producto individual, mismo criterio para ambos —
 // ver definición de "almacén de venta" en warehouses.type). Resuelve de
 // cuál(es) descontar `qty`: ordena los candidatos por sale_priority
-// descendente (empate por created_at, determinístico) y va tomando de cada
-// uno lo que tenga, en orden, hasta cubrir `qty` o agotar candidatos —
-// reparte entre 2+ almacenes si el de mayor prioridad no alcanza. Si no hay
-// NINGÚN almacén 'venta' con este sku en esa tienda (o no hay locationId),
-// cae a `fallbackWid` (comportamiento histórico — el warehouse_id del
-// pedido/ítem) para no dejar sin resolver una venta con datos incompletos.
-// Nunca bloquea por falta de stock (mismo criterio que el resto del
-// archivo): lo que sobra tras agotar candidatos se apila sobre el de mayor
-// prioridad, para que la sobreventa quede trazada contra un único almacén.
+// ascendente (0 = más prioritario, como un ranking — 1º, 2º, 3º...; empate
+// por created_at, determinístico) y va tomando de cada uno lo que tenga, en
+// orden, hasta cubrir `qty` o agotar candidatos — reparte entre 2+ almacenes
+// si el de mayor prioridad (menor número) no alcanza. Si no hay NINGÚN
+// almacén 'venta' con este sku en esa tienda (o no hay locationId), cae a
+// `fallbackWid` (comportamiento histórico — el warehouse_id del pedido/
+// ítem) para no dejar sin resolver una venta con datos incompletos. Nunca
+// bloquea por falta de stock (mismo criterio que el resto del archivo): lo
+// que sobra tras agotar candidatos se apila sobre el de mayor prioridad,
+// para que la sobreventa quede trazada contra un único almacén.
 async function _resolveSaleWarehouses(sql, tenantId, sku, locationId, qty, fallbackWid) {
   if (!(qty > 0)) return [];
   if (!locationId) return fallbackWid ? [{ warehouseId: fallbackWid, qtyToTake: qty }] : [];
@@ -67,7 +68,7 @@ async function _resolveSaleWarehouses(sql, tenantId, sku, locationId, qty, fallb
     FROM products p
     JOIN warehouses w ON w.id = p.warehouse_id AND w.tenant_id = p.tenant_id
     WHERE p.sku = ${sku} AND p.tenant_id = ${tenantId} AND w.local_id = ${locationId} AND w.type = 'venta'
-    ORDER BY w.sale_priority DESC, w.created_at ASC
+    ORDER BY w.sale_priority ASC, w.created_at ASC
   `;
   if (!rows.length) return fallbackWid ? [{ warehouseId: fallbackWid, qtyToTake: qty }] : [];
 

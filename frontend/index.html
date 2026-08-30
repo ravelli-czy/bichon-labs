@@ -6645,10 +6645,11 @@ const DELIVERY_SLOTS = {
 // Agrupa las filas (sku, warehouse_id) de un producto en UNA fila por sku
 // para la tienda dada — suma el stock de todos sus almacenes DE VENTA
 // (ignora los de abastecimiento por completo) y toma nombre/precio/tipo del
-// almacén de mayor sale_priority (desempate: el primero que aparezca). El
-// precio ya debería ser el mismo en todos los almacenes de venta de una
-// misma tienda (se valida al guardar el producto, ver api/_warehouse_price.js),
-// así que esto normalmente no elige entre precios distintos.
+// almacén de menor sale_priority (0 = más prioritario, como un ranking;
+// desempate: el primero que aparezca). El precio ya debería ser el mismo en
+// todos los almacenes de venta de una misma tienda (se valida al guardar el
+// producto, ver api/_warehouse_price.js), así que esto normalmente no elige
+// entre precios distintos.
 function _ventaProductRowsByLocale(localeId) {
   const whs = getWarehouses();
   const bySku = new Map();
@@ -6663,7 +6664,7 @@ function _ventaProductRowsByLocale(localeId) {
         bySku.set(p.sku, { sku: p.sku, name: p.name, price: p.price, tipo: p.tipo, stock: p.stock || 0, bestPriority: wh.sale_priority || 0 });
       } else {
         g.stock += p.stock || 0;
-        if ((wh.sale_priority || 0) > g.bestPriority) { g.bestPriority = wh.sale_priority || 0; g.name = p.name; g.price = p.price; g.tipo = p.tipo; }
+        if ((wh.sale_priority || 0) < g.bestPriority) { g.bestPriority = wh.sale_priority || 0; g.name = p.name; g.price = p.price; g.tipo = p.tipo; }
       }
     });
   return [...bySku.values()];
