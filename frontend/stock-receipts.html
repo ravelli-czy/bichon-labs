@@ -156,7 +156,7 @@ body.embedded .embed-page-header{display:block}
       <div id="receipts-loading"><div class="skeleton"></div><div class="skeleton" style="opacity:.6"></div></div>
       <div style="overflow-x:auto">
         <table class="wh-table" id="receipts-table" style="display:none">
-          <thead><tr><th>Fecha</th><th>Producto</th><th>Forma de compra</th><th>Cantidad</th><th>Costo total</th><th>+ Stock</th><th>Costo unit.</th><th>Costo producto</th><th>Usuario</th><th></th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Producto</th><th>Forma de compra</th><th>Proveedor</th><th>Cantidad</th><th>Costo total</th><th>+ Stock</th><th>Costo unit.</th><th>Costo producto</th><th>Usuario</th><th></th></tr></thead>
           <tbody id="receipts-tbody"></tbody>
         </table>
       </div>
@@ -303,6 +303,7 @@ function switchTab(tab) {
 // ── Auth guard ───────────────────────────────────────────────────────────
 let PRODUCTS = [];
 let PURCHASE_FORMATS = [];
+let SUPPLIERS = [];
 let WAREHOUSE_NAMES = {}; // warehouse_id -> "Tienda — Almacén"
 let LOCALES = [];
 (async () => {
@@ -329,6 +330,8 @@ let LOCALES = [];
     // se pueden reponer acá.
     PRODUCTS = (await api('/api/products')).filter(p => (p.warehouse_id || '') !== '');
   } catch (e) { toast('⚠️ ' + e.message); }
+
+  try { SUPPLIERS = await api('/api/products?suppliers=1'); } catch (e) { toast('⚠️ ' + e.message); }
 
   await loadPurchaseFormats();
   addReceiptLine();
@@ -435,7 +438,7 @@ async function deletePurchaseFormat(id) {
 let _lines = [];
 let _lineSeq = 0;
 function addReceiptLine() {
-  _lines.push({ id: ++_lineSeq, sku: '', warehouse_id: '', format_id: '', qty_purchased: '', total_cost: '' });
+  _lines.push({ id: ++_lineSeq, sku: '', warehouse_id: '', format_id: '', qty_purchased: '', total_cost: '', supplier_id: '', new_supplier_name: '' });
   renderReceiptLines();
 }
 function removeReceiptLine(id) {
@@ -517,6 +520,60 @@ function _hideProductSuggestions(lineId) {
 function _pickProductSuggestion(lineId, sku, warehouseId) {
   updateReceiptLine(lineId, 'product', sku + '::' + warehouseId);
 }
+
+// Proveedor — obligatorio por línea: mismo combobox propio que Producto,
+// pero además permite crear un proveedor nuevo al vuelo si lo que se
+// escribió no coincide con ninguno del catálogo del tenant (se crea recién
+// al confirmar el ingreso — ver confirmReceipt/api/_stock_receipts_routes.js,
+// que además lo agrega solo a los proveedores configurados del SKU si no
+// estaba entre ellos).
+function _lineSupplierName(line) {
+  if (line.supplier_id) return (SUPPLIERS.find(s => s.id === line.supplier_id) || {}).name || '';
+  return line.new_supplier_name || '';
+}
+function _filterSupplierSuggestions(lineId, value) {
+  const box = document.getElementById(`supplier-suggest-${lineId}`);
+  if (!box) return;
+  const q = (value || '').trim().toLowerCase();
+  const matches = SUPPLIERS
+    .filter(s => !q || s.name.toLowerCase().includes(q))
+    .sort((a,b) => a.name.localeCompare(b.name))
+    .slice(0, 20);
+  const exactMatch = q && SUPPLIERS.some(s => s.name.toLowerCase() === q);
+  let html = matches.map(s => `
+    <div onmousedown="_pickSupplierSuggestion(${lineId},'${s.id.replace(/'/g,"\\'")}')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:700">${escHtml(s.name)}</div>
+    </div>`).join('');
+  if (q && !exactMatch) {
+    html += `<div onmousedown="_pickNewSupplier(${lineId},'${value.trim().replace(/'/g,"\\'")}')" style="padding:9px 12px;cursor:pointer;${matches.length ? 'border-top:1.5px solid var(--border);' : ''}color:var(--primary);font-weight:800;font-size:12.5px">
+      <i class="ti ti-plus"></i> Crear proveedor "${escHtml(value.trim())}"
+    </div>`;
+  }
+  box.innerHTML = html || `<div style="padding:10px 12px;font-size:12.5px;font-weight:600;color:var(--text3)">Escribe para buscar o crear un proveedor</div>`;
+  box.style.display = '';
+}
+function _pickSupplierSuggestion(lineId, supplierId) {
+  const line = _lines.find(l => l.id === lineId);
+  if (!line) return;
+  line.supplier_id = supplierId;
+  line.new_supplier_name = '';
+  _hideSupplierSuggestions(lineId);
+}
+function _pickNewSupplier(lineId, name) {
+  const line = _lines.find(l => l.id === lineId);
+  if (!line) return;
+  line.supplier_id = '';
+  line.new_supplier_name = name;
+  _hideSupplierSuggestions(lineId);
+}
+function _hideSupplierSuggestions(lineId) {
+  const box = document.getElementById(`supplier-suggest-${lineId}`);
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  const line = _lines.find(l => l.id === lineId);
+  const input = document.getElementById(`supplier-search-${lineId}`);
+  if (line && input) input.value = _lineSupplierName(line);
+}
+
 function renderReceiptLines() {
   const wrap = document.getElementById('receipt-lines');
 
@@ -541,6 +598,14 @@ function renderReceiptLines() {
           onfocus="_filterProductSuggestions(${line.id},this.value)"
           onblur="setTimeout(()=>_hideProductSuggestions(${line.id}),200)">
         <div class="pf-suggest" id="prod-suggest-${line.id}" style="display:none;margin-top:2px;background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;overflow:hidden"></div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Proveedor <span style="color:var(--red)">*</span></div>
+        <input class="form-input" id="supplier-search-${line.id}" placeholder="Busca o escribe para crear uno nuevo..." value="${escHtml(_lineSupplierName(line))}"
+          oninput="_filterSupplierSuggestions(${line.id},this.value)"
+          onfocus="_filterSupplierSuggestions(${line.id},this.value)"
+          onblur="setTimeout(()=>_hideSupplierSuggestions(${line.id}),200)">
+        <div class="pf-suggest" id="supplier-suggest-${line.id}" style="display:none;margin-top:2px;background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;overflow:hidden"></div>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -592,12 +657,19 @@ async function confirmReceipt() {
     // negativo tipeado a mano pasaba tal cual y corrompía el costo unitario/
     // promedio que Finanzas usa para calcular márgenes.
     if (parseFloat(line.total_cost) < 0) { errEl.textContent = `El costo total no puede ser negativo (${_lineProduct(line)?.name || line.sku})`; errEl.style.display = ''; return; }
+    if (!line.supplier_id && !(line.new_supplier_name || '').trim()) {
+      errEl.textContent = `Selecciona o ingresa un proveedor para ${_lineProduct(line)?.name || line.sku}`;
+      errEl.style.display = '';
+      return;
+    }
     payloadLines.push({
       sku: line.sku,
       warehouse_id: line.warehouse_id || '',
       format_id: line.format_id || null,
       qty_purchased: qty,
       total_cost: parseFloat(line.total_cost) || 0,
+      supplier_id: line.supplier_id || null,
+      new_supplier_name: line.supplier_id ? null : (line.new_supplier_name || '').trim(),
     });
   }
   if (!payloadLines.length) { errEl.textContent = 'Agrega al menos una línea con producto y cantidad'; errEl.style.display = ''; return; }
@@ -610,6 +682,10 @@ async function confirmReceipt() {
     receipts.forEach(r => {
       const idx = PRODUCTS.findIndex(p => p.sku === r.product.sku && (p.warehouse_id||'') === (r.product.warehouse_id||''));
       if (idx >= 0) PRODUCTS[idx] = r.product;
+      // Si el proveedor era nuevo (creado al vuelo), suma al catálogo local
+      if (r.supplier_id && !SUPPLIERS.some(s => s.id === r.supplier_id)) {
+        SUPPLIERS.push({ id: r.supplier_id, name: r.supplier_name });
+      }
     });
     const summary = receipts.map(r => `${r.product.name}: +${r.units_added} ${r.product.stock_unit||'unidad'}`).join(' · ');
     toast(`✅ Inventario ingresado — ${summary}`);
@@ -642,6 +718,7 @@ function renderReceiptsTable() {
       <td>${fmtDateTime(r.created_at)}</td>
       <td style="font-weight:700">${escHtml(r.product_name)}${WAREHOUSE_NAMES[r.warehouse_id] ? `<br><span style="color:var(--text3);font-weight:600;font-size:11px">${escHtml(WAREHOUSE_NAMES[r.warehouse_id])}</span>` : ''}</td>
       <td>${escHtml(r.form_label) || 'Directo'}</td>
+      <td>${escHtml(r.supplier_name) || '—'}</td>
       <td>${r.qty_purchased}</td>
       <td>${money(r.total_cost)}</td>
       <td style="color:var(--green-dark);font-weight:800">+${r.units_added}</td>

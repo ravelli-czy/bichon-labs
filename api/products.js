@@ -128,6 +128,42 @@ module.exports = async (req, res) => {
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
+    // ── /api/products?suppliers=1 — Catálogo de Proveedores ────────────────
+    if (req.query?.suppliers === '1') {
+      if (req.method === 'GET') {
+        const rows = await sql`SELECT * FROM suppliers WHERE tenant_id = ${tenantId} ORDER BY name`;
+        return res.json(rows);
+      }
+      if (req.method === 'POST') {
+        const { name } = req.body || {};
+        if (!name) return res.status(400).json({ error: 'name is required' });
+        const [{ max_num }] = await sql`
+          SELECT COALESCE(MAX(CAST(SUBSTRING(id FROM 5) AS INTEGER)), 0) AS max_num
+          FROM suppliers
+          WHERE id ~ '^PRV-[0-9]+$' AND tenant_id = ${tenantId}
+        `;
+        const id = 'PRV-' + String(parseInt(max_num) + 1).padStart(3, '0');
+        let row;
+        try {
+          [row] = await sql`
+            INSERT INTO suppliers (id, tenant_id, name, created_by)
+            VALUES (${id}, ${tenantId}, ${name}, ${actor})
+            RETURNING *
+          `;
+        } catch (err) {
+          if (err.code === '23505') return res.status(409).json({ error: 'Ya existe un proveedor con ese nombre' });
+          throw err;
+        }
+        await writeLog(sql, {
+          tenant_id: tenantId, actor, action: 'proveedor.creado',
+          entity_type: 'supplier', entity_id: row.id, entity_name: row.name,
+          details: { id: row.id, name: row.name },
+        });
+        return res.status(201).json(row);
+      }
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
     // ── GET — list all products ───────────────────────────────────────────
     // cost ya no es una columna propia — se computa en vivo: el unit_cost del
     // lote FIFO más viejo con stock (lo próximo que se va a vender), o si no
@@ -143,7 +179,7 @@ module.exports = async (req, res) => {
       const rows = await sql`
         SELECT p.sku, p.name, p.brand, p.cat, p.tipo, p.price, p.stock, p.threshold,
                p.created_by, p.updated_by, p.created_at, p.updated_at, p.tenant_id, p.warehouse_id,
-               p.barcode, p.groups, p.stock_unit, p.purchase_unit, p.purchase_factor, p.purchase_forms,
+               p.barcode, p.groups, p.suppliers, p.stock_unit, p.purchase_unit, p.purchase_factor, p.purchase_forms,
                COALESCE(
                  (SELECT sr.unit_cost FROM stock_receipts sr
                   WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id AND sr.remaining_qty > 0
@@ -182,12 +218,13 @@ module.exports = async (req, res) => {
         name, brand = 'Sin marca', cat = 'General',
         tipo = 'producto', price = 0,
         stock = 0, threshold = 10, warehouse_id = '', barcode = '',
-        groups = [], sku: explicitSku,
+        groups = [], suppliers = [], sku: explicitSku,
         stock_unit = 'unidad',
       } = req.body || {};
 
       if (!name) return res.status(400).json({ error: 'name is required' });
       if (!Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
+      if (!Array.isArray(suppliers)) return res.status(400).json({ error: 'suppliers must be an array' });
 
       // Precio único por tienda: si este almacén es de tipo 'venta', el
       // precio de un sku tiene que ser el mismo en todos los almacenes
@@ -216,16 +253,17 @@ module.exports = async (req, res) => {
       }
 
       const [row] = await sql`
-        INSERT INTO products (sku, name, brand, cat, tipo, price, stock, threshold, barcode, groups, created_by, tenant_id, warehouse_id, stock_unit)
-        VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${actor}, ${tenantId}, ${warehouse_id}, ${stock_unit})
+        INSERT INTO products (sku, name, brand, cat, tipo, price, stock, threshold, barcode, groups, suppliers, created_by, tenant_id, warehouse_id, stock_unit)
+        VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${JSON.stringify(suppliers)}, ${actor}, ${tenantId}, ${warehouse_id}, ${stock_unit})
         RETURNING *
       `;
 
-      // El Grupo de Productos es una propiedad del producto, no del almacén:
-      // se sincroniza a todas las filas (SKUs por almacén) de este mismo sku.
+      // El Grupo de Productos y los Proveedores configurados son propiedades
+      // del producto, no del almacén: se sincronizan a todas las filas (SKUs
+      // por almacén) de este mismo sku.
       if (explicitSku) {
         await sql`
-          UPDATE products SET groups = ${JSON.stringify(groups)}::jsonb
+          UPDATE products SET groups = ${JSON.stringify(groups)}::jsonb, suppliers = ${JSON.stringify(suppliers)}::jsonb
           WHERE sku = ${sku} AND tenant_id = ${tenantId} AND warehouse_id != ${warehouse_id}
         `;
       }

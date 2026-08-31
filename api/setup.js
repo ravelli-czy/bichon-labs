@@ -123,6 +123,10 @@ module.exports = async (req, res) => {
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS warehouse_id TEXT NOT NULL DEFAULT ''`;
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode      TEXT DEFAULT ''`;
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS groups       JSONB NOT NULL DEFAULT '[]'`;
+    // Proveedores configurados para este SKU (array de suppliers.id) — se
+    // eligen al crear/editar el SKU y se completan solos con lo que se vaya
+    // eligiendo en Ingreso de inventario (ver api/_stock_receipts_routes.js).
+    await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS suppliers    JSONB NOT NULL DEFAULT '[]'`;
     // Unidad en la que se lleva el stock (ej: "lámina", "ml", "unidad").
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_unit      TEXT NOT NULL DEFAULT 'unidad'`;
     // purchase_unit/purchase_factor (columnas legacy, ya no se escriben desde
@@ -304,6 +308,11 @@ module.exports = async (req, res) => {
     // porque son sólo historial, no lotes vivos. Ver el backfill de "lote
     // legacy" más abajo, que es lo que sí deja stock consumible por FIFO.
     await sql`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS remaining_qty INTEGER NOT NULL DEFAULT 0`;
+    // Proveedor de esta recepción — obligatorio desde la UI (ver
+    // api/_stock_receipts_routes.js). Snapshoteado (id + nombre) igual que
+    // form_label, así el historial no cambia si el proveedor se renombra después.
+    await sql`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS supplier_id   TEXT DEFAULT ''`;
+    await sql`ALTER TABLE stock_receipts ADD COLUMN IF NOT EXISTS supplier_name TEXT DEFAULT ''`;
     // Auditoría de ediciones (ver PUT en api/_stock_receipts_routes.js) — un
     // ingreso mal tipeado (cantidad o costo) ahora se puede corregir en vez
     // de quedar mal para siempre.
@@ -681,6 +690,19 @@ module.exports = async (req, res) => {
         created_at  TIMESTAMPTZ DEFAULT NOW()
       )
     `;
+    // Catálogo de proveedores por tenant — mismo patrón que product_groups
+    // (multi-tenant, nombre único por tenant). Un producto/SKU puede
+    // "tener configurados" 0..N proveedores (products.suppliers, ver abajo);
+    // Ingreso de inventario exige elegir uno por línea y, si no está entre
+    // los configurados del SKU, lo agrega automáticamente (ver
+    // api/_stock_receipts_routes.js).
+    await sql`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS tenant_id  TEXT NOT NULL DEFAULT 'TEN-001'`;
+    await sql`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS created_by TEXT DEFAULT ''`;
+    try {
+      await sql`ALTER TABLE suppliers ADD CONSTRAINT suppliers_tenant_name_unique UNIQUE (tenant_id, name)`;
+    } catch (supUniqueErr) {
+      console.log('[setup] Suppliers unique constraint skipped:', supUniqueErr.message);
+    }
 
     await sql`
       CREATE TABLE IF NOT EXISTS shipments (
