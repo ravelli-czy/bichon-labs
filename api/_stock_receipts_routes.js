@@ -46,6 +46,37 @@ async function nextReceiptId(sql, tenantId) {
   return parseInt(max_num);
 }
 
+// Proveedor obligatorio por línea: line.supplier_id referencia uno ya
+// existente en el catálogo de proveedores del tenant, o line.new_supplier_name
+// da de alta uno nuevo al vuelo (mismo patrón que los Grupos de Productos
+// se creaban al vuelo en el import de productos) — si ya existe un proveedor
+// con ese nombre (case-insensitive) para el tenant, se reusa en vez de
+// duplicarlo.
+async function resolveLineSupplier(sql, tenantId, actor, line) {
+  if (line.supplier_id) {
+    const [sup] = await sql`SELECT id, name FROM suppliers WHERE id = ${line.supplier_id} AND tenant_id = ${tenantId}`;
+    if (!sup) return { error: `Proveedor no encontrado para ${line.sku}` };
+    return { id: sup.id, name: sup.name };
+  }
+  const newName = (line.new_supplier_name || '').trim();
+  if (!newName) return { error: `Selecciona o ingresa un proveedor para ${line.sku}` };
+
+  const [existing] = await sql`SELECT id, name FROM suppliers WHERE tenant_id = ${tenantId} AND LOWER(name) = LOWER(${newName})`;
+  if (existing) return { id: existing.id, name: existing.name };
+
+  const [{ max_num }] = await sql`
+    SELECT COALESCE(MAX(CAST(SUBSTRING(id FROM 5) AS INTEGER)), 0) AS max_num
+    FROM suppliers WHERE id ~ '^PRV-[0-9]+$' AND tenant_id = ${tenantId}
+  `;
+  const id = 'PRV-' + String(parseInt(max_num) + 1).padStart(3, '0');
+  const [created] = await sql`
+    INSERT INTO suppliers (id, tenant_id, name, created_by)
+    VALUES (${id}, ${tenantId}, ${newName}, ${actor})
+    RETURNING *
+  `;
+  return { id: created.id, name: created.name };
+}
+
 async function handleStockReceiptsResource(req, res, sql, session, tenantId, actor) {
   try {
     // ── GET — historial de recepciones ────────────────────────────────────
@@ -75,6 +106,9 @@ async function handleStockReceiptsResource(req, res, sql, session, tenantId, act
         if (line.total_cost !== undefined && (!isPlainNumber(line.total_cost) || line.total_cost < 0)) {
           return res.status(400).json({ error: `Costo total inválido para ${line.sku}` });
         }
+        if (!line.supplier_id && !(line.new_supplier_name || '').trim()) {
+          return res.status(400).json({ error: `Selecciona o ingresa un proveedor para ${line.sku}` });
+        }
       }
 
       const formats = await sql`SELECT id, label, factor FROM purchase_formats WHERE tenant_id = ${tenantId}`;
@@ -93,10 +127,20 @@ async function handleStockReceiptsResource(req, res, sql, session, tenantId, act
         const totalCost = isPlainNumber(line.total_cost) ? Math.round(line.total_cost) : 0;
 
         const [product] = await sql`
-          SELECT sku, name, stock FROM products
+          SELECT sku, name, stock, suppliers FROM products
           WHERE sku = ${line.sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
         `;
         if (!product) return res.status(404).json({ error: `Producto no encontrado: ${line.sku}` });
+
+        const supplier = await resolveLineSupplier(sql, tenantId, actor, line);
+        if (supplier.error) return res.status(400).json({ error: supplier.error });
+
+        // Si el proveedor elegido no está entre los ya configurados para
+        // este SKU, se agrega solo — Ingreso de inventario es justamente
+        // donde se "descubren" los proveedores reales de cada producto.
+        const currentSuppliers = Array.isArray(product.suppliers) ? product.suppliers : [];
+        const suppliersChanged = !currentSuppliers.includes(supplier.id);
+        const newSuppliers = suppliersChanged ? [...currentSuppliers, supplier.id] : currentSuppliers;
 
         const unitsAdded = Math.floor(line.qty_purchased * factor);
         const unitCost = unitsAdded > 0 ? Math.round(totalCost / unitsAdded) : 0;
@@ -122,17 +166,26 @@ async function handleStockReceiptsResource(req, res, sql, session, tenantId, act
         // SKU/almacén ya no se pisan (lost update): cada UPDATE parte del
         // valor que Postgres tiene en ese instante, no de la lectura de arriba.
         const [updated] = await sql`
-          UPDATE products SET stock = stock + ${unitsAdded}, updated_by = ${actor}, updated_at = NOW()
+          UPDATE products SET stock = stock + ${unitsAdded}, suppliers = ${JSON.stringify(newSuppliers)}::jsonb, updated_by = ${actor}, updated_at = NOW()
           WHERE sku = ${line.sku} AND warehouse_id = ${wid} AND tenant_id = ${tenantId}
           RETURNING *
         `;
+        // El proveedor configurado es una propiedad del producto, no del
+        // almacén — se sincroniza a las demás filas (SKUs por almacén) de
+        // este mismo sku, igual que Grupo de Productos.
+        if (suppliersChanged) {
+          await sql`
+            UPDATE products SET suppliers = ${JSON.stringify(newSuppliers)}::jsonb
+            WHERE sku = ${line.sku} AND tenant_id = ${tenantId} AND warehouse_id != ${wid}
+          `;
+        }
 
         const id = 'REC-' + String(++nextNum).padStart(4, '0');
         const [receipt] = await sql`
           INSERT INTO stock_receipts
-            (id, tenant_id, sku, warehouse_id, product_name, form_label, factor, qty_purchased, total_cost, units_added, unit_cost, new_avg_cost, remaining_qty, created_by)
+            (id, tenant_id, sku, warehouse_id, product_name, form_label, factor, qty_purchased, total_cost, units_added, unit_cost, new_avg_cost, remaining_qty, supplier_id, supplier_name, created_by)
           VALUES
-            (${id}, ${tenantId}, ${line.sku}, ${wid}, ${product.name}, ${formLabel}, ${factor}, ${line.qty_purchased}, ${totalCost}, ${unitsAdded}, ${unitCost}, ${newCost}, ${unitsAdded}, ${actor})
+            (${id}, ${tenantId}, ${line.sku}, ${wid}, ${product.name}, ${formLabel}, ${factor}, ${line.qty_purchased}, ${totalCost}, ${unitsAdded}, ${unitCost}, ${newCost}, ${unitsAdded}, ${supplier.id}, ${supplier.name}, ${actor})
           RETURNING *
         `;
         receipts.push({ ...receipt, product: updated });
@@ -144,7 +197,7 @@ async function handleStockReceiptsResource(req, res, sql, session, tenantId, act
           entity_type: 'producto',
           entity_id:   line.sku,
           entity_name: `${line.sku} — ${product.name}`,
-          details:     { id, form_label: formLabel, qty_purchased: line.qty_purchased, factor, units_added: unitsAdded, total_cost: totalCost, product_cost: newCost },
+          details:     { id, form_label: formLabel, qty_purchased: line.qty_purchased, factor, units_added: unitsAdded, total_cost: totalCost, product_cost: newCost, supplier_id: supplier.id, supplier_name: supplier.name },
         });
         // Historial de movimientos de stock (tab Historial en Inventario) —
         // usa unit_cost (el costo real de ESTA compra), no newCost (el costo

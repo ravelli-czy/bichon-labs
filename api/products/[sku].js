@@ -142,6 +142,58 @@ module.exports = async (req, res) => {
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
+    // ── /api/products/:id?suppliers=1 — Catálogo de Proveedores ─────────────
+    if (req.query?.suppliers === '1') {
+      const supplierId = sku;
+
+      if (req.method === 'PUT') {
+        const { name } = req.body || {};
+        if (!name) return res.status(400).json({ error: 'name is required' });
+        let row;
+        try {
+          [row] = await sql`
+            UPDATE suppliers SET name = ${name}
+            WHERE id = ${supplierId} AND tenant_id = ${tenantId}
+            RETURNING *
+          `;
+        } catch (err) {
+          if (err.code === '23505') return res.status(409).json({ error: 'Ya existe un proveedor con ese nombre' });
+          throw err;
+        }
+        if (!row) return res.status(404).json({ error: 'Proveedor no encontrado' });
+        await writeLog(sql, {
+          tenant_id: tenantId, actor, action: 'proveedor.editado',
+          entity_type: 'supplier', entity_id: row.id, entity_name: row.name,
+          details: { id: row.id, name: row.name },
+        });
+        return res.json(row);
+      }
+
+      if (req.method === 'DELETE') {
+        const [row] = await sql`DELETE FROM suppliers WHERE id = ${supplierId} AND tenant_id = ${tenantId} RETURNING *`;
+        if (!row) return res.status(404).json({ error: 'Proveedor no encontrado' });
+
+        const supplierIdJson = JSON.stringify(supplierId);
+        await sql`
+          UPDATE products SET suppliers = (
+            SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
+            FROM jsonb_array_elements(suppliers) elem
+            WHERE elem <> ${supplierIdJson}::jsonb
+          )
+          WHERE tenant_id = ${tenantId} AND suppliers @> ${supplierIdJson}::jsonb
+        `;
+
+        await writeLog(sql, {
+          tenant_id: tenantId, actor, action: 'proveedor.eliminado',
+          entity_type: 'supplier', entity_id: row.id, entity_name: row.name,
+          details: { id: row.id, name: row.name },
+        });
+        return res.json({ ok: true, deleted: row.id });
+      }
+
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
     // cost ya no es una columna propia — se computa en vivo: el unit_cost del
     // lote FIFO más viejo con stock (lo próximo que se va a vender), o si no
     // queda ninguno activo, el del último lote registrado. Si el almacén
@@ -157,7 +209,7 @@ module.exports = async (req, res) => {
       const [row] = await sql`
         SELECT p.sku, p.name, p.brand, p.cat, p.tipo, p.price, p.stock, p.threshold,
                p.created_by, p.updated_by, p.created_at, p.updated_at, p.tenant_id, p.warehouse_id,
-               p.barcode, p.groups, p.stock_unit, p.purchase_unit, p.purchase_factor, p.purchase_forms,
+               p.barcode, p.groups, p.suppliers, p.stock_unit, p.purchase_unit, p.purchase_factor, p.purchase_forms,
                COALESCE(
                  (SELECT sr.unit_cost FROM stock_receipts sr
                   WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id AND sr.remaining_qty > 0
@@ -193,11 +245,13 @@ module.exports = async (req, res) => {
     // ── PUT — update product ──────────────────────────────────────────────
     if (req.method === 'PUT') {
       const {
-        name, brand, cat, tipo, price, stock, threshold, barcode, groups, new_warehouse_id,
+        name, brand, cat, tipo, price, stock, threshold, barcode, groups, suppliers, new_warehouse_id,
         stock_unit,
       } = req.body || {};
       if (groups !== undefined && !Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
+      if (suppliers !== undefined && !Array.isArray(suppliers)) return res.status(400).json({ error: 'suppliers must be an array' });
       const groupsJson = groups !== undefined ? JSON.stringify(groups) : null;
+      const suppliersJson = suppliers !== undefined ? JSON.stringify(suppliers) : null;
 
       if (price !== undefined && price !== null) {
         const priceMismatch = await checkSalePriceMatch(sql, tenantId, sku, new_warehouse_id || warehouse_id, price);
@@ -215,6 +269,7 @@ module.exports = async (req, res) => {
           threshold       = COALESCE(${threshold       ?? null}, threshold),
           barcode         = COALESCE(${barcode         ?? null}, barcode),
           groups          = COALESCE(${groupsJson}::jsonb, groups),
+          suppliers       = COALESCE(${suppliersJson}::jsonb, suppliers),
           warehouse_id    = COALESCE(${new_warehouse_id ?? null}, warehouse_id),
           stock_unit      = COALESCE(${stock_unit      ?? null}, stock_unit),
           updated_by = ${actor},
@@ -227,7 +282,7 @@ module.exports = async (req, res) => {
       const [row] = await sql`
         SELECT p.sku, p.name, p.brand, p.cat, p.tipo, p.price, p.stock, p.threshold,
                p.created_by, p.updated_by, p.created_at, p.updated_at, p.tenant_id, p.warehouse_id,
-               p.barcode, p.groups, p.stock_unit, p.purchase_unit, p.purchase_factor, p.purchase_forms,
+               p.barcode, p.groups, p.suppliers, p.stock_unit, p.purchase_unit, p.purchase_factor, p.purchase_forms,
                COALESCE(
                  (SELECT sr.unit_cost FROM stock_receipts sr
                   WHERE sr.tenant_id = p.tenant_id AND sr.sku = p.sku AND sr.warehouse_id = p.warehouse_id AND sr.remaining_qty > 0
@@ -258,11 +313,18 @@ module.exports = async (req, res) => {
       `;
       if (!row) return res.status(404).json({ error: 'Product not found' });
 
-      // El Grupo de Productos es una propiedad del producto, no del almacén:
-      // se sincroniza a todas las filas (SKUs por almacén) de este mismo sku.
+      // El Grupo de Productos y los Proveedores configurados son propiedades
+      // del producto, no del almacén: se sincronizan a todas las filas (SKUs
+      // por almacén) de este mismo sku.
       if (groups !== undefined) {
         await sql`
           UPDATE products SET groups = ${groupsJson}::jsonb
+          WHERE sku = ${sku} AND tenant_id = ${tenantId} AND warehouse_id != ${warehouse_id}
+        `;
+      }
+      if (suppliers !== undefined) {
+        await sql`
+          UPDATE products SET suppliers = ${suppliersJson}::jsonb
           WHERE sku = ${sku} AND tenant_id = ${tenantId} AND warehouse_id != ${warehouse_id}
         `;
       }

@@ -800,6 +800,7 @@ div[role="button"]:focus-visible{outline:2px solid var(--primary);outline-offset
         <div class="tab active" id="ctab-categorias" onclick="switchCatTab('categorias',this)">Categorías</div>
         <div class="tab" id="ctab-marcas" onclick="switchCatTab('marcas',this)">Marcas</div>
         <div class="tab" id="ctab-grupos" onclick="switchCatTab('grupos',this)">Grupos</div>
+        <div class="tab" id="ctab-proveedores" onclick="switchCatTab('proveedores',this)">Proveedores</div>
         <div class="tab" id="ctab-productos" onclick="switchCatTab('productos',this)">Productos</div>
         <div class="tab" id="ctab-skus" onclick="switchCatTab('skus',this)">SKUs</div>
       </div>
@@ -1220,6 +1221,10 @@ div[role="button"]:focus-visible{outline:2px solid var(--primary);outline-offset
       <div class="form-group">
         <div class="form-label">Grupo de Productos <span style="font-weight:600;color:var(--text3)">(opcional, puedes elegir varios)</span></div>
         <div id="p-groups-wrap" class="chip-group-wrap"></div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Proveedores <span style="font-weight:600;color:var(--text3)">(opcional, puedes elegir varios)</span></div>
+        <div id="p-suppliers-wrap" class="chip-group-wrap"></div>
       </div>
       </div><!-- /p-prod-fields -->
       <!-- El costo ya no se edita a mano acá — lo determina el lote FIFO más
@@ -2062,8 +2067,10 @@ const S = {
   ventas: [],
   locales: [],
   productGroups: [],
+  suppliers: [],
   labelTemplates: [],
   tempProdGroups: [],
+  tempProdSuppliers: [],
   tempKitGroups: [],
   tempKitItems: [],
   mesonItems: [],
@@ -2391,12 +2398,13 @@ async function markOrderDelivered(orderId) {
 // ── Load all data from API on startup ─────────
 async function initApp() {
   try {
-    const [products, kits, orders, tenantSettings, productGroups, locales, labelTemplates] = await Promise.all([
+    const [products, kits, orders, tenantSettings, productGroups, suppliers, locales, labelTemplates] = await Promise.all([
       apiFetch('/api/products'),
       apiFetch('/api/kits'),
       apiFetch('/api/orders'),
       apiFetch('/api/users?action=settings').catch(() => null),
       apiFetch('/api/products?groups=1').catch(() => []),
+      apiFetch('/api/products?suppliers=1').catch(() => []),
       apiFetch('/api/locales').catch(() => []),
       apiFetch('/api/products?labels=1').catch(() => []),
     ]);
@@ -2404,6 +2412,7 @@ async function initApp() {
     S.kits = Array.isArray(kits) ? kits : [];
     S.ventas = Array.isArray(orders) ? orders : [];
     S.productGroups = Array.isArray(productGroups) ? productGroups : [];
+    S.suppliers = Array.isArray(suppliers) ? suppliers : [];
     S.locales = Array.isArray(locales) ? locales : [];
     S.labelTemplates = Array.isArray(labelTemplates) ? labelTemplates : [];
     if (tenantSettings && typeof tenantSettings === 'object') {
@@ -3902,7 +3911,7 @@ function openAddSkuSheet(prodSku, fromInventory = false) {
   S._catalogMode = false;
   S._addSkuMode  = true;
   S._addSkuFromInventory = fromInventory;
-  S._addSkuData  = { sku: master.sku, name: master.name, brand: master.brand, cat: master.cat, tipo: master.tipo, price: master.price, groups: master.groups, stock_unit: master.stock_unit };
+  S._addSkuData  = { sku: master.sku, name: master.name, brand: master.brand, cat: master.cat, tipo: master.tipo, price: master.price, groups: master.groups, suppliers: master.suppliers, stock_unit: master.stock_unit };
   document.getElementById('prod-sheet-title').innerHTML = fromInventory
     ? '<i class="ti ti-package-import" style="color:var(--teal-dark,#0d9488)"></i> Agregar inventario'
     : '<i class="ti ti-barcode" style="color:var(--primary)"></i> Agregar SKU';
@@ -3983,6 +3992,8 @@ function openSheetProd(pushURL = true) {
   populateCatSelects('');
   S.tempProdGroups = [];
   renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
+  S.tempProdSuppliers = [];
+  renderSupplierChips('p-suppliers-wrap', S.tempProdSuppliers, 'toggleProdSupplier');
   _updateProdHistorialTabVisibility();
   openSheet('sheet-prod');
   if (pushURL) history.pushState({ prodNew: true }, '', '/' + _editPagePrefix() + '/sku/new');
@@ -4018,6 +4029,8 @@ function openSheetProdCatalog(pushURL = true) {
   populateCatSelects('');
   S.tempProdGroups = [];
   renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
+  S.tempProdSuppliers = [];
+  renderSupplierChips('p-suppliers-wrap', S.tempProdSuppliers, 'toggleProdSupplier');
   _updateProdHistorialTabVisibility();
   openSheet('sheet-prod');
   if (pushURL) history.pushState({ prodNew: true }, '', '/catalog/sku/new');
@@ -4026,6 +4039,11 @@ function openSheetProdCatalog(pushURL = true) {
 function toggleProdGroup(id, el) {
   const i = S.tempProdGroups.indexOf(id);
   if (i === -1) S.tempProdGroups.push(id); else S.tempProdGroups.splice(i, 1);
+  el.classList.toggle('selected');
+}
+function toggleProdSupplier(id, el) {
+  const i = S.tempProdSuppliers.indexOf(id);
+  if (i === -1) S.tempProdSuppliers.push(id); else S.tempProdSuppliers.splice(i, 1);
   el.classList.toggle('selected');
 }
 function toggleKitGroup(id, el) {
@@ -4182,6 +4200,8 @@ function editProd(sku, warehouseId, pushURL = true) {
   document.getElementById('p-barcode').value   = p.barcode || '';
   S.tempProdGroups = Array.isArray(p.groups) ? [...p.groups] : [];
   renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
+  S.tempProdSuppliers = Array.isArray(p.suppliers) ? [...p.suppliers] : [];
+  renderSupplierChips('p-suppliers-wrap', S.tempProdSuppliers, 'toggleProdSupplier');
   // Show/hide fields based on mode
   const wg = document.getElementById('p-warehouse-group');
   if (S._catalogMode) {
@@ -4219,7 +4239,7 @@ function editProdStock(sku, warehouseId, pushURL = true) {
   S.editingProdWarehouseId = wid;
   S._catalogMode = false;
   S._stockOnlyMode = true;
-  S._stockOnlyBaseData = { name: p.name, brand: p.brand, cat: p.cat, tipo: p.tipo, price: p.price, groups: p.groups, stock_unit: p.stock_unit };
+  S._stockOnlyBaseData = { name: p.name, brand: p.brand, cat: p.cat, tipo: p.tipo, price: p.price, groups: p.groups, suppliers: p.suppliers, stock_unit: p.stock_unit };
   document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-pencil" style="color:var(--primary)"></i> Editar stock';
   document.getElementById('prod-save-btn').innerHTML = '<i class="ti ti-check"></i> Guardar cambios';
   document.getElementById('prod-dup-btn').style.display = 'none';
@@ -4316,6 +4336,8 @@ function duplicateProd() {
   selectTipo(p.tipo || 'producto', document.querySelectorAll('.tipo-option')[tipoIndex[p.tipo] ?? 1]);
   S.tempProdGroups = Array.isArray(p.groups) ? [...p.groups] : [];
   renderGroupChips('p-groups-wrap', S.tempProdGroups, 'toggleProdGroup');
+  S.tempProdSuppliers = Array.isArray(p.suppliers) ? [...p.suppliers] : [];
+  renderSupplierChips('p-suppliers-wrap', S.tempProdSuppliers, 'toggleProdSupplier');
   // Título indicativo
   document.getElementById('prod-sheet-title').innerHTML = '<i class="ti ti-copy" style="color:var(--primary)"></i> Duplicar producto';
 }
@@ -4365,6 +4387,7 @@ async function _saveNewProductMultiRow() {
     price: parseFloat(document.getElementById('p-price').value) || 0,
     barcode: document.getElementById('p-barcode')?.value.trim() || '',
     groups:  S.tempProdGroups || [],
+    suppliers: S.tempProdSuppliers || [],
     stock_unit:      document.getElementById('p-stock-unit').value.trim() || 'unidad',
   };
 
@@ -4473,6 +4496,7 @@ async function _saveProdImpl() {
     barcode,
     warehouse_id,
     groups:    baseData ? (baseData.groups || []) : (S.tempProdGroups || []),
+    suppliers: baseData ? (baseData.suppliers || []) : (S.tempProdSuppliers || []),
     stock_unit:      baseData ? (baseData.stock_unit || 'unidad') : (document.getElementById('p-stock-unit').value.trim() || 'unidad'),
     ...(isAddSku ? { sku: S._addSkuData.sku } : {}), // explicit SKU for add-SKU mode
   };
@@ -4492,8 +4516,8 @@ async function _saveProdImpl() {
         const updated = await apiFetch(`/api/products/${S.editingProdSku}?warehouse_id=${encodeURIComponent(wid)}`, { method:'PUT', body: JSON.stringify(data) });
         const idx = S.products.findIndex(x => x.sku === S.editingProdSku && (x.warehouse_id || '') === wid);
         if (idx >= 0) S.products[idx] = updated;
-        // El grupo aplica al producto entero: sincronizar en todas sus filas locales
-        S.products.forEach(p => { if (p.sku === S.editingProdSku) p.groups = updated.groups; });
+        // El grupo y los proveedores aplican al producto entero: sincronizar en todas sus filas locales
+        S.products.forEach(p => { if (p.sku === S.editingProdSku) { p.groups = updated.groups; p.suppliers = updated.suppliers; } });
       } catch(e) {
         const prod = S.products.find(x => x.sku === S.editingProdSku && (x.warehouse_id || '') === wid);
         if (prod) Object.assign(prod, data);
@@ -5211,6 +5235,7 @@ function renderCatalogo() {
   if      (tab === 'categorias') renderCategoryTreeView(el);
   else if (tab === 'marcas')     renderCatalogList(el, 'brands',     'marcas',        'ti-building-factory', 'Ej: Artesanal, Harmony, Marley...');
   else if (tab === 'grupos')     renderProductGroupsView(el);
+  else if (tab === 'proveedores') renderSuppliersView(el);
   else if (tab === 'productos')  renderCatalogProductsView(el);
   else if (tab === 'skus')       renderCatalogSKUsView(el);
   else if (tab === 'materiales') renderMaterialesView(el);
@@ -5300,6 +5325,85 @@ async function deleteProductGroup(id) {
   }
 }
 
+// ── CATÁLOGO: Proveedores ──────────────────────────────────────────────────
+// Catálogo de proveedores del tenant. Cada SKU puede tener 0..N proveedores
+// configurados (products.suppliers) — se eligen acá al crear/editar el SKU,
+// y también se completan solos al elegir un proveedor nuevo en Ingreso de
+// inventario (ver stock-receipts.html).
+
+function renderSuppliersView(el) {
+  const suppliers = S.suppliers || [];
+  const rows = suppliers.map(s => `
+    <div class="cat-list-item" id="supplier-item-${s.id}" style="display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border);gap:8px">
+      <i class="ti ti-truck" style="font-size:15px;color:var(--primary);flex-shrink:0"></i>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:700">${esc(s.name)}</div>
+        <div style="font-size:11px;color:var(--text3);font-weight:600;margin-top:2px">${esc(s.id)}</div>
+      </div>
+      <button onclick="editSupplier('${s.id}')" style="width:30px;height:30px;border-radius:8px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-pencil" style="font-size:12px"></i></button>
+      <button onclick="deleteSupplier('${s.id}')" style="width:30px;height:30px;border-radius:8px;border:none;background:var(--red-light);color:var(--red);cursor:pointer;display:flex;align-items:center;justify-content:center"><i class="ti ti-trash" style="font-size:12px"></i></button>
+    </div>`).join('');
+  el.innerHTML = `
+    <div class="info-box" style="background:var(--primary-light);color:var(--primary);border-radius:var(--radius);padding:10px 12px;font-size:12px;font-weight:700;margin-bottom:12px">
+      <i class="ti ti-info-circle"></i> Proveedores disponibles para configurar en cada SKU. También se crean solos al elegir uno nuevo en Ingreso de inventario.
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input class="form-input" id="supplier-new-name" placeholder="Ej: Distribuidora Andes..." style="flex:1"
+        onkeydown="if(event.key==='Enter')createSupplier()">
+      <button onclick="createSupplier()" style="padding:0 14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius);font-weight:800;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:4px;white-space:nowrap;height:44px"><i class="ti ti-plus"></i> Agregar</button>
+    </div>
+    ${suppliers.length
+      ? `<div class="card" style="padding:4px 0">${rows}</div>`
+      : `<div class="empty-state"><i class="ti ti-truck"></i><p>Sin proveedores aún.<br>Agrega el primero arriba.</p></div>`
+    }`;
+}
+
+async function createSupplier() {
+  const inp = document.getElementById('supplier-new-name');
+  const name = (inp?.value || '').trim();
+  if (!name) { toast('⚠️ Escribe un nombre'); inp?.focus(); return; }
+  if (S.suppliers.some(s => s.name.toLowerCase() === name.toLowerCase())) { toast('⚠️ Ya existe'); return; }
+  try {
+    const row = await apiFetch('/api/products?suppliers=1', { method: 'POST', body: JSON.stringify({ name }) });
+    S.suppliers.push(row);
+    if (inp) inp.value = '';
+    toast('✅ Proveedor "' + name + '" creado');
+    renderCatalogo();
+  } catch (e) {
+    toast('❌ ' + (e.message || 'No se pudo crear el proveedor'));
+  }
+}
+
+async function editSupplier(id) {
+  const s = S.suppliers.find(x => x.id === id);
+  if (!s) return;
+  const name = prompt('Renombrar proveedor:', s.name);
+  if (name === null || !name.trim() || name.trim() === s.name) return;
+  try {
+    const row = await apiFetch(`/api/products/${id}?suppliers=1`, { method: 'PUT', body: JSON.stringify({ name: name.trim() }) });
+    s.name = row.name;
+    toast('✅ Proveedor renombrado');
+    renderCatalogo();
+  } catch (e) {
+    toast('❌ ' + (e.message || 'No se pudo renombrar el proveedor'));
+  }
+}
+
+async function deleteSupplier(id) {
+  const s = S.suppliers.find(x => x.id === id);
+  if (!s) return;
+  if (!confirm(`¿Eliminar el proveedor "${s.name}"?\nSe quitará de los SKUs que lo tengan configurado.`)) return;
+  try {
+    await apiFetch(`/api/products/${id}?suppliers=1`, { method: 'DELETE' });
+    S.suppliers = S.suppliers.filter(x => x.id !== id);
+    S.products.forEach(p => { if (Array.isArray(p.suppliers)) p.suppliers = p.suppliers.filter(sid => sid !== id); });
+    toast('🗑 Proveedor eliminado');
+    renderCatalogo();
+  } catch (e) {
+    toast('❌ ' + (e.message || 'No se pudo eliminar el proveedor'));
+  }
+}
+
 function renderGroupChips(containerId, selectedIds, toggleFn) {
   const wrap = document.getElementById(containerId);
   if (!wrap) return;
@@ -5307,6 +5411,14 @@ function renderGroupChips(containerId, selectedIds, toggleFn) {
   wrap.innerHTML = groups.length
     ? groups.map(g => `<div class="chip-group${(selectedIds||[]).includes(g.id) ? ' selected' : ''}" onclick="${toggleFn}(${g.id},this)"><i class="ti ti-tag"></i>${esc(g.name)}</div>`).join('')
     : `<span style="font-size:12px;color:var(--text3);font-weight:600">Sin grupos creados aún. Puedes crearlos en Catálogo → Grupos.</span>`;
+}
+function renderSupplierChips(containerId, selectedIds, toggleFn) {
+  const wrap = document.getElementById(containerId);
+  if (!wrap) return;
+  const suppliers = S.suppliers || [];
+  wrap.innerHTML = suppliers.length
+    ? suppliers.map(s => `<div class="chip-group${(selectedIds||[]).includes(s.id) ? ' selected' : ''}" onclick="${toggleFn}('${s.id}',this)"><i class="ti ti-truck"></i>${esc(s.name)}</div>`).join('')
+    : `<span style="font-size:12px;color:var(--text3);font-weight:600">Sin proveedores creados aún. Puedes crearlos en Catálogo → Proveedores.</span>`;
 }
 
 function renderCatalogList(el, key, label, icon, placeholder) {
