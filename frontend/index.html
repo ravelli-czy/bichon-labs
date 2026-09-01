@@ -5333,6 +5333,8 @@ async function deleteProductGroup(id) {
 
 function renderSuppliersView(el) {
   const suppliers = S.suppliers || [];
+  const brands = getCatalogList('brands');
+  const pendingBrands = brands.filter(b => !suppliers.some(s => s.name.toLowerCase() === b.toLowerCase()));
   const rows = suppliers.map(s => `
     <div class="cat-list-item" id="supplier-item-${s.id}" style="display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border);gap:8px">
       <i class="ti ti-truck" style="font-size:15px;color:var(--primary);flex-shrink:0"></i>
@@ -5352,10 +5354,37 @@ function renderSuppliersView(el) {
         onkeydown="if(event.key==='Enter')createSupplier()">
       <button onclick="createSupplier()" style="padding:0 14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius);font-weight:800;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:4px;white-space:nowrap;height:44px"><i class="ti ti-plus"></i> Agregar</button>
     </div>
+    ${pendingBrands.length
+      ? `<button onclick="importBrandsAsSuppliers()" style="width:100%;padding:10px 14px;margin-bottom:12px;background:var(--bg3);color:var(--text);border:1.5px dashed var(--border);border-radius:var(--radius);font-weight:800;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px"><i class="ti ti-building-factory"></i> Agregar las ${pendingBrands.length} marca${pendingBrands.length===1?'':'s'} como proveedor${pendingBrands.length===1?'':'es'}</button>`
+      : ''
+    }
     ${suppliers.length
       ? `<div class="card" style="padding:4px 0">${rows}</div>`
       : `<div class="empty-state"><i class="ti ti-truck"></i><p>Sin proveedores aún.<br>Agrega el primero arriba.</p></div>`
     }`;
+}
+
+// Crea un proveedor por cada Marca del catálogo que todavía no exista como
+// proveedor (comparación case-insensitive por nombre). Se crean de a uno
+// (no en paralelo) porque el backend asigna el ID PRV-### leyendo el máximo
+// actual en cada POST — en paralelo se pisarían entre sí.
+async function importBrandsAsSuppliers() {
+  const brands = getCatalogList('brands');
+  const pending = brands.filter(b => !S.suppliers.some(s => s.name.toLowerCase() === b.toLowerCase()));
+  if (!pending.length) { toast('⚠️ No hay marcas nuevas para agregar'); return; }
+  let created = 0;
+  for (const name of pending) {
+    try {
+      const row = await apiFetch('/api/products?suppliers=1', { method: 'POST', body: JSON.stringify({ name }) });
+      S.suppliers.push(row);
+      created++;
+    } catch (e) {
+      console.warn('[suppliers] no se pudo importar la marca "' + name + '":', e.message);
+    }
+  }
+  if (created) toast(`✅ ${created} marca${created===1?'':'s'} agregada${created===1?'':'s'} como proveedor${created===1?'':'es'}`);
+  else toast('❌ No se pudo agregar ninguna marca como proveedor');
+  renderCatalogo();
 }
 
 async function createSupplier() {
