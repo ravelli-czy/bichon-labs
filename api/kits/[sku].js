@@ -28,11 +28,12 @@ module.exports = async (req, res) => {
 
     // ── PUT — update kit ──────────────────────────────────────────────────
     if (req.method === 'PUT') {
-      const { name, price, items, stock_group_ids, groups, tipo } = req.body || {};
+      const { name, price, items, stock_group_ids, groups, tipo, brand } = req.body || {};
+      if (brand !== undefined && !(brand && brand.trim())) return res.status(400).json({ error: 'brand no puede quedar vacío' });
       const itemsJson = items !== undefined ? JSON.stringify(items) : null;
       const stockGroupIdsJson = stock_group_ids !== undefined ? JSON.stringify(stock_group_ids) : null;
       const groupsJson = groups !== undefined ? JSON.stringify(groups) : null;
-      // Editing the master propagates name/price/items/tipo to all warehouse variants
+      // Editing the master propagates name/price/items/tipo/brand to all warehouse variants
       await sql`
         UPDATE kits SET
           name            = COALESCE(${name     ?? null}, name),
@@ -41,6 +42,7 @@ module.exports = async (req, res) => {
           stock_group_ids = COALESCE(${stockGroupIdsJson}::jsonb, stock_group_ids),
           groups          = COALESCE(${groupsJson}::jsonb, groups),
           tipo            = COALESCE(${tipo     ?? null}, tipo),
+          brand           = COALESCE(${brand    ?? null}, brand),
           updated_by = ${actor},
           updated_at = NOW()
         WHERE sku = ${sku} AND tenant_id = ${tenantId}

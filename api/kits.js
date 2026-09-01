@@ -25,8 +25,11 @@ module.exports = async (req, res) => {
 
     // ── POST — create kit ─────────────────────────────────────────────────
     if (req.method === 'POST') {
-      const { name, price = 0, items = [], sku: customSku, warehouse_id = '', stock_group_ids = [], groups = [], tipo = 'producto' } = req.body || {};
+      const { name, price = 0, items = [], sku: customSku, warehouse_id = '', stock_group_ids = [], groups = [], tipo = 'producto', brand } = req.body || {};
       if (!name) return res.status(400).json({ error: 'name is required' });
+      // El KIT es lo que aparece en el catálogo de venta — a diferencia de un
+      // insumo, siempre necesita una marca propia (ver products.brand).
+      if (!brand || !brand.trim()) return res.status(400).json({ error: 'brand is required' });
       if (!Array.isArray(stock_group_ids)) return res.status(400).json({ error: 'stock_group_ids must be an array' });
       if (!Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
 
@@ -43,8 +46,8 @@ module.exports = async (req, res) => {
       }
 
       const [row] = await sql`
-        INSERT INTO kits (sku, name, price, items, stock_group_ids, groups, created_by, tenant_id, warehouse_id, tipo)
-        VALUES (${sku}, ${name}, ${price}, ${JSON.stringify(items)}, ${JSON.stringify(stock_group_ids)}, ${JSON.stringify(groups)}, ${actor}, ${tenantId}, ${warehouse_id}, ${tipo})
+        INSERT INTO kits (sku, name, price, items, stock_group_ids, groups, created_by, tenant_id, warehouse_id, tipo, brand)
+        VALUES (${sku}, ${name}, ${price}, ${JSON.stringify(items)}, ${JSON.stringify(stock_group_ids)}, ${JSON.stringify(groups)}, ${actor}, ${tenantId}, ${warehouse_id}, ${tipo}, ${brand.trim()})
         RETURNING *
       `;
 
