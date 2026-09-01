@@ -937,6 +937,43 @@ module.exports = async (req, res) => {
       console.error('[setup] category seed error:', seedErr.message);
     }
 
+    // ── Proveedores: replicar Marcas como Proveedores ──────────────────────
+    // Migración segura e idempotente — para cada tenant, agrega como
+    // proveedor cada marca de su catálogo (tenants.settings.brands) que
+    // todavía no exista como proveedor (comparación por nombre,
+    // case-insensitive). Nunca borra ni duplica; se ejecuta cada vez que
+    // corre /api/setup.
+    try {
+      const tenantsWithBrands = await sql`SELECT id, settings FROM tenants`;
+      for (const t of tenantsWithBrands) {
+        const brands = Array.isArray(t.settings?.brands) ? t.settings.brands : [];
+        if (!brands.length) continue;
+        const existing = await sql`SELECT id, name FROM suppliers WHERE tenant_id = ${t.id}`;
+        const existingNames = new Set(existing.map(s => s.name.toLowerCase()));
+        let maxNum = existing.reduce((max, s) => {
+          const m = /^PRV-(\d+)$/.exec(s.id);
+          return m ? Math.max(max, parseInt(m[1], 10)) : max;
+        }, 0);
+        for (const brand of brands) {
+          const name = (brand || '').trim();
+          if (!name || existingNames.has(name.toLowerCase())) continue;
+          maxNum++;
+          const id = 'PRV-' + String(maxNum).padStart(3, '0');
+          try {
+            await sql`
+              INSERT INTO suppliers (id, tenant_id, name, created_by)
+              VALUES (${id}, ${t.id}, ${name}, 'sistema')
+            `;
+            existingNames.add(name.toLowerCase());
+          } catch (insErr) {
+            console.error('[setup] brand→supplier insert error:', insErr.message);
+          }
+        }
+      }
+    } catch (brandsSupplierErr) {
+      console.error('[setup] brands→suppliers backfill error:', brandsSupplierErr.message);
+    }
+
     // ── Optional seeding ─────────────────────────────────────────────────────
     const doSeed = req.query?.seed === '1' || req.body?.seed === true;
     let seeded = false;
