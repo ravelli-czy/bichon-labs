@@ -527,6 +527,16 @@ function _pickProductSuggestion(lineId, sku, warehouseId) {
 // al confirmar el ingreso — ver confirmReceipt/api/_stock_receipts_routes.js,
 // que además lo agrega solo a los proveedores configurados del SKU si no
 // estaba entre ellos).
+// La lista de sugerencias se limita a los proveedores YA configurados en el
+// producto elegido (product.suppliers) — recién si el producto no tiene
+// ninguno configurado se ofrece el catálogo completo del tenant. La lista
+// nunca se despliega sola (ni al enfocar el campo): sólo al escribir o al
+// hacer click en la flecha (ver _toggleSupplierSuggestions).
+function _lineSupplierPool(line) {
+  const p = _lineProduct(line);
+  const configured = p && Array.isArray(p.suppliers) ? p.suppliers : [];
+  return configured.length ? SUPPLIERS.filter(s => configured.includes(s.id)) : SUPPLIERS;
+}
 function _lineSupplierName(line) {
   if (line.supplier_id) return (SUPPLIERS.find(s => s.id === line.supplier_id) || {}).name || '';
   return line.new_supplier_name || '';
@@ -534,8 +544,11 @@ function _lineSupplierName(line) {
 function _filterSupplierSuggestions(lineId, value) {
   const box = document.getElementById(`supplier-suggest-${lineId}`);
   if (!box) return;
+  const line = _lines.find(l => l.id === lineId);
+  if (!line) return;
   const q = (value || '').trim().toLowerCase();
-  const matches = SUPPLIERS
+  const pool = _lineSupplierPool(line);
+  const matches = pool
     .filter(s => !q || s.name.toLowerCase().includes(q))
     .sort((a,b) => a.name.localeCompare(b.name))
     .slice(0, 20);
@@ -551,6 +564,17 @@ function _filterSupplierSuggestions(lineId, value) {
   }
   box.innerHTML = html || `<div style="padding:10px 12px;font-size:12.5px;font-weight:600;color:var(--text3)">Escribe para buscar o crear un proveedor</div>`;
   box.style.display = '';
+}
+function _toggleSupplierSuggestions(lineId) {
+  const box = document.getElementById(`supplier-suggest-${lineId}`);
+  const input = document.getElementById(`supplier-search-${lineId}`);
+  if (!box) return;
+  if (box.style.display === 'none' || !box.style.display) {
+    _filterSupplierSuggestions(lineId, input ? input.value : '');
+    input?.focus();
+  } else {
+    _hideSupplierSuggestions(lineId);
+  }
 }
 function _pickSupplierSuggestion(lineId, supplierId) {
   const line = _lines.find(l => l.id === lineId);
@@ -601,10 +625,14 @@ function renderReceiptLines() {
       </div>
       <div class="form-group">
         <div class="form-label">Proveedor <span style="color:var(--red)">*</span></div>
-        <input class="form-input" id="supplier-search-${line.id}" placeholder="Busca o escribe para crear uno nuevo..." value="${escHtml(_lineSupplierName(line))}"
-          oninput="_filterSupplierSuggestions(${line.id},this.value)"
-          onfocus="_filterSupplierSuggestions(${line.id},this.value)"
-          onblur="setTimeout(()=>_hideSupplierSuggestions(${line.id}),200)">
+        <div style="position:relative">
+          <input class="form-input" id="supplier-search-${line.id}" placeholder="Busca o escribe para crear uno nuevo..." value="${escHtml(_lineSupplierName(line))}" style="padding-right:36px"
+            oninput="_filterSupplierSuggestions(${line.id},this.value)"
+            onblur="setTimeout(()=>_hideSupplierSuggestions(${line.id}),200)">
+          <button type="button" onmousedown="event.preventDefault();_toggleSupplierSuggestions(${line.id})" title="Ver proveedores disponibles" style="position:absolute;right:3px;top:3px;bottom:3px;width:30px;border:none;background:transparent;color:var(--text3);cursor:pointer;display:flex;align-items:center;justify-content:center">
+            <i class="ti ti-chevron-down"></i>
+          </button>
+        </div>
         <div class="pf-suggest" id="supplier-suggest-${line.id}" style="display:none;margin-top:2px;background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;overflow:hidden"></div>
       </div>
       <div class="form-row">
