@@ -558,7 +558,7 @@ function _filterSupplierSuggestions(lineId, value) {
       <div style="font-size:13px;font-weight:700">${escHtml(s.name)}</div>
     </div>`).join('');
   if (q && !exactMatch) {
-    html += `<div onmousedown="_pickNewSupplier(${lineId},'${value.trim().replace(/'/g,"\\'")}')" style="padding:9px 12px;cursor:pointer;${matches.length ? 'border-top:1.5px solid var(--border);' : ''}color:var(--primary);font-weight:800;font-size:12.5px">
+    html += `<div onmousedown="_pickNewSupplier(${lineId},'${value.trim().replace(/'/g,"\\'")}')" style="padding:9px 12px;cursor:pointer;${matches.length ? 'border-top:1.5px solid var(--border);' : ''}background:var(--primary-light);color:var(--primary);font-weight:800;font-size:12.5px">
       <i class="ti ti-plus"></i> Crear proveedor "${escHtml(value.trim())}"
     </div>`;
   }
