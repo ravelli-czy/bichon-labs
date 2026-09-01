@@ -629,7 +629,7 @@ function renderReceiptLines() {
           <input class="form-input" id="supplier-search-${line.id}" placeholder="Busca o escribe para crear uno nuevo..." value="${escHtml(_lineSupplierName(line))}" style="padding-right:36px"
             oninput="_filterSupplierSuggestions(${line.id},this.value)"
             onblur="setTimeout(()=>_hideSupplierSuggestions(${line.id}),200)">
-          <button type="button" onmousedown="event.preventDefault();_toggleSupplierSuggestions(${line.id})" title="Ver proveedores disponibles" style="position:absolute;right:3px;top:3px;bottom:3px;width:30px;border:none;background:transparent;color:var(--text3);cursor:pointer;display:flex;align-items:center;justify-content:center">
+          <button type="button" onmousedown="event.preventDefault();_toggleSupplierSuggestions(${line.id})" title="Ver proveedores disponibles" style="position:absolute;right:4px;top:4px;bottom:4px;width:28px;border:none;border-radius:7px;background:var(--primary-light);color:var(--primary);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px">
             <i class="ti ti-chevron-down"></i>
           </button>
         </div>
