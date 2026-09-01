@@ -853,7 +853,10 @@ div[role="button"]:focus-visible{outline:2px solid var(--primary);outline-offset
         <div class="meson-advanced" id="meson-advanced" style="display:none">
           <div class="form-label mb-2">Datos para completar la creación del KIT</div>
           <div class="form-row">
+            <div class="form-group"><div class="form-label">Marca *</div><input class="form-input" id="meson-kit-brand" list="datalist-brands" placeholder="Seleccionar o escribir..."></div>
             <div class="form-group"><div class="form-label">Precio de venta</div><input class="form-input" type="number" id="meson-kit-price" placeholder="$0" oninput="mesonUpdatePriceSummary()"></div>
+          </div>
+          <div class="form-row">
             <div class="form-group"><div class="form-label">SKU (opcional)</div><input class="form-input" id="meson-kit-sku" placeholder="KIT-001"></div>
           </div>
           <div class="form-group">
@@ -1166,18 +1169,6 @@ div[role="button"]:focus-visible{outline:2px solid var(--primary);outline-offset
         <div class="form-label">Nombre *</div>
         <input class="form-input" id="p-name" placeholder="Ej: Café en grano 250g">
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <div class="form-label">Marca</div>
-          <input class="form-input" id="p-brand" list="datalist-brands" placeholder="Seleccionar o escribir...">
-          <datalist id="datalist-brands"></datalist>
-        </div>
-        <div class="form-group">
-          <div class="form-label">Categoría</div>
-          <div id="p-cat-group"></div>
-        </div>
-      </div>
-
       <div class="form-group">
         <div class="form-label">¿Cómo usas este producto? *</div>
         <div class="tipo-selector">
@@ -1204,6 +1195,19 @@ div[role="button"]:focus-visible{outline:2px solid var(--primary);outline-offset
           </div>
         </div>
         <input type="hidden" id="p-tipo" value="producto">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <div class="form-label">Marca</div>
+          <input class="form-input" id="p-brand" list="datalist-brands" placeholder="Seleccionar o escribir...">
+          <datalist id="datalist-brands"></datalist>
+          <div id="p-brand-hint" style="display:none;font-size:11px;color:var(--text3);font-weight:600;margin-top:5px">Los insumos no llevan marca propia — la marca la lleva el KIT que los usa.</div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Categoría</div>
+          <div id="p-cat-group"></div>
+        </div>
       </div>
 
       <div class="form-row">
@@ -1301,7 +1305,13 @@ div[role="button"]:focus-visible{outline:2px solid var(--primary);outline-offset
       <div id="kit-main-fields">
         <div class="form-group"><div class="form-label">Nombre del KIT *</div><input class="form-input" id="kit-name" placeholder="Ej: Desayuno Ejecutivo"></div>
         <div class="form-row">
+          <div class="form-group">
+            <div class="form-label">Marca *</div>
+            <input class="form-input" id="kit-brand" list="datalist-brands" placeholder="Seleccionar o escribir...">
+          </div>
           <div class="form-group"><div class="form-label">Precio de venta</div><input class="form-input" type="number" id="kit-price" placeholder="$0" oninput="updateKitPriceSummary()"></div>
+        </div>
+        <div class="form-row">
           <div class="form-group"><div class="form-label">SKU (opcional)</div><input class="form-input" id="kit-sku-input" placeholder="KIT-001"></div>
         </div>
         <div class="form-group">
@@ -3786,7 +3796,15 @@ function renderVentas() {
 
 // ── FORM: PRODUCTO ────────────────────────────
 let selectedTipo = 'producto';
+// Los insumos (sólo componente de KIT) no llevan marca propia — la marca es
+// del KIT que los usa, no de cada insumo. Por eso al elegir tipo "insumo" el
+// campo Marca se bloquea con el valor reservado "Insumo" (no es una marca
+// real: no vive en el catálogo de Marcas del tenant, ver _populateCatalogLists).
+// S._prodOriginalBrand guarda la marca que el producto tenía en el servidor
+// al abrir el form, para poder restaurarla si el usuario alterna el tipo
+// varias veces SIN guardar — recién al tocar Guardar se persiste lo nuevo.
 function selectTipo(tipo, el) {
+  const prevTipo = selectedTipo;
   selectedTipo = tipo;
   document.getElementById('p-tipo').value = tipo;
   document.querySelectorAll('.tipo-option').forEach(o => o.classList.remove('selected'));
@@ -3800,6 +3818,18 @@ function selectTipo(tipo, el) {
     document.getElementById('price-label').textContent = 'Precio venta';
     if (priceGroup) priceGroup.style.display = '';
   }
+  const brandInput = document.getElementById('p-brand');
+  const brandHint  = document.getElementById('p-brand-hint');
+  if (brandInput) {
+    if (tipo === 'insumo') {
+      brandInput.value = 'Insumo';
+      brandInput.disabled = true;
+    } else {
+      brandInput.disabled = false;
+      if (prevTipo === 'insumo') brandInput.value = S._prodOriginalBrand || '';
+    }
+  }
+  if (brandHint) brandHint.style.display = tipo === 'insumo' ? '' : 'none';
 }
 function _populateWarehouseSelect(selectedId, readonly, excludeIds) {
   const warehouses = getWarehouses();
@@ -3979,6 +4009,7 @@ function openSheetProd(pushURL = true) {
   document.getElementById('prod-save-btn').innerHTML = '<i class="ti ti-check"></i> Guardar';
   document.getElementById('prod-dup-btn').style.display = 'none';
   ['p-name','p-brand','p-price'].forEach(id => document.getElementById(id).value='');
+  S._prodOriginalBrand = '';
   document.getElementById('p-stock-unit').value = 'unidad';
   document.getElementById('p-barcode-row').style.display  = '';
   document.getElementById('p-sku-section').style.display  = 'none';
@@ -4014,6 +4045,7 @@ function openSheetProdCatalog(pushURL = true) {
   document.getElementById('prod-save-btn').innerHTML = '<i class="ti ti-check"></i> Guardar';
   document.getElementById('prod-dup-btn').style.display = 'none';
   ['p-name','p-brand','p-price'].forEach(id => document.getElementById(id).value='');
+  S._prodOriginalBrand = '';
   document.getElementById('p-stock-unit').value = 'unidad';
   document.getElementById('prod-meta').style.display = 'none';
   // Catalog mode: hide warehouse + stock rows, show SKU toggle
@@ -4247,7 +4279,8 @@ function editProd(sku, warehouseId, pushURL = true) {
   document.getElementById('prod-save-btn').innerHTML = '<i class="ti ti-check"></i> Guardar cambios';
   document.getElementById('prod-dup-btn').style.display = '';
   document.getElementById('p-name').value      = p.name;
-  document.getElementById('p-brand').value     = p.brand !== 'Sin marca' ? p.brand : '';
+  S._prodOriginalBrand = p.brand !== 'Sin marca' ? p.brand : '';
+  document.getElementById('p-brand').value     = S._prodOriginalBrand;
   document.getElementById('p-price').value     = p.price || '';
   populateCatSelects(p.cat !== 'General' ? (p.cat || '') : '');
   document.getElementById('p-stock').value     = p.stock;
@@ -4392,7 +4425,8 @@ function duplicateProd() {
 
   // Pre-llenar con datos del original
   document.getElementById('p-name').value  = newName;
-  document.getElementById('p-brand').value = (p.brand && p.brand !== 'Sin marca') ? p.brand : '';
+  S._prodOriginalBrand = (p.brand && p.brand !== 'Sin marca') ? p.brand : '';
+  document.getElementById('p-brand').value = S._prodOriginalBrand;
   document.getElementById('p-price').value = p.price || '';
   document.getElementById('p-threshold').value = p.threshold || 10;
   populateCatSelects(p.cat !== 'General' ? (p.cat || '') : '');
@@ -4655,7 +4689,7 @@ function openSheetKit(pushURL = true) {
   document.querySelector('#sheet-kit .btn-primary').innerHTML = '<i class="ti ti-check"></i> Crear KIT';
   document.getElementById('kit-dup-btn').style.display = 'none';
   S.tempKitItems = [];
-  ['kit-name','kit-price','kit-sku-input'].forEach(id => document.getElementById(id).value = '');
+  ['kit-name','kit-brand','kit-price','kit-sku-input'].forEach(id => document.getElementById(id).value = '');
   selectKitTipo('producto');
   const kitSkuInputNew = document.getElementById('kit-sku-input');
   kitSkuInputNew.disabled = false;
@@ -4681,6 +4715,7 @@ function editKit(sku, pushURL = true) {
   document.querySelector('#sheet-kit .btn-primary').innerHTML = '<i class="ti ti-check"></i> Guardar cambios';
   document.getElementById('kit-dup-btn').style.display = '';
   document.getElementById('kit-name').value  = kit.name;
+  document.getElementById('kit-brand').value = kit.brand && kit.brand !== 'Sin marca' ? kit.brand : '';
   document.getElementById('kit-price').value = kit.price;
   selectKitTipo(kit.tipo === 'insumo' ? 'insumo' : 'producto');
   const skuInput = document.getElementById('kit-sku-input');
@@ -4724,6 +4759,7 @@ function duplicateKit() {
 
   // Pre-llenar con datos del original (sin SKU: se autogenera al crear)
   document.getElementById('kit-name').value  = newName;
+  document.getElementById('kit-brand').value = kit.brand && kit.brand !== 'Sin marca' ? kit.brand : '';
   document.getElementById('kit-price').value = kit.price || '';
   selectKitTipo(kit.tipo === 'insumo' ? 'insumo' : 'producto');
   S.tempKitItems = kit.items.map(i => ({...i}));
@@ -4885,7 +4921,7 @@ async function _saveKitImpl() {
     const dup = S.kits.some(k => k.sku === S._addKitSkuData.sku && (k.warehouse_id||'') === warehouseId);
     if (dup) { toast('⚠️ Este almacén ya tiene un SKU de este KIT'); return; }
     const master = S._addKitSkuData;
-    const data = { sku: master.sku, name: master.name, price: master.price, items: master.items, warehouse_id: warehouseId, stock_group_ids: master.stock_group_ids, tipo: master.tipo || 'producto' };
+    const data = { sku: master.sku, name: master.name, brand: master.brand, price: master.price, items: master.items, warehouse_id: warehouseId, stock_group_ids: master.stock_group_ids, tipo: master.tipo || 'producto' };
     if (S._apiReady) {
       try {
         const newKit = await apiFetch('/api/kits', { method:'POST', body: JSON.stringify(data) });
@@ -4905,6 +4941,8 @@ async function _saveKitImpl() {
   // ── Normal create/edit mode ───────────────────────────────────────────────
   const name = document.getElementById('kit-name').value.trim();
   if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
+  const brand = document.getElementById('kit-brand').value.trim();
+  if (!brand) { toast('⚠️ Selecciona o escribe una marca'); return; }
   if (!S.tempKitItems.length) { toast('⚠️ Agrega al menos un componente'); return; }
   const price = parseFloat(document.getElementById('kit-price').value)||0;
   if (price < 0) { toast('⚠️ El precio no puede ser negativo'); return; }
@@ -4916,14 +4954,14 @@ async function _saveKitImpl() {
   if (S.editingKitSku) {
     if (S._apiReady) {
       try {
-        const updated = await apiFetch(`/api/kits/${S.editingKitSku}`, { method:'PUT', body: JSON.stringify({ name, price, items, stock_group_ids, groups, tipo }) });
-        // Sync name/price/items/stock_group_ids/groups/tipo on all warehouse variants locally
-        S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name: updated.name, price: updated.price, items: updated.items, stock_group_ids: updated.stock_group_ids, groups: updated.groups, tipo: updated.tipo } : k);
+        const updated = await apiFetch(`/api/kits/${S.editingKitSku}`, { method:'PUT', body: JSON.stringify({ name, brand, price, items, stock_group_ids, groups, tipo }) });
+        // Sync name/brand/price/items/stock_group_ids/groups/tipo on all warehouse variants locally
+        S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name: updated.name, brand: updated.brand, price: updated.price, items: updated.items, stock_group_ids: updated.stock_group_ids, groups: updated.groups, tipo: updated.tipo } : k);
       } catch(e) {
-        S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name, price, items, stock_group_ids, groups, tipo } : k);
+        S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name, brand, price, items, stock_group_ids, groups, tipo } : k);
       }
     } else {
-      S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name, price, items, stock_group_ids, groups, tipo } : k);
+      S.kits = S.kits.map(k => k.sku === S.editingKitSku ? { ...k, name, brand, price, items, stock_group_ids, groups, tipo } : k);
     }
     S.editingKitSku = null;
     closeKitSheet();
@@ -4933,15 +4971,15 @@ async function _saveKitImpl() {
     const masterCount = S.kits.filter(k => (k.warehouse_id||'') === '').length;
     if (S._apiReady) {
       try {
-        const newKit = await apiFetch('/api/kits', { method:'POST', body: JSON.stringify({ name, price, items, sku: customSku, stock_group_ids, groups, tipo }) });
+        const newKit = await apiFetch('/api/kits', { method:'POST', body: JSON.stringify({ name, brand, price, items, sku: customSku, stock_group_ids, groups, tipo }) });
         S.kits.push(newKit);
       } catch(e) {
         const sku = customSku || 'KIT-'+String(masterCount+1).padStart(3,'0');
-        S.kits.push({ sku, name, price, items, warehouse_id: '', stock_group_ids, groups, tipo });
+        S.kits.push({ sku, name, brand, price, items, warehouse_id: '', stock_group_ids, groups, tipo });
       }
     } else {
       const sku = customSku || 'KIT-'+String(masterCount+1).padStart(3,'0');
-      S.kits.push({ sku, name, price, items, warehouse_id: '', stock_group_ids, groups, tipo });
+      S.kits.push({ sku, name, brand, price, items, warehouse_id: '', stock_group_ids, groups, tipo });
     }
     closeKitSheet();
     toast('✅ KIT creado — stock calculado automáticamente');
@@ -5171,6 +5209,8 @@ async function mesonConfirmCreate() {
   if (btn?.disabled) return;
   const name = document.getElementById('meson-kit-name').value.trim();
   if (!name) { toast('⚠️ El nombre es obligatorio'); return; }
+  const brand = document.getElementById('meson-kit-brand').value.trim();
+  if (!brand) { toast('⚠️ Selecciona o escribe una marca'); return; }
   if (!S.mesonItems.length) { toast('⚠️ Agrega al menos un SKU al mesón'); return; }
   if (btn) btn.disabled = true;
   try {
@@ -5183,11 +5223,11 @@ async function mesonConfirmCreate() {
     const stock_group_ids = (S.mesonGroups || []).slice();
     let newKit;
     if (S._apiReady) {
-      newKit = await apiFetch('/api/kits', { method: 'POST', body: JSON.stringify({ name, price, items, sku: customSku, stock_group_ids, tipo }) });
+      newKit = await apiFetch('/api/kits', { method: 'POST', body: JSON.stringify({ name, brand, price, items, sku: customSku, stock_group_ids, tipo }) });
     } else {
       const masterCount = S.kits.filter(k => (k.warehouse_id || '') === '').length;
       const sku = customSku || 'KIT-' + String(masterCount + 1).padStart(3, '0');
-      newKit = { sku, name, price, items, warehouse_id: '', stock_group_ids, tipo };
+      newKit = { sku, name, brand, price, items, warehouse_id: '', stock_group_ids, tipo };
     }
     S.kits.push(newKit);
     mesonReset();
@@ -5205,6 +5245,7 @@ function mesonReset() {
   S.mesonItems = [];
   S.mesonGroups = [];
   document.getElementById('meson-kit-name').value = '';
+  document.getElementById('meson-kit-brand').value = '';
   document.getElementById('meson-kit-price').value = '';
   document.getElementById('meson-kit-sku').value = '';
   selectMesonKitTipo('producto');

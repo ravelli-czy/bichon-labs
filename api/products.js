@@ -226,6 +226,10 @@ module.exports = async (req, res) => {
       if (!Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
       if (!Array.isArray(suppliers)) return res.status(400).json({ error: 'suppliers must be an array' });
 
+      // Los insumos no llevan marca propia — se fuerza en servidor (no sólo
+      // en el form) para que no se pueda evadir llamando la API directo.
+      const finalBrand = tipo === 'insumo' ? 'Insumo' : brand;
+
       // Precio único por tienda: si este almacén es de tipo 'venta', el
       // precio de un sku tiene que ser el mismo en todos los almacenes
       // 'venta' de esa misma tienda — si no, el selector de Ventas (que
@@ -254,7 +258,7 @@ module.exports = async (req, res) => {
 
       const [row] = await sql`
         INSERT INTO products (sku, name, brand, cat, tipo, price, stock, threshold, barcode, groups, suppliers, created_by, tenant_id, warehouse_id, stock_unit)
-        VALUES (${sku}, ${name}, ${brand}, ${cat}, ${tipo}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${JSON.stringify(suppliers)}, ${actor}, ${tenantId}, ${warehouse_id}, ${stock_unit})
+        VALUES (${sku}, ${name}, ${finalBrand}, ${cat}, ${tipo}, ${price}, ${stock}, ${threshold}, ${barcode}, ${JSON.stringify(groups)}, ${JSON.stringify(suppliers)}, ${actor}, ${tenantId}, ${warehouse_id}, ${stock_unit})
         RETURNING *
       `;
 
@@ -275,7 +279,7 @@ module.exports = async (req, res) => {
         entity_type: 'producto',
         entity_id:   sku,
         entity_name: `${sku} — ${name}`,
-        details:     { sku, name, brand, cat, tipo, stock },
+        details:     { sku, name, brand: finalBrand, cat, tipo, stock },
       });
 
       return res.status(201).json(row);

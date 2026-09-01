@@ -185,6 +185,10 @@ module.exports = async (req, res) => {
     // cuenta si comparte alguno de esos grupos acá. Vacío ([]) = sigue
     // contando siempre, igual que antes de que existiera este campo.
     await sql`ALTER TABLE kits ADD COLUMN IF NOT EXISTS groups JSONB NOT NULL DEFAULT '[]'`;
+    // Marca del KIT — el KIT es lo que aparece en el catálogo de venta, así
+    // que lleva su propia marca (independiente de la de sus componentes/
+    // insumos, que no llevan marca propia — ver products.brand='Insumo').
+    await sql`ALTER TABLE kits ADD COLUMN IF NOT EXISTS brand TEXT NOT NULL DEFAULT 'Sin marca'`;
     // Migrate kits PK → (sku, warehouse_id, tenant_id) — warehouse variants share master SKU
     try {
       await sql`ALTER TABLE kits DROP CONSTRAINT IF EXISTS kits_pkey CASCADE`;
@@ -972,6 +976,39 @@ module.exports = async (req, res) => {
       }
     } catch (brandsSupplierErr) {
       console.error('[setup] brands→suppliers backfill error:', brandsSupplierErr.message);
+    }
+
+    // ── Productos: forzar Marca "Insumo" en los que son sólo insumo ────────
+    // Los insumos no llevan marca propia — corrige los que quedaron con otra
+    // marca o "Sin marca" antes de este cambio. Transversal a todos los
+    // tenants (es una corrección de dato interno, no una marca de negocio).
+    // Idempotente — no-op si ya están todos en "Insumo".
+    try {
+      await sql`UPDATE products SET brand = 'Insumo' WHERE tipo = 'insumo' AND brand IS DISTINCT FROM 'Insumo'`;
+    } catch (insumoBrandErr) {
+      console.error('[setup] insumo brand backfill error:', insumoBrandErr.message);
+    }
+
+    // ── Kits: Marca "Harmony" — sólo para el tenant Harmony ────────────────
+    // A diferencia del backfill de arriba, esto NO es transversal: "Harmony"
+    // es la marca de un tenant puntual, no un default global para todos los
+    // clientes del sistema. Sólo toca los kits del tenant cuyo nombre es
+    // "Harmony", y de paso la registra en su catálogo de Marcas si no existía.
+    try {
+      const [harmonyTenant] = await sql`SELECT id, settings FROM tenants WHERE name ILIKE 'Harmony' LIMIT 1`;
+      if (harmonyTenant) {
+        const brands = Array.isArray(harmonyTenant.settings?.brands) ? harmonyTenant.settings.brands : [];
+        if (!brands.some(b => (b || '').trim().toLowerCase() === 'harmony')) {
+          const newBrands = [...brands, 'Harmony'];
+          await sql`
+            UPDATE tenants SET settings = COALESCE(settings, '{}')::jsonb || ${JSON.stringify({ brands: newBrands })}::jsonb
+            WHERE id = ${harmonyTenant.id}
+          `;
+        }
+        await sql`UPDATE kits SET brand = 'Harmony' WHERE tenant_id = ${harmonyTenant.id} AND brand = 'Sin marca'`;
+      }
+    } catch (harmonyBrandErr) {
+      console.error('[setup] harmony kits brand backfill error:', harmonyBrandErr.message);
     }
 
     // ── Optional seeding ─────────────────────────────────────────────────────

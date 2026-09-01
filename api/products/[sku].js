@@ -279,6 +279,16 @@ module.exports = async (req, res) => {
       // new_warehouse_id (mover el SKU a otro almacén) cambia la PK — hay que
       // volver a buscar por el warehouse_id nuevo, no el original.
       const finalWarehouseId = new_warehouse_id ?? warehouse_id;
+
+      // Los insumos no llevan marca propia — se fuerza en servidor (no sólo
+      // en el form) para que no se pueda evadir llamando la API directo.
+      // Corre después del UPDATE de arriba para ver el tipo ya resuelto
+      // (el que vino en el body, o si no vino, el que ya tenía en la BD).
+      await sql`
+        UPDATE products SET brand = 'Insumo'
+        WHERE sku = ${sku} AND warehouse_id = ${finalWarehouseId} AND tenant_id = ${tenantId} AND tipo = 'insumo'
+      `;
+
       const [row] = await sql`
         SELECT p.sku, p.name, p.brand, p.cat, p.tipo, p.price, p.stock, p.threshold,
                p.created_by, p.updated_by, p.created_at, p.updated_at, p.tenant_id, p.warehouse_id,
